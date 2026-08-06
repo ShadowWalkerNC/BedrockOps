@@ -2,11 +2,16 @@ import http from 'http';
 import { app } from './app';
 import { config } from './config';
 import { setupWebSocketRouter } from './ws/router';
+import { agentGateway } from './ws/agentGateway';
 import { db, ServerStatus, BackupRecord, BedrockServer } from '@mc-admin/db';
 import { BackupEngine } from '@mc-admin/backups';
 import { PipelineEngine } from '@mc-admin/pipelines';
+import { HostProviderFactory } from '@mc-admin/bedrock';
 
 export { app };
+
+// Wire Docker agent HostProvider to the live WebSocket tunnel gateway.
+HostProviderFactory.bindAgentTunnel(agentGateway);
 
 export class ApiServer {
   public static async getServers() {
