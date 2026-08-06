@@ -739,7 +739,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       BackupEngine.completeBackup(backup.id, 20_971_520);
 
       expect(backup.id).toBeDefined();
-      expect(backup.filename).toMatch(/^backup_srv_bedrock_1_.*\.zip$/);
+      expect(backup.filename).toMatch(/^backup_srv_bedrock_1_.*\.tar\.gz$/);
       expect(backup.storagePath).toBe(`/backups/srv_bedrock_1/${backup.filename}`);
       expect(backup.status).toBe(BackupStatus.COMPLETED);
     });

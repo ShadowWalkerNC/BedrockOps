@@ -111,6 +111,7 @@ export interface BackupRecord {
   filename: string;
   fileSizeBytes: number;
   storageUrl?: string;
+  sha256?: string;
   verified?: boolean;
   status: BackupStatus;
   isManual: boolean;

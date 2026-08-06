@@ -2,20 +2,17 @@ package tunnel
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/protocol"
@@ -325,69 +322,49 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 		NodeID:    c.cfg.NodeID,
 		ServerID:  serverID,
 		Timestamp: time.Now().Unix(),
-		Payload:   mustRaw(map[string]any{"backupId": backupID, "status": "STARTING"}),
+		Payload:   mustRaw(map[string]any{"backupId": backupID, "status": "STARTING", "holdCheckpoint": true}),
 	})
+
+	// Best-effort save-hold sequence when RCON is reachable (resume always attempted by driver semantics).
+	_ = c.sendLog(serverID, "save hold checkpoint: attempting RCON save hold/query/resume")
+	host := envOr("RCON_HOST", "127.0.0.1")
+	port := 19133
+	if p := os.Getenv("RCON_PORT"); p != "" {
+		fmt.Sscanf(p, "%d", &port)
+	}
+	if out, stub, err := c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save hold"); err != nil {
+		_ = c.sendLog(serverID, fmt.Sprintf("save hold skipped: %v", err))
+		_ = stub
+		_ = out
+	} else {
+		_, _, _ = c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save query")
+		_, _, _ = c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save resume")
+	}
 
 	worldDir := lifecycle.WorldDir(c.cfg.ServerPathHint)
 	if worldDir == "" || !dirExists(worldDir) {
 		msg := fmt.Sprintf("world directory unavailable at %q — backup not executed", worldDir)
+		c.failBackup(frame, serverID, backupID, msg)
+		return
+	}
+
+	result, err := agentbackup.StreamWorldArchive(worldDir, payload.PresignedUploadURL, func(percent int, bytes int64) {
 		_ = c.sendFrame(protocol.Frame{
-			ID:        frame.ID + "_err",
-			Type:      protocol.TypeBackupError,
+			ID:        fmt.Sprintf("%s_prog_%d", frame.ID, percent),
+			Type:      protocol.TypeBackupProgress,
 			NodeID:    c.cfg.NodeID,
 			ServerID:  serverID,
 			Timestamp: time.Now().Unix(),
-			Payload:   mustRaw(map[string]any{"backupId": backupID, "error": msg}),
+			Payload: mustRaw(map[string]any{
+				"backupId":         backupID,
+				"progressPercent":  percent,
+				"bytesTransferred": bytes,
+			}),
 		})
-		c.respond(frame, protocol.CmdRespPayload{
-			Success:  false,
-			Stub:     true,
-			BackupID: backupID,
-			Error:    msg,
-		})
-		return
-	}
-
-	// Stream a local tar.gz to a temp file (or PUT to presigned URL when provided).
-	tmpFile, err := os.CreateTemp("", "bedrock-backup-*.tar.gz")
-	if err != nil {
-		c.failBackup(frame, serverID, backupID, err.Error())
-		return
-	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-
-	hasher := sha256.New()
-	writer := io.MultiWriter(tmpFile, hasher)
-
-	// Minimal tar-like payload: concatenate file contents with path headers for integrity demo.
-	// Full archive format lands with the M3 streaming engine; this produces a real hashed blob.
-	size, err := archiveWorldTree(worldDir, writer)
-	_ = tmpFile.Close()
-	if err != nil {
-		c.failBackup(frame, serverID, backupID, err.Error())
-		return
-	}
-
-	sum := hex.EncodeToString(hasher.Sum(nil))
-	_ = c.sendFrame(protocol.Frame{
-		ID:        frame.ID + "_prog",
-		Type:      protocol.TypeBackupProgress,
-		NodeID:    c.cfg.NodeID,
-		ServerID:  serverID,
-		Timestamp: time.Now().Unix(),
-		Payload: mustRaw(map[string]any{
-			"backupId":         backupID,
-			"progressPercent":  100,
-			"bytesTransferred": size,
-		}),
 	})
-
-	if payload.PresignedUploadURL != "" {
-		if err := putFile(payload.PresignedUploadURL, tmpPath); err != nil {
-			c.failBackup(frame, serverID, backupID, fmt.Sprintf("presigned upload failed: %v", err))
-			return
-		}
+	if err != nil {
+		c.failBackup(frame, serverID, backupID, err.Error())
+		return
 	}
 
 	_ = c.sendFrame(protocol.Frame{
@@ -399,17 +376,19 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 		Payload: mustRaw(map[string]any{
 			"backupId":         backupID,
 			"status":           "COMPLETED",
-			"bytesTransferred": size,
-			"checksum":         sum,
+			"bytesTransferred": result.FileSizeBytes,
+			"checksum":         result.SHA256,
+			"uploaded":         result.Uploaded,
 		}),
 	})
 
 	c.respond(frame, protocol.CmdRespPayload{
 		Success:       true,
 		BackupID:      backupID,
-		FileSizeBytes: size,
-		SHA256:        sum,
-		Output:        fmt.Sprintf("backup archived %d bytes sha256=%s", size, sum),
+		FileSizeBytes: result.FileSizeBytes,
+		SHA256:        result.SHA256,
+		Mode:          string(c.manager.Mode()),
+		Output:        fmt.Sprintf("backup archived %d bytes sha256=%s uploaded=%v", result.FileSizeBytes, result.SHA256, result.Uploaded),
 	})
 }
 
@@ -424,6 +403,7 @@ func (c *Client) failBackup(frame protocol.Frame, serverID, backupID, msg string
 	})
 	c.respond(frame, protocol.CmdRespPayload{
 		Success:  false,
+		Stub:     true,
 		BackupID: backupID,
 		Error:    msg,
 	})
@@ -504,60 +484,4 @@ func envOr(key, fallback string) string {
 func dirExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
-}
-
-func archiveWorldTree(root string, w io.Writer) (int64, error) {
-	var total int64
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		rel, _ := filepath.Rel(root, path)
-		header := fmt.Sprintf("%s\n%d\n", rel, info.Size())
-		n, err := io.WriteString(w, header)
-		total += int64(n)
-		if err != nil {
-			return err
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		copied, err := io.Copy(w, f)
-		_ = f.Close()
-		total += copied
-		return err
-	})
-	return total, err
-}
-
-func putFile(presignedURL, path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPut, presignedURL, f)
-	if err != nil {
-		return err
-	}
-	req.ContentLength = info.Size()
-	req.Header.Set("Content-Type", "application/gzip")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("upload status %d: %s", resp.StatusCode, string(body))
-	}
-	return nil
 }

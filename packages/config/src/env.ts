@@ -9,6 +9,12 @@ export const envSchema = z.object({
   RCON_HOST: z.string().default('127.0.0.1'),
   RCON_PORT: z.coerce.number().int().positive().default(19133),
   RCON_PASSWORD: z.string().default('secret_rcon_pass'),
+  // Cloudflare R2 (optional — streaming backups stub when unset)
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_JURISDICTION: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

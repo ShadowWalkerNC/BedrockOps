@@ -113,8 +113,8 @@ rcon.port=19133
       expect(manualBackup.id).toBeDefined();
       expect(manualBackup.serverId).toBe(serverId);
       expect(manualBackup.isManual).toBe(true);
-      expect(manualBackup.status).toBe(BackupStatus.COMPLETED);
-      expect(manualBackup.filename).toMatch(/^backup_srv_bedrock_1_.*\.zip$/);
+      expect(manualBackup.status).toBe(BackupStatus.PENDING);
+      expect(manualBackup.filename).toMatch(/^backup_srv_bedrock_1_.*\.tar\.gz$/);
       expect(manualBackup.storagePath).toContain(serverId);
 
       const autoBackup = BackupEngine.triggerBackup({

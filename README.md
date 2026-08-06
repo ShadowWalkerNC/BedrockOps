@@ -84,6 +84,14 @@ pnpm --filter @mc-admin/agent agent:build
 
 Set `-bds-bin /path/to/bedrock_server` for live process management.
 
+### Streaming backups (Cloudflare R2)
+
+Manual backups (`POST /api/v1/backups`) run the save-hold command plan, ask the connected agent to stream a `tar.gz` archive, and optionally PUT to an R2 presigned URL when these env vars are set:
+
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+
+Without R2 credentials the control plane returns an honest presign stub; the agent still archives locally when a world directory exists.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` at the repo root. Key variables:
