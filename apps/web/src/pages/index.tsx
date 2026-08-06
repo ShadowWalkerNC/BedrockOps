@@ -392,7 +392,7 @@ export default function BedrockAdminDashboard() {
                       <tr key={b.id} style={{ borderBottom: '1px solid #1f2937' }}>
                         <td style={{ padding: '10px', fontFamily: 'monospace', color: '#60a5fa' }}>{b.filename}</td>
                         <td style={{ padding: '10px' }}>{b.serverId}</td>
-                        <td style={{ padding: '10px' }}>{(b.fileSizeBytes ? (b.fileSizeBytes / (1024 * 1024)).toFixed(1) : b.sizeMb || 40)} MB</td>
+                        <td style={{ padding: '10px' }}>{(b.fileSizeBytes ? (b.fileSizeBytes / (1024 * 1024)).toFixed(1) : '0.0')} MB</td>
                         <td style={{ padding: '10px' }}>{b.isManual ? 'Manual' : 'Scheduled'}</td>
                         <td style={{ padding: '10px' }}>
                           <Badge status={b.status} />

@@ -16,6 +16,7 @@
     "@mc-admin/bedrock": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "typescript": "^5.4.0",
     "ts-node": "^10.9.2",
     "vitest": "^1.6.0"
