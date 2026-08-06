@@ -13,6 +13,10 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # Prisma schema validation requires a URL even when using the memory adapter at runtime.
+      DATABASE_URL: postgresql://mcadmin:mcadmin_password@localhost:5432/minecraft_admin
+      JWT_SECRET: dev_jwt_secret_change_in_production
 
     steps:
       - name: Checkout
