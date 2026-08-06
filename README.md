@@ -66,7 +66,23 @@ pnpm dev
 |---------|-----|
 | Web dashboard | http://localhost:3000 |
 | API control plane | http://localhost:4000 |
-| Agent daemon | http://localhost:5050 |
+| Agent daemon (TS shim) | http://localhost:5050 |
+
+### Go agent (CGNAT-safe outbound tunnel)
+
+Production process control lives in the Go binary under `apps/agent/cmd/bedrock-agent`. It dials the control plane WebSocket at `/api/v1/ws/agent` (outbound-only, CGNAT-friendly), handles power actions, heartbeats, metrics, and backup triggers.
+
+```bash
+# Build
+pnpm --filter @mc-admin/agent agent:build
+
+# Run against local API (simulated lifecycle when -bds-bin is omitted)
+./apps/agent/bin/bedrock-agent \
+  -control-plane http://127.0.0.1:4000 \
+  -node-id node_docker_agent_1
+```
+
+Set `-bds-bin /path/to/bedrock_server` for live process management.
 
 ## Environment variables
 

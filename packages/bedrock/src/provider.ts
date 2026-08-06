@@ -37,42 +37,74 @@ export interface HostProvider {
   triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult>;
 }
 
+/** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
+export interface AgentTunnelGatewayLike {
+  sendCommand(nodeId: string, serverId: string, command: string, payload: Record<string, unknown>): Promise<unknown>;
+  isNodeConnected?(nodeId: string): boolean;
+}
+
 export class DockerAgentHostProvider implements HostProvider {
   public readonly type = HostProviderType.DOCKER_AGENT;
 
-  constructor(private tunnelGateway?: any) {}
+  constructor(private tunnelGateway?: AgentTunnelGatewayLike) {}
 
-  public async startServer(server: BedrockServer): Promise<boolean> {
+  public setTunnelGateway(gateway: AgentTunnelGatewayLike): void {
+    this.tunnelGateway = gateway;
+  }
+
+  private async power(server: BedrockServer, action: 'START' | 'STOP' | 'KILL' | 'RESTART'): Promise<boolean> {
     if (!server.agentId) {
       throw new Error(`Server ${server.id} has no assigned agentNode`);
     }
-    if (this.tunnelGateway) {
-      await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action: 'START' });
-      return true;
+    if (!this.tunnelGateway) {
+      console.warn(`[STUB] DockerAgentHostProvider.${action} — no tunnel gateway registered for agent ${server.agentId}`);
+      return false;
     }
-    // TODO: Wire agent tunnel in Phase 2
-    console.warn(`[STUB] DockerAgentHostProvider.startServer — no tunnel for agent ${server.agentId}`);
-    return false;
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      console.warn(`[STUB] DockerAgentHostProvider.${action} — agent ${server.agentId} is not connected`);
+      return false;
+    }
+    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action }) as {
+      success?: boolean;
+    };
+    return result?.success !== false;
+  }
+
+  public async startServer(server: BedrockServer): Promise<boolean> {
+    return this.power(server, 'START');
   }
 
   public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
-    if (!server.agentId) {
-      throw new Error(`Server ${server.id} has no assigned agentNode`);
-    }
-    if (this.tunnelGateway) {
-      await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action: force ? 'KILL' : 'STOP' });
-      return true;
-    }
-    console.warn(`[STUB] DockerAgentHostProvider.stopServer — no tunnel for agent ${server.agentId}`);
-    return false;
+    return this.power(server, force ? 'KILL' : 'STOP');
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
-    await this.stopServer(server);
-    return this.startServer(server);
+    return this.power(server, 'RESTART');
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
+    if (this.tunnelGateway && server.agentId) {
+      if (!this.tunnelGateway.isNodeConnected || this.tunnelGateway.isNodeConnected(server.agentId)) {
+        try {
+          const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'GET_STATUS', {}) as {
+            cpuPercent?: number;
+            memoryMb?: number;
+            totalMemoryMb?: number;
+            uptimeSeconds?: number;
+            activePlayers?: number;
+          };
+          return {
+            cpuPercent: result.cpuPercent ?? 0,
+            memoryMb: result.memoryMb ?? 0,
+            totalMemoryMb: result.totalMemoryMb,
+            uptimeSeconds: result.uptimeSeconds ?? 0,
+            activePlayers: result.activePlayers ?? 0,
+          };
+        } catch {
+          // Fall through to empty metrics when agent is unreachable
+        }
+      }
+    }
     return {
       cpuPercent: 0,
       memoryMb: 0,
@@ -83,7 +115,16 @@ export class DockerAgentHostProvider implements HostProvider {
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
     if (this.tunnelGateway && server.agentId) {
-      return this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', { command });
+      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+        return `[DockerAgent] Agent ${server.agentId} not connected — RCON not executed`;
+      }
+      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', {
+        rconCommand: command
+      }) as { output?: string; error?: string; stub?: boolean };
+      if (result?.error && !result.output) {
+        return result.error;
+      }
+      return result?.output ?? JSON.stringify(result);
     }
     return `[DockerAgent] Executed "${command}" on server ${server.name} (${server.id})`;
   }
@@ -97,7 +138,28 @@ export class DockerAgentHostProvider implements HostProvider {
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
     if (this.tunnelGateway && server.agentId) {
-      return this.tunnelGateway.sendCommand(server.agentId, server.id, 'TRIGGER_BACKUP', options);
+      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+        return {
+          success: false,
+          stub: true,
+          backupId: options.backupId,
+          error: `[STUB] Agent ${server.agentId} not connected — backup not executed on host.`
+        };
+      }
+      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'TRIGGER_BACKUP', {
+        backupId: options.backupId,
+        presignedUploadUrl: options.presignedUploadUrl,
+        isManual: options.isManual,
+        isHoldCheckpoint: options.isHoldCheckpoint
+      }) as BackupResult;
+      return {
+        success: !!result?.success,
+        stub: result?.stub,
+        backupId: result?.backupId ?? options.backupId,
+        fileSizeBytes: result?.fileSizeBytes,
+        sha256: result?.sha256,
+        error: result?.error
+      };
     }
     return {
       success: false,
@@ -208,6 +270,18 @@ export class HostProviderFactory {
     this.providers.set(type, provider);
   }
 
+  /** Bind the live agent WebSocket gateway into the Docker agent provider. */
+  public static bindAgentTunnel(gateway: AgentTunnelGatewayLike): DockerAgentHostProvider {
+    const existing = this.providers.get(HostProviderType.DOCKER_AGENT);
+    if (existing instanceof DockerAgentHostProvider) {
+      existing.setTunnelGateway(gateway);
+      return existing;
+    }
+    const provider = new DockerAgentHostProvider(gateway);
+    this.providers.set(HostProviderType.DOCKER_AGENT, provider);
+    return provider;
+  }
+
   public static getProvider(type: HostProviderType | string): HostProvider {
     const enumType = type as HostProviderType;
     let provider = this.providers.get(enumType);
@@ -230,5 +304,10 @@ export class HostProviderFactory {
     }
 
     return provider;
+  }
+
+  /** Test helper — clears cached provider instances. */
+  public static reset(): void {
+    this.providers.clear();
   }
 }
