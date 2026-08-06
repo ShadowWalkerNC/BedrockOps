@@ -5,7 +5,7 @@ import { AuditLogger } from '@mc-admin/audit';
 import { BackupEngine } from '@mc-admin/backups';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
-export const backupRouter = Router();
+export const backupRouter: Router = Router();
 
 backupRouter.use(authenticateJwt);
 
@@ -33,13 +33,9 @@ backupRouter.post('/', requireRole(UserRole.MODERATOR), async (req: Authenticate
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
 
-  const backupRecord = await BackupEngine.triggerBackup(server, isManual);
-  if (notes) {
-    backupRecord.notes = notes;
-  }
+  const backupRecord = BackupEngine.triggerBackup({ serverId, isManual, notes });
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'BACKUP_TRIGGER',
@@ -63,17 +59,20 @@ backupRouter.post('/:id/restore', requireRole(UserRole.ADMIN), async (req: Authe
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Target server not found' });
   }
 
-  const success = await BackupEngine.restoreBackup(server, backup.id);
+  const result = BackupEngine.restoreBackup(backup.id);
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'BACKUP_RESTORE',
     entityType: 'BackupRecord',
     entityId: backup.id,
-    metadata: { serverId: server.id, success }
+    metadata: { serverId: server.id, success: result.success, stub: result.stub }
   });
 
-  return res.json({ success, backup, server });
+  if (!result.success) {
+    return res.status(501).json({ error: 'NOT_IMPLEMENTED', ...result, backup, server });
+  }
+
+  return res.json({ ...result, backup, server });
 });

@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { db } from '@mc-admin/db';
 import { authenticateJwt, AuthenticatedRequest } from '../middleware/auth.middleware';
 
-export const auditRouter = Router();
+export const auditRouter: Router = Router();
 
 auditRouter.use(authenticateJwt);
 

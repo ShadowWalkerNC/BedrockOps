@@ -5,7 +5,7 @@ import { AuditLogger } from '@mc-admin/audit';
 import { ModerationService } from '@mc-admin/moderation';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
-export const moderationRouter = Router();
+export const moderationRouter: Router = Router();
 
 moderationRouter.use(authenticateJwt);
 
@@ -47,7 +47,6 @@ moderationRouter.post('/', requireRole(UserRole.MODERATOR), (req: AuthenticatedR
   }
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: `MODERATION_${actionType}`,

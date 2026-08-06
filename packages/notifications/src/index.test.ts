@@ -13,10 +13,11 @@ describe('NotificationDispatcher Package', () => {
     expect(payload.embeds![0].color).toBe(0x22c55e);
   });
 
-  it('dispatches webhook payload into queue', async () => {
+  it('queues webhook payload in memory with stub result', async () => {
     const payload = NotificationDispatcher.formatBackupEmbed('Survival Realm', 'backup_123.zip', true, 10485760);
-    const success = await NotificationDispatcher.sendWebhook('https://discord.com/api/webhooks/test', payload);
-    expect(success).toBe(true);
+    const result = await NotificationDispatcher.sendWebhook('https://discord.com/api/webhooks/test', payload);
+    expect(result.queued).toBe(true);
+    expect(result.stub).toBe(true);
     expect(NotificationDispatcher.sentMessages.length).toBe(1);
     expect(NotificationDispatcher.sentMessages[0].webhookUrl).toBe('https://discord.com/api/webhooks/test');
   });

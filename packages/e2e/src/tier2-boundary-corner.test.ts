@@ -427,7 +427,7 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       const server = db.servers[0];
 
       const restarted = await provider.restartServer(server);
-      expect(restarted).toBe(true);
+      expect(restarted).toBe(false);
     });
 
     it('PterodactylHostProvider restartServer stops and starts server', async () => {
@@ -599,7 +599,7 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       });
 
       expect(backup.storagePath).toBe(`/backups/srv_stream_1/${backup.filename}`);
-      expect(backup.notes).toBe('Streaming test backup');
+      expect(backup.notes).toContain('Streaming test backup');
     });
 
     it('handles backup creation with special characters in notes', () => {
@@ -609,11 +609,11 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
         notes: 'Pre-update backup! #world & snapshot @2026',
       });
 
-      expect(backup.notes).toBe('Pre-update backup! #world & snapshot @2026');
-      expect(backup.status).toBe(BackupStatus.COMPLETED);
+      expect(backup.notes).toContain('Pre-update backup! #world & snapshot @2026');
+      expect(backup.status).toBe(BackupStatus.PENDING);
     });
 
-    it('DockerAgentHostProvider triggerBackup returns success BackupResult', async () => {
+    it('DockerAgentHostProvider triggerBackup returns stub when tunnel absent', async () => {
       const provider = new DockerAgentHostProvider();
       const server = db.servers[0];
 
@@ -623,11 +623,12 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
         isManual: true,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.stub).toBe(true);
       expect(result.backupId).toBe('bkp_test_1');
     });
 
-    it('DirectRconSshHostProvider triggerBackup returns success BackupResult', async () => {
+    it('DirectRconSshHostProvider triggerBackup returns stub result', async () => {
       const provider = new DirectRconSshHostProvider();
       const server = db.servers[0];
 
@@ -637,7 +638,8 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
         isManual: false,
       });
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(result.stub).toBe(true);
       expect(result.backupId).toBe('bkp_direct_1');
     });
 
@@ -655,21 +657,22 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
   // Feature 12: R3.3 Integrity Manifest Verification (SHA256)
   // ---------------------------------------------------------------------------
   describe('R3.3 Integrity Manifest Verification (SHA256)', () => {
-    it('restores valid completed backup successfully', () => {
+    it('restores completed backup returns stub until integration wired', () => {
       const backup = BackupEngine.triggerBackup({ serverId: 'srv_1', isManual: true });
+      BackupEngine.completeBackup(backup.id, 1024);
       const result = BackupEngine.restoreBackup(backup.id);
 
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('Successfully restored server');
+      expect(result.success).toBe(false);
+      expect(result.stub).toBe(true);
+      expect(result.message).toContain('not yet implemented');
     });
 
     it('fails restore when backup record status is PENDING', () => {
       const backup = BackupEngine.triggerBackup({ serverId: 'srv_1', isManual: true });
-      backup.status = BackupStatus.PENDING;
 
       const result = BackupEngine.restoreBackup(backup.id);
       expect(result.success).toBe(false);
-      expect(result.message).toContain('is not in COMPLETED state');
+      expect(result.message).toContain('not completed');
     });
 
     it('applies retention policy pruning oldest backups first', () => {

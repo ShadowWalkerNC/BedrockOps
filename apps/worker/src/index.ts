@@ -11,7 +11,9 @@ export class BackgroundJobWorker {
         notes: 'Automated nightly cron backup sweep'
       });
       BackupEngine.applyRetentionPolicy(server.id, 5);
-      console.log(`[Background Worker] Completed automated backup ${backup.filename} for server ${server.name}`);
+      console.log(
+        `[Background Worker] Queued backup ${backup.filename} (status: ${backup.status}) for server ${server.name}`
+      );
     }
   }
 }

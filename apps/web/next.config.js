@@ -1,19 +1,17 @@
 /** @type {import('next').NextConfig} */
+const apiUrl = process.env.API_URL || 'http://localhost:4000';
+
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: [
-    '@mc-admin/db',
-    '@mc-admin/audit',
-    '@mc-admin/auth',
-    '@mc-admin/backups',
-    '@mc-admin/bedrock',
-    '@mc-admin/config',
-    '@mc-admin/moderation',
-    '@mc-admin/notifications',
-    '@mc-admin/pipelines',
-    '@mc-admin/templates',
-    '@mc-admin/ui'
-  ]
+  transpilePackages: ['@mc-admin/auth', '@mc-admin/ui'],
+  async rewrites() {
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${apiUrl}/api/v1/:path*`
+      }
+    ];
+  }
 };
 
 module.exports = nextConfig;

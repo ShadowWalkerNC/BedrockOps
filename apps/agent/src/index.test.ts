@@ -8,9 +8,10 @@ describe('LocalBedrockAgent App', () => {
     expect(health.nodeVersion).toBeDefined();
   });
 
-  it('executes local daemon command', async () => {
+  it('returns stub result for local daemon command', async () => {
     const res = await LocalBedrockAgent.executeLocalCommand('status');
-    expect(res.success).toBe(true);
-    expect(res.output).toContain("Command 'status' executed.");
+    expect(res.success).toBe(false);
+    expect(res.stub).toBe(true);
+    expect(res.output).toContain('[AGENT STUB]');
   });
 });

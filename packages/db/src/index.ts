@@ -23,6 +23,7 @@ import type {
 
 export * from './schema';
 export * from './client';
+export * from './adapter';
 
 export class MemoryDatabase {
   public users: User[] = [];

@@ -160,6 +160,7 @@ describe('Tier 4: Real-World Applications (Complete Operational Workflows)', () 
       isManual: false,
       notes: 'Automated save-hold live streaming checkpoint',
     });
+    BackupEngine.completeBackup(backupRecord.id, 20_971_520);
     expect(backupRecord.status).toBe(BackupStatus.COMPLETED);
 
     // 3. Streaming backup frames over agent tunnel to R2 presigned URL

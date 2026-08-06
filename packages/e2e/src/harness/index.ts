@@ -7,3 +7,4 @@ export * from './MockAgentServer';
 export * from './MockBdsLogStreamer';
 export * from './MockXboxService';
 export * from './MockDnsProvider';
+export * from './backupHelpers';

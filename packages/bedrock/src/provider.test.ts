@@ -27,7 +27,7 @@ describe('HostProvider Strategy Pattern', () => {
     const provider = HostProviderFactory.getProvider(HostProviderType.DOCKER_AGENT);
 
     const startResult = await provider.startServer(server);
-    expect(startResult).toBe(true);
+    expect(startResult).toBe(false);
 
     const rconResult = await provider.executeRcon(server, 'list');
     expect(rconResult).toContain('Executed "list"');

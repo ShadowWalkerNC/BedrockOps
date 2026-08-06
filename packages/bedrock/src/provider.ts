@@ -21,6 +21,7 @@ export interface BackupResult {
   backupId: string;
   fileSizeBytes?: number;
   sha256?: string;
+  stub?: boolean;
   error?: string;
 }
 
@@ -49,8 +50,9 @@ export class DockerAgentHostProvider implements HostProvider {
       await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action: 'START' });
       return true;
     }
-    // Stub implementation when tunnel gateway is not passed directly
-    return true;
+    // TODO: Wire agent tunnel in Phase 2
+    console.warn(`[STUB] DockerAgentHostProvider.startServer — no tunnel for agent ${server.agentId}`);
+    return false;
   }
 
   public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
@@ -61,7 +63,8 @@ export class DockerAgentHostProvider implements HostProvider {
       await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action: force ? 'KILL' : 'STOP' });
       return true;
     }
-    return true;
+    console.warn(`[STUB] DockerAgentHostProvider.stopServer — no tunnel for agent ${server.agentId}`);
+    return false;
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
@@ -97,9 +100,10 @@ export class DockerAgentHostProvider implements HostProvider {
       return this.tunnelGateway.sendCommand(server.agentId, server.id, 'TRIGGER_BACKUP', options);
     }
     return {
-      success: true,
+      success: false,
+      stub: true,
       backupId: options.backupId,
-      fileSizeBytes: 0,
+      error: '[STUB] Agent tunnel not connected — backup not executed on host.'
     };
   }
 }
@@ -145,8 +149,10 @@ export class PterodactylHostProvider implements HostProvider {
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
     return {
-      success: true,
+      success: false,
+      stub: true,
       backupId: options.backupId,
+      error: '[STUB] Pterodactyl backup API integration pending.'
     };
   }
 }
@@ -187,8 +193,10 @@ export class DirectRconSshHostProvider implements HostProvider {
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
     return {
-      success: true,
+      success: false,
+      stub: true,
       backupId: options.backupId,
+      error: '[STUB] Direct RCON/SSH backup integration pending.'
     };
   }
 }

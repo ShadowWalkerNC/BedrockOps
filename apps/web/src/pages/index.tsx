@@ -7,18 +7,23 @@ import {
   MessageSquare, 
   Layers, 
   Gift, 
-  Activity, 
   Play, 
   Square, 
   RotateCcw, 
   Plus, 
   Search, 
-  AlertTriangle, 
   CheckCircle, 
-  Copy, 
   X,
   RefreshCw
 } from 'lucide-react';
+import { UI_THEME, Badge, ConfirmModal } from '@mc-admin/ui';
+import { apiFetch } from '../lib/api-client';
+import {
+  DashboardBackup,
+  DashboardModeration,
+  DashboardServer,
+  toPowerAction
+} from '../lib/types';
 
 type Tab = 'servers' | 'backups' | 'moderation' | 'discord' | 'templates' | 'referrals' | 'audit';
 
@@ -28,10 +33,9 @@ export default function BedrockAdminDashboard() {
   const [loading, setLoading] = useState(false);
 
   // Data states connected to backend API
-  const [servers, setServers] = useState<any[]>([]);
-  const [backups, setBackups] = useState<any[]>([]);
-  const [moderations, setModerations] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [servers, setServers] = useState<DashboardServer[]>([]);
+  const [backups, setBackups] = useState<DashboardBackup[]>([]);
+  const [moderations, setModerations] = useState<DashboardModeration[]>([]);
 
   // Modal states
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -66,16 +70,18 @@ export default function BedrockAdminDashboard() {
     setLoading(true);
     try {
       const [resServers, resBackups, resMod] = await Promise.all([
-        fetch('/api/servers').then(r => r.json()),
-        fetch('/api/backups').then(r => r.json()),
-        fetch('/api/moderation').then(r => r.json())
+        apiFetch<{ servers: DashboardServer[] }>('/servers'),
+        apiFetch<{ backups: DashboardBackup[] }>('/backups'),
+        apiFetch<{ moderationActions: DashboardModeration[] }>('/moderation')
       ]);
 
-      if (resServers.servers) setServers(resServers.servers);
-      if (resBackups.backups) setBackups(resBackups.backups);
-      if (resMod.moderations) setModerations(resMod.moderations);
-    } catch (e: any) {
+      setServers(resServers.servers);
+      setBackups(resBackups.backups);
+      setModerations(resMod.moderationActions);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to load dashboard data';
       console.error('Failed to load dashboard data:', e);
+      showNotify(message);
     } finally {
       setLoading(false);
     }
@@ -91,9 +97,8 @@ export default function BedrockAdminDashboard() {
     if (!regName) return;
 
     try {
-      const res = await fetch('/api/servers', {
+      const data = await apiFetch<{ server: DashboardServer }>('/servers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: regName,
           host: regHost,
@@ -104,15 +109,12 @@ export default function BedrockAdminDashboard() {
           difficulty: regDifficulty
         })
       });
-      const data = await res.json();
-      if (data.success) {
-        showNotify(`Server Node "${data.server.name}" registered successfully! Safety backup triggered.`);
-        setIsRegisterModalOpen(false);
-        setRegName('');
-        fetchDashboardData();
-      }
-    } catch (err: any) {
-      showNotify(`Error registering server: ${err.message}`);
+      showNotify(`Server "${data.server.name}" registered. Backup queued (pending agent integration).`);
+      setIsRegisterModalOpen(false);
+      setRegName('');
+      fetchDashboardData();
+    } catch (err: unknown) {
+      showNotify(`Error registering server: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -122,18 +124,21 @@ export default function BedrockAdminDashboard() {
 
     const executeCall = async () => {
       try {
-        const res = await fetch(`/api/servers/${id}/control`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, webhookUrl })
-        });
-        const data = await res.json();
+        const data = await apiFetch<{ success: boolean; server: DashboardServer; action: string }>(
+          `/servers/${id}/power`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ action: toPowerAction(action) })
+          }
+        );
         if (data.success) {
-          showNotify(`Server ${data.server.name} executed ${action.toUpperCase()} command successfully.`);
+          showNotify(`Server ${data.server.name}: ${data.action} command accepted.`);
           fetchDashboardData();
+        } else {
+          showNotify(`Power action failed — agent integration may be pending.`);
         }
-      } catch (err: any) {
-        showNotify(`Control action failed: ${err.message}`);
+      } catch (err: unknown) {
+        showNotify(`Control action failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     };
 
@@ -155,18 +160,31 @@ export default function BedrockAdminDashboard() {
   // Run Manual Backup Handler
   const handleTriggerBackup = async (serverId: string) => {
     try {
-      const res = await fetch('/api/backups', {
+      const data = await apiFetch<{ backup: DashboardBackup }>('/backups', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'trigger', serverId, webhookUrl })
+        body: JSON.stringify({ serverId, isManual: true })
       });
-      const data = await res.json();
-      if (data.success) {
-        showNotify(`Safety snapshot created (${data.backup.filename})`);
-        fetchDashboardData();
-      }
-    } catch (err: any) {
-      showNotify(`Backup failed: ${err.message}`);
+      showNotify(
+        data.backup.status === 'PENDING'
+          ? `Backup queued (${data.backup.filename}) — pending agent integration.`
+          : `Snapshot created (${data.backup.filename})`
+      );
+      fetchDashboardData();
+    } catch (err: unknown) {
+      showNotify(`Backup failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleRestoreBackup = async (backupId: string, filename: string) => {
+    try {
+      await apiFetch(`/backups/${backupId}/restore`, { method: 'POST' });
+      showNotify(`Restored snapshot ${filename}.`);
+    } catch (err: unknown) {
+      showNotify(
+        err instanceof Error && err.message.includes('NOT_IMPLEMENTED')
+          ? `Restore not yet implemented for ${filename}.`
+          : `Restore failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
@@ -177,24 +195,20 @@ export default function BedrockAdminDashboard() {
 
     const executeCall = async () => {
       try {
-        const res = await fetch('/api/moderation', {
+        await apiFetch('/moderation', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             gamertag: modGamertag,
             actionType: modAction,
             reason: modReason
           })
         });
-        const data = await res.json();
-        if (data.success) {
-          showNotify(`Recorded ${modAction} infraction for player "${modGamertag}".`);
-          setModGamertag('');
-          setModReason('');
-          fetchDashboardData();
-        }
-      } catch (err: any) {
-        showNotify(`Failed to record moderation: ${err.message}`);
+        showNotify(`Recorded ${modAction} infraction for player "${modGamertag}".`);
+        setModGamertag('');
+        setModReason('');
+        fetchDashboardData();
+      } catch (err: unknown) {
+        showNotify(`Failed to record moderation: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     };
 
@@ -214,7 +228,7 @@ export default function BedrockAdminDashboard() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#090d16', color: '#f9fafb', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: UI_THEME.colors.bgDark, color: UI_THEME.colors.textMain, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Header Bar */}
       <header style={{ borderBottom: '1px solid #1f2937', padding: '16px 24px', backgroundColor: '#0d1322', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -295,9 +309,7 @@ export default function BedrockAdminDashboard() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{server.name}</h3>
-                          <span style={{ backgroundColor: server.status === 'ONLINE' ? '#14532d' : '#451a03', color: server.status === 'ONLINE' ? '#4ade80' : '#f87171', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                            {server.status}
-                          </span>
+                          <Badge status={server.status} />
                         </div>
                         <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#9ca3af' }}>
                           Host: {server.host}:{server.port} | RCON Port: {server.rconPort}
@@ -383,10 +395,10 @@ export default function BedrockAdminDashboard() {
                         <td style={{ padding: '10px' }}>{(b.fileSizeBytes ? (b.fileSizeBytes / (1024 * 1024)).toFixed(1) : b.sizeMb || 40)} MB</td>
                         <td style={{ padding: '10px' }}>{b.isManual ? 'Manual' : 'Scheduled'}</td>
                         <td style={{ padding: '10px' }}>
-                          <span style={{ backgroundColor: '#14532d', color: '#4ade80', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>COMPLETED</span>
+                          <Badge status={b.status} />
                         </td>
                         <td style={{ padding: '10px' }}>
-                          <button onClick={() => showNotify(`Restored snapshot ${b.filename} to server.`)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                          <button onClick={() => handleRestoreBackup(b.id, b.filename)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
                             Validate & Restore
                           </button>
                         </td>
@@ -559,22 +571,13 @@ export default function BedrockAdminDashboard() {
         </div>
       )}
 
-      {/* MODAL 2: CONFIRMATION DIALOG */}
-      {isConfirmModalOpen && pendingConfirmAction && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110 }}>
-          <div style={{ backgroundColor: '#111827', border: '1px solid #7f1d1d', borderRadius: '8px', padding: '24px', width: '420px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444' }}>
-              <AlertTriangle size={22} />
-              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 600 }}>{pendingConfirmAction.title}</h3>
-            </div>
-            <p style={{ margin: 0, fontSize: '14px', color: '#d1d5db' }}>{pendingConfirmAction.desc}</p>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
-              <button onClick={() => setIsConfirmModalOpen(false)} style={{ backgroundColor: '#1f2937', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
-              <button onClick={pendingConfirmAction.onConfirm} style={{ backgroundColor: '#dc2626', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>Confirm Action</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={isConfirmModalOpen && !!pendingConfirmAction}
+        title={pendingConfirmAction?.title ?? ''}
+        description={pendingConfirmAction?.desc ?? ''}
+        onConfirm={() => pendingConfirmAction?.onConfirm()}
+        onCancel={() => setIsConfirmModalOpen(false)}
+      />
     </div>
   );
 }

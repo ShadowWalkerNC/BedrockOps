@@ -4,7 +4,7 @@ import { db, UserRole } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
-export const nodeRouter = Router();
+export const nodeRouter: Router = Router();
 
 nodeRouter.use(authenticateJwt);
 
@@ -37,7 +37,6 @@ nodeRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, re
   db.agentNodes.push(node);
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'NODE_REGISTER',
@@ -75,7 +74,6 @@ nodeRouter.post('/token', requireRole(UserRole.ADMIN), (req: AuthenticatedReques
   db.connectionKeys.push(connKey);
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'NODE_TOKEN_GENERATE',

@@ -2,7 +2,7 @@ import http from 'http';
 import { app } from './app';
 import { config } from './config';
 import { setupWebSocketRouter } from './ws/router';
-import { db, ServerStatus, BackupRecord } from '@mc-admin/db';
+import { db, ServerStatus, BackupRecord, BedrockServer } from '@mc-admin/db';
 import { BackupEngine } from '@mc-admin/backups';
 import { PipelineEngine } from '@mc-admin/pipelines';
 
@@ -13,7 +13,7 @@ export class ApiServer {
     return db.servers.filter(s => !s.deletedAt);
   }
 
-  public static async createServer(data: Partial<any>) {
+  public static async createServer(data: Partial<BedrockServer>) {
     const server = {
       id: `srv_${Date.now()}`,
       name: data.name || 'New Bedrock Server',
@@ -43,11 +43,15 @@ export class ApiServer {
     if (!server) {
       throw new Error(`Server ${serverId} not found`);
     }
-    return BackupEngine.triggerBackup(server, true);
+    return BackupEngine.triggerBackup({ serverId, isManual: true });
   }
 
-  public static async executeSetupPipeline(pipelineId: string, serverId?: string) {
-    return PipelineEngine.executePipeline(pipelineId, serverId);
+  public static async executeSetupPipeline(_pipelineId: string, _serverId?: string) {
+    return PipelineEngine.runServerSetupPipeline({
+      serverName: 'Pipeline Server',
+      templateId: 'tmpl_vanilla_survival',
+      actorName: 'admin'
+    });
   }
 }
 

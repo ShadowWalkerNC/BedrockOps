@@ -1,6 +1,7 @@
 import http from 'http';
 import { parse } from 'url';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
+import { IncomingMessage } from 'http';
 import { agentGateway } from './agentGateway';
 import { clientStreamHub } from './clientHub';
 import { db } from '@mc-admin/db';
@@ -9,11 +10,11 @@ export function setupWebSocketRouter(server: http.Server) {
   const wssAgent = new WebSocketServer({ noServer: true });
   const wssClient = new WebSocketServer({ noServer: true });
 
-  wssAgent.on('connection', (ws, _req, nodeId: string) => {
+  wssAgent.on('connection', (ws: WebSocket, _req: IncomingMessage, nodeId: string) => {
     agentGateway.handleConnection(ws, nodeId);
   });
 
-  wssClient.on('connection', (ws, _req, token: string) => {
+  wssClient.on('connection', (ws: WebSocket, _req: IncomingMessage, token: string) => {
     clientStreamHub.handleConnection(ws, token);
   });
 

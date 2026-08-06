@@ -102,8 +102,9 @@ pnpm --filter @mc-admin/db db:validate
 
 - **Domain packages** hold business logic; apps orchestrate I/O and HTTP.
 - **Audit logging** is required for state-changing operations (server control, backups, moderation, templates, pipelines).
-- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton. Postgres via Docker is configured but not yet the default runtime adapter.
-- **Web ↔ API:** The dashboard currently uses Next.js API routes as a BFF; consolidating on `apps/api` is planned.
+- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton (`DB_ADAPTER=memory`). Set `DB_ADAPTER=prisma` when wiring Postgres persistence.
+- **Web → API:** The dashboard proxies `/api/v1/*` to `apps/api` (port 4000). Web no longer imports `@mc-admin/db` or domain engines directly.
+- **Honest stubs:** Backups start as `PENDING`, agent/power actions return explicit stub responses until host integration is wired.
 
 Read `AGENTS.md` before contributing — it defines package boundaries and Phase 1 scope.
 

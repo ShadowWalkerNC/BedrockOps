@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type Application } from 'express';
 import cors from 'cors';
 import { config } from './config';
 import { authRouter } from './routes/auth.routes';
@@ -8,7 +8,7 @@ import { backupRouter } from './routes/backup.routes';
 import { moderationRouter } from './routes/moderation.routes';
 import { auditRouter } from './routes/audit.routes';
 
-export const app = express();
+export const app: Application = express();
 
 app.use(cors({ origin: config.CORS_ORIGIN }));
 app.use(express.json());

@@ -187,13 +187,13 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       const provider = HostProviderFactory.getProvider(HostProviderType.DOCKER_AGENT);
 
       const startResult = await provider.startServer(server);
-      expect(startResult).toBe(true);
+      expect(startResult).toBe(false);
 
       const stopResult = await provider.stopServer(server, true);
-      expect(stopResult).toBe(true);
+      expect(stopResult).toBe(false);
 
       const restartResult = await provider.restartServer(server);
-      expect(restartResult).toBe(true);
+      expect(restartResult).toBe(false);
     });
 
     it('executes RCON command and log streaming on HostProvider instances', async () => {
@@ -736,6 +736,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
         isManual: true,
         notes: 'Pre-r2 streaming snapshot',
       });
+      BackupEngine.completeBackup(backup.id, 20_971_520);
 
       expect(backup.id).toBeDefined();
       expect(backup.filename).toMatch(/^backup_srv_bedrock_1_.*\.zip$/);
@@ -778,8 +779,9 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       expect(auto.isManual).toBe(false);
     });
 
-    it('stores backup storage path and simulates file size allocation', () => {
+    it('stores backup storage path and file size after agent completion', () => {
       const backup = BackupEngine.triggerBackup({ serverId: 'srv_1', isManual: true });
+      BackupEngine.completeBackup(backup.id, 5_000_000);
       expect(backup.fileSizeBytes).toBeGreaterThan(0);
       expect(backup.storagePath).toContain('/backups/srv_1/');
     });
@@ -798,12 +800,14 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       expect(completeFrame?.payload.checksum).toMatch(/^[a-f0-9]{64}$/);
     });
 
-    it('validates successful restore of COMPLETED backup snapshot', () => {
+    it('restore of completed backup returns stub until integration wired', () => {
       const backup = BackupEngine.triggerBackup({ serverId: 'srv_bedrock_1', isManual: true });
+      BackupEngine.completeBackup(backup.id, 1024);
       const result = BackupEngine.restoreBackup(backup.id);
 
-      expect(result.success).toBe(true);
-      expect(result.message).toContain('Successfully restored server');
+      expect(result.success).toBe(false);
+      expect(result.stub).toBe(true);
+      expect(result.message).toContain('not yet implemented');
     });
 
     it('rejects restore attempt for non-existent backup ID', () => {
@@ -821,7 +825,8 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
     it('applies retention policy pruning while preserving valid unpruned snapshot integrity', () => {
       const serverId = 'srv_retain_test';
       for (let i = 0; i < 7; i++) {
-        BackupEngine.triggerBackup({ serverId, isManual: false });
+        const b = BackupEngine.triggerBackup({ serverId, isManual: false });
+        BackupEngine.completeBackup(b.id, 1024);
       }
 
       expect(BackupEngine.getBackupsForServer(serverId).length).toBe(7);

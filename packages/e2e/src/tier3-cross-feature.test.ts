@@ -282,6 +282,7 @@ describe('Tier 3: Cross-Feature Combinations (Multi-Domain Integration Flows)', 
       isManual: true,
       notes: 'Live streaming save-hold snapshot',
     });
+    BackupEngine.completeBackup(backup.id, 20_971_520);
     expect(backup.status).toBe(BackupStatus.COMPLETED);
 
     // 3. Simulate streaming backup sequence over WSS tunnel
@@ -363,6 +364,7 @@ describe('Tier 3: Cross-Feature Combinations (Multi-Domain Integration Flows)', 
       isManual: false,
       notes: 'Emergency snapshot: High CPU load threshold exceeded (96.4%)',
     });
+    BackupEngine.completeBackup(emergencyBackup.id, 10_485_760);
     expect(emergencyBackup.status).toBe(BackupStatus.COMPLETED);
 
     // 3. Log Audit Event
@@ -426,14 +428,16 @@ describe('Tier 3: Cross-Feature Combinations (Multi-Domain Integration Flows)', 
       isManual: true,
       notes: 'Golden baseline state',
     });
+    BackupEngine.completeBackup(baselineBackup.id, 1024);
 
     // 2. Run scheduled worker backup sweep
     await BackgroundJobWorker.runScheduledBackupSweep();
     expect(BackupEngine.getBackupsForServer(server.id).length).toBe(2);
 
-    // 3. Restore server from baseline snapshot
+    // 3. Restore server from baseline snapshot (stub until agent integration)
     const restoreRes = BackupEngine.restoreBackup(baselineBackup.id);
-    expect(restoreRes.success).toBe(true);
+    expect(restoreRes.success).toBe(false);
+    expect(restoreRes.stub).toBe(true);
 
     // 4. Issue RCON reload command
     const rconOut = await BedrockServerController.executeRconCommand(server, 'reload');
@@ -630,6 +634,7 @@ describe('Tier 3: Cross-Feature Combinations (Multi-Domain Integration Flows)', 
       isManual: true,
       notes: 'Emergency pre-shutdown backup snapshot',
     });
+    BackupEngine.completeBackup(preShutdownBackup.id, 1024);
     expect(preShutdownBackup.status).toBe(BackupStatus.COMPLETED);
 
     // 3. Update agent container state to STOPPING then OFFLINE
@@ -705,6 +710,7 @@ describe('Tier 3: Cross-Feature Combinations (Multi-Domain Integration Flows)', 
       isManual: true,
       notes: 'Final archival backup snapshot prior to deletion',
     });
+    BackupEngine.completeBackup(finalBackup.id, 1024);
     expect(finalBackup.status).toBe(BackupStatus.COMPLETED);
 
     // 3. Teardown DNS subdomain records

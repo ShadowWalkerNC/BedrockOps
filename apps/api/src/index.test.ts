@@ -84,8 +84,9 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
       .set('Authorization', `Bearer ${authToken}`)
       .send({ action: 'START' });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.status).toBe(503);
+    expect(res.body.success).toBe(false);
+    expect(res.body.stub).toBe(true);
     expect(db.auditLogs.some(a => a.action === 'SERVER_POWER_START')).toBe(true);
   });
 

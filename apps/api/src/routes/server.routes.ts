@@ -5,7 +5,7 @@ import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
-export const serverRouter = Router();
+export const serverRouter: Router = Router();
 
 serverRouter.use(authenticateJwt);
 
@@ -71,7 +71,6 @@ serverRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, 
   db.servers.push(server);
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'SERVER_CREATE',
@@ -93,7 +92,6 @@ serverRouter.patch('/:id', requireRole(UserRole.ADMIN), (req: AuthenticatedReque
   Object.assign(server, req.body, { updatedAt: new Date() });
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'SERVER_UPDATE',
@@ -115,7 +113,6 @@ serverRouter.delete('/:id', requireRole(UserRole.OWNER), (req: AuthenticatedRequ
   server.status = ServerStatus.OFFLINE;
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'SERVER_DELETE',
@@ -146,26 +143,37 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: Aut
   const { action } = parse.data;
   const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
 
+  let powerOk = true;
   if (action === 'START') {
-    await provider.startServer(server);
-    server.status = ServerStatus.ONLINE;
+    powerOk = await provider.startServer(server);
+    if (powerOk) server.status = ServerStatus.ONLINE;
   } else if (action === 'STOP' || action === 'KILL') {
-    await provider.stopServer(server, action === 'KILL');
-    server.status = ServerStatus.OFFLINE;
+    powerOk = await provider.stopServer(server, action === 'KILL');
+    if (powerOk) server.status = ServerStatus.OFFLINE;
   } else if (action === 'RESTART') {
-    await provider.restartServer(server);
-    server.status = ServerStatus.ONLINE;
+    powerOk = await provider.restartServer(server);
+    if (powerOk) server.status = ServerStatus.ONLINE;
   }
   server.updatedAt = new Date();
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: `SERVER_POWER_${action}`,
     entityType: 'BedrockServer',
-    entityId: server.id
+    entityId: server.id,
+    metadata: { powerOk }
   });
+
+  if (!powerOk) {
+    return res.status(503).json({
+      success: false,
+      stub: true,
+      action,
+      server,
+      message: '[STUB] Agent tunnel not connected — power action not executed on host.'
+    });
+  }
 
   return res.json({ success: true, action, server });
 });
@@ -191,7 +199,6 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
   const result = await provider.executeRcon(server, parse.data.command);
 
   AuditLogger.record({
-    userId: req.user!.userId,
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'SERVER_RCON_COMMAND',

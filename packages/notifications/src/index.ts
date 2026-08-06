@@ -11,6 +11,12 @@ export interface DiscordWebhookPayload {
   }[];
 }
 
+export interface WebhookSendResult {
+  queued: boolean;
+  stub: boolean;
+  message: string;
+}
+
 export class NotificationDispatcher {
   public static sentMessages: { webhookUrl: string; payload: DiscordWebhookPayload }[] = [];
 
@@ -22,7 +28,7 @@ export class NotificationDispatcher {
         {
           title: `Server Status Alert: ${serverName}`,
           description: `Bedrock Server **${serverName}** is now **${status}**.`,
-          color: isOnline ? 0x22c55e : 0xef4444, // Green for online, Red for offline
+          color: isOnline ? 0x22c55e : 0xef4444,
           fields: [
             { name: 'Address', value: `${host}:${port}`, inline: true },
             { name: 'Status', value: status, inline: true }
@@ -53,10 +59,13 @@ export class NotificationDispatcher {
     };
   }
 
-  public static async sendWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<boolean> {
-    // Record in memory queue for testing and local dev
+  public static async sendWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<WebhookSendResult> {
     this.sentMessages.push({ webhookUrl, payload });
-    // In production, fetch(webhookUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    return true;
+    // TODO: POST to Discord when DISCORD_WEBHOOK_URL or webhookUrl is configured for production
+    return {
+      queued: true,
+      stub: true,
+      message: '[STUB] Webhook queued in memory only; HTTP delivery not yet wired.'
+    };
   }
 }

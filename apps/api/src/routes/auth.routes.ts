@@ -5,7 +5,7 @@ import { db, UserRole } from '@mc-admin/db';
 import { config } from '../config';
 import { authenticateJwt, AuthenticatedRequest } from '../middleware/auth.middleware';
 
-export const authRouter = Router();
+export const authRouter: Router = Router();
 
 const loginSchema = z.object({
   email: z.string().email(),

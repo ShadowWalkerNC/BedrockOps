@@ -6,6 +6,14 @@ export interface CreateBackupInput {
   notes?: string;
 }
 
+export interface RestoreBackupResult {
+  success: boolean;
+  stub?: boolean;
+  message: string;
+}
+
+const STUB_NOTE = '[STUB: backup engine pending agent/filesystem integration]';
+
 export class BackupEngine {
   public static triggerBackup(input: CreateBackupInput): BackupRecord {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -16,10 +24,10 @@ export class BackupEngine {
       id: `bkp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       serverId: input.serverId,
       filename,
-      fileSizeBytes: Math.floor(Math.random() * 50000000) + 1000000, // Simulated size
-      status: BackupStatus.COMPLETED,
+      fileSizeBytes: 0,
+      status: BackupStatus.PENDING,
       isManual: input.isManual,
-      notes: input.notes,
+      notes: input.notes ? `${input.notes} ${STUB_NOTE}` : STUB_NOTE,
       storagePath,
       createdAt: new Date()
     };
@@ -28,22 +36,39 @@ export class BackupEngine {
     return record;
   }
 
+  /** Finalize a backup after agent/worker completes archive I/O. */
+  public static completeBackup(backupId: string, fileSizeBytes: number): BackupRecord {
+    const backup = db.backups.find((b) => b.id === backupId);
+    if (!backup) {
+      throw new Error(`Backup ID ${backupId} not found`);
+    }
+    backup.status = BackupStatus.COMPLETED;
+    backup.fileSizeBytes = fileSizeBytes;
+    return backup;
+  }
+
   public static getBackupsForServer(serverId: string): BackupRecord[] {
     return db.backups.filter((b) => b.serverId === serverId);
   }
 
-  public static restoreBackup(backupId: string): { success: boolean; message: string } {
+  public static restoreBackup(backupId: string): RestoreBackupResult {
     const backup = db.backups.find((b) => b.id === backupId);
     if (!backup) {
       return { success: false, message: `Backup ID ${backupId} not found` };
     }
     if (backup.status !== BackupStatus.COMPLETED) {
-      return { success: false, message: `Backup ID ${backupId} is not in COMPLETED state` };
+      return {
+        success: false,
+        stub: true,
+        message: `Backup ${backupId} is not completed (status: ${backup.status}). Restore unavailable until archive is finalized.`
+      };
     }
 
+    // TODO: Wire agent filesystem restore in Phase 2
     return {
-      success: true,
-      message: `Successfully restored server from backup snapshot ${backup.filename}`
+      success: false,
+      stub: true,
+      message: `Restore is not yet implemented. TODO: agent filesystem integration for ${backup.filename}.`
     };
   }
 
