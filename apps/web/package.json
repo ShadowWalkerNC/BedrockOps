@@ -1,0 +1,36 @@
+{
+  "name": "@mc-admin/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@mc-admin/audit": "workspace:*",
+    "@mc-admin/auth": "workspace:*",
+    "@mc-admin/backups": "workspace:*",
+    "@mc-admin/bedrock": "workspace:*",
+    "@mc-admin/config": "workspace:*",
+    "@mc-admin/db": "workspace:*",
+    "@mc-admin/moderation": "workspace:*",
+    "@mc-admin/notifications": "workspace:*",
+    "@mc-admin/pipelines": "workspace:*",
+    "@mc-admin/templates": "workspace:*",
+    "@mc-admin/ui": "workspace:*",
+    "next": "^14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "lucide-react": "^0.344.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.1.0"
+  }
+}

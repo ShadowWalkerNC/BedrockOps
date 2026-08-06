@@ -1,0 +1,23 @@
+{
+  "name": "@mc-admin/pipelines",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mc-admin/config": "workspace:*",
+    "@mc-admin/db": "workspace:*",
+    "@mc-admin/audit": "workspace:*",
+    "@mc-admin/notifications": "workspace:*",
+    "@mc-admin/backups": "workspace:*",
+    "@mc-admin/templates": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0"
+  }
+}

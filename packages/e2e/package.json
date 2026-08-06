@@ -1,0 +1,31 @@
+{
+  "name": "@mc-admin/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mc-admin/agent": "workspace:*",
+    "@mc-admin/api": "workspace:*",
+    "@mc-admin/audit": "workspace:*",
+    "@mc-admin/auth": "workspace:*",
+    "@mc-admin/backups": "workspace:*",
+    "@mc-admin/bedrock": "workspace:*",
+    "@mc-admin/config": "workspace:*",
+    "@mc-admin/db": "workspace:*",
+    "@mc-admin/discord": "workspace:*",
+    "@mc-admin/moderation": "workspace:*",
+    "@mc-admin/notifications": "workspace:*",
+    "@mc-admin/pipelines": "workspace:*",
+    "@mc-admin/templates": "workspace:*",
+    "@mc-admin/worker": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0"
+  }
+}

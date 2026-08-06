@@ -1,0 +1,20 @@
+{
+  "name": "@mc-admin/worker",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@mc-admin/config": "workspace:*",
+    "@mc-admin/db": "workspace:*",
+    "@mc-admin/backups": "workspace:*",
+    "@mc-admin/pipelines": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.2"
+  }
+}

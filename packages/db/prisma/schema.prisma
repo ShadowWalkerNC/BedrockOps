@@ -1,0 +1,271 @@
+// packages/db/prisma/schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  VIEWER
+}
+
+enum ServerStatus {
+  OFFLINE
+  STARTING
+  ONLINE
+  STOPPING
+  ERROR
+  MAINTENANCE
+}
+
+enum BackupStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ModerationType {
+  WARN
+  MUTE
+  KICK
+  BAN
+  NOTE
+}
+
+enum HostProviderType {
+  DOCKER_AGENT
+  PTERODACTYL
+  DIRECT_RCON_SSH
+}
+
+enum PipelineStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String?
+  username     String?
+  role         UserRole       @default(ADMIN)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  // Relations
+  servers           ServerMember[]
+  auditLogs         AuditLog[]
+  moderationsIssued ModerationAction[] @relation("IssuedModerations")
+
+  @@map("users")
+}
+
+model AgentNode {
+  id              String         @id @default(cuid())
+  name            String
+  version         String
+  secretTokenHash String?
+  status          String         @default("OFFLINE") // ONLINE, OFFLINE, MAINTENANCE
+  ipAddress       String?
+  hostname        String?
+  os              String?
+  arch            String?
+  cpuCores        Int?
+  totalMemoryMb   Int?
+  lastHeartbeat   DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  // Relations
+  servers         BedrockServer[]
+
+  @@map("agent_nodes")
+}
+
+model BedrockServer {
+  id                  String           @id @default(cuid())
+  name                String
+  type                String           @default("VANILLA")
+  hostProvider        HostProviderType @default(DOCKER_AGENT)
+  version             String
+  host                String
+  port                Int              @default(19132)
+  rconPort            Int?             @default(19133)
+  rconPassword        String?
+  serverPath          String
+  status              ServerStatus     @default(OFFLINE)
+  maxPlayers          Int              @default(10)
+  gameMode            String           @default("survival")
+  difficulty          String           @default("easy")
+  ownerId             String?
+  agentId             String?
+  agentTunnelId       String?
+  pterodactylServerId String?
+  autoUpdate          Boolean          @default(false)
+  lastCrashAt         DateTime?
+  crashCount24h       Int              @default(0)
+  deletedAt           DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  
+  // Relations
+  agentNode           AgentNode?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  members             ServerMember[]
+  backups             BackupRecord[]
+  moderations         ModerationAction[]
+  connectionKeys      ConnectionKey[]
+  pipelineRuns        PipelineRun[]
+
+  @@map("bedrock_servers")
+}
+
+model ConnectionKey {
+  id        String        @id @default(cuid())
+  serverId  String
+  key       String        @unique
+  maxUses   Int           @default(1)
+  useCount  Int           @default(0)
+  expiresAt DateTime?
+  createdAt DateTime      @default(now())
+  
+  // Relations
+  server    BedrockServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("connection_keys")
+}
+
+model ServerMember {
+  id        String        @id @default(cuid())
+  serverId  String
+  userId    String
+  role      UserRole      @default(ADMIN)
+  createdAt DateTime      @default(now())
+  
+  // Relations
+  server    BedrockServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([serverId, userId])
+  @@map("server_members")
+}
+
+model BackupRecord {
+  id               String       @id @default(cuid())
+  serverId         String
+  filename         String
+  fileSizeBytes    BigInt       @default(0)
+  storageUrl       String?
+  storagePath      String
+  sha256           String?
+  verified         Boolean      @default(false)
+  status           BackupStatus @default(PENDING)
+  isManual         Boolean      @default(false)
+  isHoldCheckpoint Boolean      @default(true)
+  notes            String?
+  bdsVersion       String?
+  manifestJson     Json?
+  createdAt        DateTime     @default(now())
+  
+  // Relations
+  server           BedrockServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("backup_records")
+}
+
+model ModerationAction {
+  id              String         @id @default(cuid())
+  serverId        String?
+  playerXuid      String?
+  gamertag        String
+  actionType      ModerationType
+  reason          String
+  issuerId        String?
+  issuerName      String
+  durationMinutes Int?
+  active          Boolean        @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  
+  // Relations
+  server          BedrockServer? @relation(fields: [serverId], references: [id], onDelete: SetNull)
+  issuer          User?          @relation("IssuedModerations", fields: [issuerId], references: [id], onDelete: SetNull)
+
+  @@map("moderation_actions")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  actorId    String
+  actorName  String
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  timestamp  DateTime @default(now())
+  
+  // Relations
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+model BdsVersion {
+  id          String   @id @default(cuid())
+  version     String   @unique
+  downloadUrl String
+  releaseDate DateTime
+  isLatest    Boolean  @default(false)
+  isSupported Boolean  @default(true)
+
+  @@map("bds_versions")
+}
+
+model ServerTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  description       String
+  bdsVersion        String
+  defaultProperties Json
+  addonPacks        Json     @default("[]")
+  createdAt         DateTime @default(now())
+
+  @@map("server_templates")
+}
+
+model Pipeline {
+  id          String        @id @default(cuid())
+  name        String
+  description String
+  steps       Json
+  createdAt   DateTime      @default(now())
+  runs        PipelineRun[]
+
+  @@map("pipelines")
+}
+
+model PipelineRun {
+  id          String         @id @default(cuid())
+  pipelineId  String
+  serverId    String?
+  status      PipelineStatus @default(PENDING)
+  logs        Json           @default("[]")
+  startedAt   DateTime       @default(now())
+  completedAt DateTime?
+
+  // Relations
+  pipeline    Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  server      BedrockServer? @relation(fields: [serverId], references: [id], onDelete: SetNull)
+
+  @@map("pipeline_runs")
+}

@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@mc-admin/db": ["../../packages/db/src/index.ts"],
+      "@mc-admin/auth": ["../../packages/auth/src/index.ts"],
+      "@mc-admin/audit": ["../../packages/audit/src/index.ts"],
+      "@mc-admin/bedrock": ["../../packages/bedrock/src/index.ts"],
+      "@mc-admin/backups": ["../../packages/backups/src/index.ts"],
+      "@mc-admin/moderation": ["../../packages/moderation/src/index.ts"],
+      "@mc-admin/notifications": ["../../packages/notifications/src/index.ts"],
+      "@mc-admin/templates": ["../../packages/templates/src/index.ts"],
+      "@mc-admin/pipelines": ["../../packages/pipelines/src/index.ts"],
+      "@mc-admin/config": ["../../packages/config/src/index.ts"],
+      "@mc-admin/ui": ["../../packages/ui/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
