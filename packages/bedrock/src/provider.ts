@@ -116,7 +116,7 @@ export class DockerAgentHostProvider implements HostProvider {
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
     if (this.tunnelGateway && server.agentId) {
       if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
-        return `[DockerAgent] Agent ${server.agentId} not connected — RCON not executed`;
+        return `[STUB] Agent ${server.agentId} not connected — RCON not executed`;
       }
       const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', {
         rconCommand: command
@@ -126,7 +126,7 @@ export class DockerAgentHostProvider implements HostProvider {
       }
       return result?.output ?? JSON.stringify(result);
     }
-    return `[DockerAgent] Executed "${command}" on server ${server.name} (${server.id})`;
+    return `[STUB] DockerAgent tunnel not connected — RCON "${command}" not executed on ${server.id}`;
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
@@ -175,23 +175,33 @@ export class PterodactylHostProvider implements HostProvider {
 
   constructor(private apiBaseUrl?: string, private apiKey?: string) {}
 
+  private notImplemented(action: string, server: BedrockServer): never | false {
+    console.warn(
+      `[STUB] PterodactylHostProvider.${action} — panel API integration pending for ${server.pterodactylServerId || server.id}`
+    );
+    return false;
+  }
+
   public async startServer(server: BedrockServer): Promise<boolean> {
     if (!server.pterodactylServerId && !server.id) {
       throw new Error(`Server ${server.id} has no pterodactylServerId specified`);
     }
-    return true;
+    // TODO: Call Pterodactyl power API when apiBaseUrl + apiKey are configured.
+    void this.apiBaseUrl;
+    void this.apiKey;
+    return this.notImplemented('START', server);
   }
 
-  public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
-    return true;
+  public async stopServer(server: BedrockServer, _force = false): Promise<boolean> {
+    return this.notImplemented('STOP', server);
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
-    await this.stopServer(server);
-    return this.startServer(server);
+    return this.notImplemented('RESTART', server);
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
+    void server;
     return {
       cpuPercent: 0,
       memoryMb: 0,
@@ -201,15 +211,16 @@ export class PterodactylHostProvider implements HostProvider {
   }
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
-    return `[Pterodactyl] Sent command "${command}" to server ${server.pterodactylServerId || server.id}`;
+    return `[STUB] Pterodactyl RCON not executed for ${server.pterodactylServerId || server.id}: ${command}`;
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
-    onLog(`[Pterodactyl] Connected to console WebSocket for ${server.pterodactylServerId || server.id}`);
+    onLog(`[STUB] Pterodactyl console WebSocket not connected for ${server.pterodactylServerId || server.id}`);
     return () => {};
   }
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
+    void server;
     return {
       success: false,
       stub: true,
@@ -222,20 +233,27 @@ export class PterodactylHostProvider implements HostProvider {
 export class DirectRconSshHostProvider implements HostProvider {
   public readonly type = HostProviderType.DIRECT_RCON_SSH;
 
-  public async startServer(server: BedrockServer): Promise<boolean> {
-    return true;
+  private notImplemented(action: string, server: BedrockServer): false {
+    console.warn(
+      `[STUB] DirectRconSshHostProvider.${action} — SSH/RCON lifecycle integration pending for ${server.host}`
+    );
+    return false;
   }
 
-  public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
-    return true;
+  public async startServer(server: BedrockServer): Promise<boolean> {
+    return this.notImplemented('START', server);
+  }
+
+  public async stopServer(server: BedrockServer, _force = false): Promise<boolean> {
+    return this.notImplemented('STOP', server);
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
-    await this.stopServer(server);
-    return this.startServer(server);
+    return this.notImplemented('RESTART', server);
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
+    void server;
     return {
       cpuPercent: 0,
       memoryMb: 0,
@@ -245,15 +263,17 @@ export class DirectRconSshHostProvider implements HostProvider {
   }
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
-    return `[DirectRCON] Executed "${command}" via TCP RCON socket to ${server.host}:${server.rconPort || 19133}`;
+    // TODO: Implement real TCP RCON framing; do not claim execution succeeded.
+    return `[STUB] DirectRCON command not framed for ${server.host}:${server.rconPort || 19133}: ${command}`;
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
-    onLog(`[DirectRCON] Log tail started for ${server.host}`);
+    onLog(`[STUB] DirectRCON log tail not connected for ${server.host}`);
     return () => {};
   }
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
+    void server;
     return {
       success: false,
       stub: true,

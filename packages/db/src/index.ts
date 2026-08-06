@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import {
   UserRole,
   ServerStatus,
@@ -25,6 +26,26 @@ export * from './schema';
 export * from './client';
 export * from './adapter';
 
+/** Well-known bcrypt hash of password "admin" (cost 10) for local/test seeding only. */
+export const DEV_ADMIN_PASSWORD_HASH =
+  '$2a$10$Sh1gOjVviMfq2IbRugR.k.DTz1c5rOoj8fGzBXEDXj/lIJyLgHDZq';
+
+/** Dev agent bearer token — hash is seeded; plaintext ships only in .env.example. */
+export const DEV_AGENT_TOKEN = 'dev_agent_token_change_me';
+
+export function hashAgentToken(token: string): string {
+  return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+export function assertMemoryDbAllowed(): void {
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  if (nodeEnv === 'production' && process.env.ALLOW_MEMORY_DB !== 'true') {
+    throw new Error(
+      'MemoryDatabase is not allowed in production. Set ALLOW_MEMORY_DB=true to override (not recommended), or wire the Prisma adapter.'
+    );
+  }
+}
+
 export class MemoryDatabase {
   public users: User[] = [];
   public agentNodes: AgentNode[] = [];
@@ -45,6 +66,7 @@ export class MemoryDatabase {
       id: 'usr_admin_1',
       username: 'admin',
       email: 'admin@minecraft-admin.local',
+      passwordHash: DEV_ADMIN_PASSWORD_HASH,
       role: UserRole.OWNER,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -55,6 +77,7 @@ export class MemoryDatabase {
       name: 'Local Docker Host Agent',
       version: 'v1.0.0-static-go',
       status: 'ONLINE',
+      secretTokenHash: hashAgentToken(DEV_AGENT_TOKEN),
       lastHeartbeat: new Date(),
       createdAt: new Date()
     });
@@ -115,5 +138,6 @@ export class MemoryDatabase {
   }
 }
 
+assertMemoryDbAllowed();
 export const db = new MemoryDatabase();
 db.seedDefaults();

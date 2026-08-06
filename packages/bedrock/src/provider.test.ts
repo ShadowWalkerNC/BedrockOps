@@ -35,7 +35,8 @@ describe('HostProvider Strategy Pattern', () => {
     expect(startResult).toBe(false);
 
     const rconResult = await provider.executeRcon(server, 'list');
-    expect(rconResult).toContain('Executed "list"');
+    expect(rconResult).toContain('[STUB]');
+    expect(rconResult).toContain('list');
 
     const metrics = await provider.getStatus(server);
     expect(metrics).toHaveProperty('cpuPercent');

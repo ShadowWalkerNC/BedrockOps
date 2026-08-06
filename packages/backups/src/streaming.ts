@@ -54,13 +54,24 @@ export class SaveHoldDriver {
   }
 
   /**
-   * Run the live checkpoint RCON sequence.
-   * Always attempts `save resume` in a finally-style path so the world is not left frozen.
+   * Run the live checkpoint RCON sequence with snapshot work while the world is held.
+   * Sequence: `save hold` → `save query` → snapshot callback → `save resume` (always).
    */
-  public static async runCheckpoint(execRcon: RconExecutor): Promise<SaveHoldResult> {
+  public static async runCheckpoint(
+    execRcon: RconExecutor,
+    snapshot?: (files: WorldFileEntry[]) => Promise<void>
+  ): Promise<SaveHoldResult> {
     const phases: SaveHoldPhase[] = [];
     let files: WorldFileEntry[] = [];
     let queryOutput: string | undefined;
+    let resumed = false;
+
+    const resume = async () => {
+      if (resumed) return;
+      resumed = true;
+      phases.push('RESUME');
+      await execRcon(this.COMMANDS.resume);
+    };
 
     try {
       phases.push('HOLD');
@@ -75,23 +86,28 @@ export class SaveHoldDriver {
       }
       files = parsed;
 
-      phases.push('RESUME');
-      await execRcon(this.COMMANDS.resume);
+      if (snapshot) {
+        await snapshot(files);
+      }
+
+      await resume();
       phases.push('DONE');
 
       return { success: true, files, phases, queryOutput };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       try {
-        await execRcon(this.COMMANDS.resume);
-        if (!phases.includes('RESUME')) {
-          phases.push('RESUME');
-        }
+        await resume();
       } catch {
-        // Resume failure is secondary; surface the original error.
+        // ignore secondary resume failures
       }
       phases.push('FAILED');
-      return { success: false, files, phases, queryOutput, error: message };
+      return {
+        success: false,
+        files,
+        phases,
+        queryOutput,
+        error: err instanceof Error ? err.message : String(err)
+      };
     }
   }
 
@@ -311,8 +327,19 @@ export class R2PresignClient {
 }
 
 /** Deterministic object key helper for backup archives. */
+export function sanitizeBackupPathSegment(value: string): string {
+  const cleaned = value.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!cleaned || cleaned === '.' || cleaned === '..' || cleaned.includes('..')) {
+    throw new Error(`Invalid backup path segment: ${value}`);
+  }
+  return cleaned;
+}
+
 export function buildBackupObjectKey(serverId: string, backupId: string, filename: string): string {
-  return `backups/${serverId}/${backupId}/${filename}`;
+  const safeServer = sanitizeBackupPathSegment(serverId);
+  const safeBackup = sanitizeBackupPathSegment(backupId);
+  const safeFile = sanitizeBackupPathSegment(filename.replace(/\.+/g, '.'));
+  return `backups/${safeServer}/${safeBackup}/${safeFile}`;
 }
 
 /** Generate a short nonce for backup IDs when Date.now collisions matter in tests. */

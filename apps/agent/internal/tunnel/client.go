@@ -325,27 +325,34 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 		Payload:   mustRaw(map[string]any{"backupId": backupID, "status": "STARTING", "holdCheckpoint": true}),
 	})
 
-	// Best-effort save-hold sequence when RCON is reachable (resume always attempted by driver semantics).
-	_ = c.sendLog(serverID, "save hold checkpoint: attempting RCON save hold/query/resume")
-	host := envOr("RCON_HOST", "127.0.0.1")
-	port := 19133
-	if p := os.Getenv("RCON_PORT"); p != "" {
-		fmt.Sscanf(p, "%d", &port)
-	}
-	if out, stub, err := c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save hold"); err != nil {
-		_ = c.sendLog(serverID, fmt.Sprintf("save hold skipped: %v", err))
-		_ = stub
-		_ = out
-	} else {
-		_, _, _ = c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save query")
-		_, _, _ = c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save resume")
-	}
-
 	worldDir := lifecycle.WorldDir(c.cfg.ServerPathHint)
 	if worldDir == "" || !dirExists(worldDir) {
 		msg := fmt.Sprintf("world directory unavailable at %q — backup not executed", worldDir)
 		c.failBackup(frame, serverID, backupID, msg)
 		return
+	}
+
+	if err := agentbackup.ValidateUploadURL(payload.PresignedUploadURL); err != nil {
+		c.failBackup(frame, serverID, backupID, err.Error())
+		return
+	}
+
+	host := envOr("RCON_HOST", "127.0.0.1")
+	port := 19133
+	if p := os.Getenv("RCON_PORT"); p != "" {
+		fmt.Sscanf(p, "%d", &port)
+	}
+	password := os.Getenv("RCON_PASSWORD")
+
+	held := false
+	_ = c.sendLog(serverID, "save hold checkpoint: attempting RCON save hold/query (resume after archive)")
+	if out, stub, err := c.rcon.Execute(host, port, password, "save hold"); err != nil {
+		_ = c.sendLog(serverID, fmt.Sprintf("save hold skipped: %v", err))
+		_ = stub
+		_ = out
+	} else {
+		held = true
+		_, _, _ = c.rcon.Execute(host, port, password, "save query")
 	}
 
 	result, err := agentbackup.StreamWorldArchive(worldDir, payload.PresignedUploadURL, func(percent int, bytes int64) {
@@ -362,6 +369,13 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 			}),
 		})
 	})
+
+	if held {
+		if _, _, resumeErr := c.rcon.Execute(host, port, password, "save resume"); resumeErr != nil {
+			_ = c.sendLog(serverID, fmt.Sprintf("save resume failed: %v", resumeErr))
+		}
+	}
+
 	if err != nil {
 		c.failBackup(frame, serverID, backupID, err.Error())
 		return

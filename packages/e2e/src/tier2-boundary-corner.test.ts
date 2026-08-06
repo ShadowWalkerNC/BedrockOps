@@ -155,21 +155,21 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       );
     });
 
-    it('PterodactylHostProvider handles start command for configured server', async () => {
+    it('PterodactylHostProvider refuses start until panel API is wired', async () => {
       const provider = new PterodactylHostProvider('https://panel.example.com', 'ptero_key_123');
       const server = { ...db.servers[0], hostProvider: HostProviderType.PTERODACTYL };
 
       const started = await provider.startServer(server);
-      expect(started).toBe(true);
+      expect(started).toBe(false);
     });
 
-    it('DirectRconSshHostProvider executes RCON with empty command string', async () => {
+    it('DirectRconSshHostProvider returns honest RCON stub for empty command', async () => {
       const provider = new DirectRconSshHostProvider();
       const server = db.servers[0];
 
       const response = await provider.executeRcon(server, '');
-      expect(response).toContain('[DirectRCON]');
-      expect(response).toContain('Executed ""');
+      expect(response).toContain('[STUB]');
+      expect(response).toContain('DirectRCON');
     });
 
     it('HostProvider streamLogs handles stream subscription and unsubscribe callback', () => {
@@ -430,12 +430,12 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       expect(restarted).toBe(false);
     });
 
-    it('PterodactylHostProvider restartServer stops and starts server', async () => {
+    it('PterodactylHostProvider restartServer returns false until panel API is wired', async () => {
       const provider = new PterodactylHostProvider();
       const server = { ...db.servers[0], hostProvider: HostProviderType.PTERODACTYL };
 
       const restarted = await provider.restartServer(server);
-      expect(restarted).toBe(true);
+      expect(restarted).toBe(false);
     });
   });
 

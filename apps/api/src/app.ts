@@ -10,8 +10,8 @@ import { auditRouter } from './routes/audit.routes';
 
 export const app: Application = express();
 
-app.use(cors({ origin: config.CORS_ORIGIN }));
-app.use(express.json());
+app.use(cors({ origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((s) => s.trim()) }));
+app.use(express.json({ limit: '1mb' }));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
