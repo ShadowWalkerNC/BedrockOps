@@ -13,7 +13,6 @@ coverage
 
 # Go agent build artifacts
 apps/agent/bin/
-apps/agent/**/bedrock-agent
 
 # Prisma
 packages/db/prisma/dev.db
