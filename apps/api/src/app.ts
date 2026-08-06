@@ -7,6 +7,7 @@ import { nodeRouter } from './routes/node.routes';
 import { backupRouter } from './routes/backup.routes';
 import { moderationRouter } from './routes/moderation.routes';
 import { auditRouter } from './routes/audit.routes';
+import { provisioningRouter } from './routes/provisioning.routes';
 
 export const app: Application = express();
 
@@ -25,3 +26,4 @@ app.use('/api/v1/nodes', nodeRouter);
 app.use('/api/v1/backups', backupRouter);
 app.use('/api/v1/moderation', moderationRouter);
 app.use('/api/v1/audit', auditRouter);
+app.use('/api/v1/provisioning', provisioningRouter);

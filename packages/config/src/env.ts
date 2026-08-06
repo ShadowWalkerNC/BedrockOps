@@ -15,6 +15,11 @@ export const envSchema = z.object({
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
   R2_JURISDICTION: z.string().optional(),
+  PLAY_BASE_DOMAIN: z.string().default('play.bedrockops.io'),
+  CLOUDFLARE_API_TOKEN: z.string().optional(),
+  XBOX_API_KEY: z.string().optional(),
+  OPENXBL_API_KEY: z.string().optional(),
+  XBOX_FRIEND_BOT_GAMERTAG: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

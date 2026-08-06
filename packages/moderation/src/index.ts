@@ -152,4 +152,13 @@ export class AllowlistService {
 }
 
 export { PlayerLogParser, PlayerTracker, XboxIdentityService, AllowlistManager, playerTracker };
-export type { AllowlistEntry, AllowlistSyncResult };
+export type {
+  AllowlistEntry,
+  AllowlistSyncResult,
+  FriendInviteRecord,
+  FriendInviteStatus,
+  GamertagResolution,
+  PlayerIdentity,
+  ParsedJoinEvent,
+  ParsedDisconnectEvent
+} from './players';

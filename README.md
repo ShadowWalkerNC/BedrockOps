@@ -99,6 +99,14 @@ Without R2 credentials the control plane returns an honest presign stub; the age
 - GDPR anonymize: `POST /api/v1/moderation/gdpr/anonymize`
 - Allowlist atomic sync plan (+ agent apply when connected): `POST /api/v1/moderation/allowlist/sync`
 
+### Provisioning (subdomain / console onboarding)
+
+- Allocate play FQDN + UDP port (19132–19999): `POST /api/v1/provisioning/network`
+- Full setup pipeline (optional network allocation): `POST /api/v1/provisioning/setup`
+- Console onboarding (resolve + Friend Bot + allowlist seed): `POST /api/v1/provisioning/onboarding/console`
+
+DNS writes are an in-memory stub until `CLOUDFLARE_API_TOKEN` is configured.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` at the repo root. Key variables:

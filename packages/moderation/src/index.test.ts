@@ -141,6 +141,18 @@ describe('XboxIdentityService', () => {
     const res = await xbox.resolveGamertag('CustomGamer');
     expect(res.xuid).toBe('2535499999999999');
   });
+
+  it('dispatches and accepts friend bot invites', async () => {
+    const xbox = new XboxIdentityService(undefined, 'BedrockOps Onboarding Bot');
+    const invite = await xbox.dispatchFriendInvite('SwitchGamer99');
+    expect(invite.status).toBe('PENDING');
+    expect(invite.botGamertag).toBe('BedrockOps Onboarding Bot');
+    expect(invite.stub).toBe(true);
+
+    const accepted = xbox.acceptFriendInvite(invite.id);
+    expect(accepted?.status).toBe('ACCEPTED');
+    expect(xbox.getInviteHistory({ status: 'ACCEPTED' }).length).toBe(1);
+  });
 });
 
 describe('AllowlistManager', () => {
