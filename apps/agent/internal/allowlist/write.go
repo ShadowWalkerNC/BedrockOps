@@ -5,16 +5,49 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Entry mirrors Bedrock allowlist.json objects.
 type Entry struct {
-	Name                string `json:"name"`
-	XUID                string `json:"xuid"`
-	IgnoresPlayerLimit  bool   `json:"ignoresPlayerLimit"`
+	Name               string `json:"name"`
+	XUID               string `json:"xuid"`
+	IgnoresPlayerLimit bool   `json:"ignoresPlayerLimit"`
+}
+
+// ResolveJailPath ensures candidate resolves under rootDir (no path escape).
+func ResolveJailPath(rootDir, candidate string) (string, error) {
+	if rootDir == "" {
+		return "", fmt.Errorf("allowlist root directory required")
+	}
+	absRoot, err := filepath.Abs(rootDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve root: %w", err)
+	}
+	absRoot = filepath.Clean(absRoot)
+
+	target := candidate
+	if target == "" {
+		target = filepath.Join(absRoot, "allowlist.json")
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(absRoot, target)
+	}
+	absTarget, err := filepath.Abs(target)
+	if err != nil {
+		return "", fmt.Errorf("resolve target: %w", err)
+	}
+	absTarget = filepath.Clean(absTarget)
+
+	sep := string(os.PathSeparator)
+	if absTarget != absRoot && !strings.HasPrefix(absTarget, absRoot+sep) {
+		return "", fmt.Errorf("allowlist path %q escapes jail root %q", absTarget, absRoot)
+	}
+	return absTarget, nil
 }
 
 // AtomicWrite writes contents to tempPath then renames onto targetPath.
+// Both paths must already be jail-resolved by the caller.
 func AtomicWrite(targetPath, tempPath, contents string) error {
 	if targetPath == "" {
 		return fmt.Errorf("targetPath required")

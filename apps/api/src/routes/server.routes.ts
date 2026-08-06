@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { db, ServerStatus, UserRole, HostProviderType } from '@mc-admin/db';
+import { db, ServerStatus, UserRole, HostProviderType, BedrockServer } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -9,19 +9,28 @@ export const serverRouter: Router = Router();
 
 serverRouter.use(authenticateJwt);
 
+/** Strip secrets from API responses. */
+export function toPublicServer(server: BedrockServer) {
+  const { rconPassword: _omit, ...rest } = server;
+  return {
+    ...rest,
+    hasRconPassword: Boolean(server.rconPassword)
+  };
+}
+
 // GET /api/v1/servers - List servers
 serverRouter.get('/', (_req: AuthenticatedRequest, res: Response) => {
-  const activeServers = db.servers.filter(s => !s.deletedAt);
+  const activeServers = db.servers.filter((s) => !s.deletedAt).map(toPublicServer);
   return res.json({ servers: activeServers });
 });
 
 // GET /api/v1/servers/:id - Fetch server details
 serverRouter.get('/:id', (req: AuthenticatedRequest, res: Response) => {
-  const server = db.servers.find(s => s.id === req.params.id && !s.deletedAt);
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
   if (!server) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
-  return res.json({ server });
+  return res.json({ server: toPublicServer(server) });
 });
 
 // POST /api/v1/servers - Create server
@@ -79,17 +88,38 @@ serverRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, 
     metadata: { name: server.name, hostProvider: server.hostProvider }
   });
 
-  return res.status(201).json({ server });
+  return res.status(201).json({ server: toPublicServer(server) });
 });
+
+const patchServerSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    host: z.string().min(1).optional(),
+    port: z.number().int().positive().optional(),
+    rconPort: z.number().int().positive().optional(),
+    rconPassword: z.string().min(1).optional(),
+    version: z.string().min(1).optional(),
+    maxPlayers: z.number().int().positive().optional(),
+    gameMode: z.string().min(1).optional(),
+    difficulty: z.string().min(1).optional(),
+    agentId: z.string().min(1).optional(),
+    serverPath: z.string().min(1).optional()
+  })
+  .strict();
 
 // PATCH /api/v1/servers/:id - Update server
 serverRouter.patch('/:id', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, res: Response) => {
-  const server = db.servers.find(s => s.id === req.params.id && !s.deletedAt);
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
   if (!server) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
 
-  Object.assign(server, req.body, { updatedAt: new Date() });
+  const parse = patchServerSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
+  }
+
+  Object.assign(server, parse.data, { updatedAt: new Date() });
 
   AuditLogger.record({
     actorId: req.user!.userId,
@@ -99,12 +129,12 @@ serverRouter.patch('/:id', requireRole(UserRole.ADMIN), (req: AuthenticatedReque
     entityId: server.id
   });
 
-  return res.json({ server });
+  return res.json({ server: toPublicServer(server) });
 });
 
 // DELETE /api/v1/servers/:id - Soft delete server
 serverRouter.delete('/:id', requireRole(UserRole.OWNER), (req: AuthenticatedRequest, res: Response) => {
-  const server = db.servers.find(s => s.id === req.params.id && !s.deletedAt);
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
   if (!server) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
@@ -135,7 +165,7 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: Aut
     return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
   }
 
-  const server = db.servers.find(s => s.id === id && !s.deletedAt);
+  const server = db.servers.find((s) => s.id === id && !s.deletedAt);
   if (!server) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
@@ -170,12 +200,12 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: Aut
       success: false,
       stub: true,
       action,
-      server,
-      message: '[STUB] Agent tunnel not connected — power action not executed on host.'
+      server: toPublicServer(server),
+      message: '[STUB] Power action not executed on host (provider pending or agent offline).'
     });
   }
 
-  return res.json({ success: true, action, server });
+  return res.json({ success: true, action, server: toPublicServer(server) });
 });
 
 // POST /api/v1/servers/:id/rcon - Execute RCON command
@@ -190,7 +220,7 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
     return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
   }
 
-  const server = db.servers.find(s => s.id === id && !s.deletedAt);
+  const server = db.servers.find((s) => s.id === id && !s.deletedAt);
   if (!server) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }

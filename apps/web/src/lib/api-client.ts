@@ -11,6 +11,34 @@ export class ApiError extends Error {
   }
 }
 
+function canDevAutoLogin(): boolean {
+  return process.env.NEXT_PUBLIC_DEV_AUTO_LOGIN === 'true';
+}
+
+export async function login(email: string, password: string): Promise<string> {
+  const res = await fetch('/api/v1/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+
+  if (!res.ok) {
+    throw new ApiError('Login failed', res.status, await res.json().catch(() => undefined));
+  }
+
+  const data = (await res.json()) as { token: string };
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(TOKEN_KEY, data.token);
+  }
+  return data.token;
+}
+
+export function logout(): void {
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
+}
+
 export async function ensureAuthenticated(): Promise<string> {
   if (typeof window === 'undefined') {
     return '';
@@ -24,24 +52,18 @@ export async function ensureAuthenticated(): Promise<string> {
     if (me.ok) {
       return existing;
     }
+    sessionStorage.removeItem(TOKEN_KEY);
   }
 
-  const res = await fetch('/api/v1/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: 'admin@minecraft-admin.local',
-      password: 'admin'
-    })
-  });
-
-  if (!res.ok) {
-    throw new ApiError('Dev login failed — is apps/api running on port 4000?', res.status);
+  // Opt-in only — never hardcode credentials into production builds by default.
+  if (canDevAutoLogin()) {
+    return login('admin@minecraft-admin.local', 'admin');
   }
 
-  const data = (await res.json()) as { token: string };
-  sessionStorage.setItem(TOKEN_KEY, data.token);
-  return data.token;
+  throw new ApiError(
+    'Not authenticated. Sign in via /api/v1/auth/login or set NEXT_PUBLIC_DEV_AUTO_LOGIN=true for local dev.',
+    401
+  );
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -50,19 +72,21 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(options.headers ?? {})
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`
     }
   });
 
-  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message =
-      (body as { message?: string }).message ||
-      (body as { error?: string }).error ||
-      res.statusText;
-    throw new ApiError(message, res.status, body);
+    const body = await res.json().catch(() => undefined);
+    throw new ApiError(
+      typeof body === 'object' && body && 'message' in body
+        ? String((body as { message: string }).message)
+        : `Request failed (${res.status})`,
+      res.status,
+      body
+    );
   }
 
-  return body as T;
+  return res.json() as Promise<T>;
 }

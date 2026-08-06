@@ -16,7 +16,7 @@ import (
 func main() {
 	controlPlane := flag.String("control-plane", envOr("BEDROCK_CONTROL_PLANE", "http://127.0.0.1:4000"), "Control plane base URL (http/https)")
 	nodeID := flag.String("node-id", envOr("BEDROCK_NODE_ID", "node_docker_agent_1"), "Registered agent node id")
-	token := flag.String("token", envOr("BEDROCK_AGENT_TOKEN", ""), "Optional bearer token for tunnel auth")
+	token := flag.String("token", envOr("BEDROCK_AGENT_TOKEN", "dev_agent_token_change_me"), "Bearer token for tunnel auth (required)")
 	bdsBin := flag.String("bds-bin", envOr("BDS_BIN", ""), "Path to bedrock_server binary (empty = simulated lifecycle)")
 	serverPath := flag.String("server-path", envOr("BDS_SERVER_PATH", ""), "Default BDS server working directory")
 	flag.Parse()

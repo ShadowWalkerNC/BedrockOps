@@ -201,7 +201,8 @@ export class DnsProvider {
       aRecord,
       srvRecord,
       allocatedPort,
-      stub: !this.isLive()
+      // Remain stub:true until Cloudflare DNS API writes are implemented.
+      stub: true
     };
   }
 

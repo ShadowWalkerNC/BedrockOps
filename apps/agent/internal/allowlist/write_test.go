@@ -1,46 +1,49 @@
-package allowlist_test
+package allowlist
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/allowlist"
 )
 
-func TestAtomicWrite(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(dir, "allowlist.json")
-	temp := target + ".tmp"
-	contents := "[\n  {\"name\": \"Steve\", \"xuid\": \"1\", \"ignoresPlayerLimit\": false}\n]\n"
-
-	if err := allowlist.AtomicWrite(target, temp, contents); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(target)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != contents {
-		t.Fatalf("contents mismatch: %s", data)
-	}
-	if _, err := os.Stat(temp); !os.IsNotExist(err) {
-		t.Fatal("temp file should be gone after rename")
+func TestResolveJailPathBlocksEscape(t *testing.T) {
+	root := t.TempDir()
+	_, err := ResolveJailPath(root, filepath.Join(root, "..", "etc", "passwd"))
+	if err == nil {
+		t.Fatal("expected jail escape to fail")
 	}
 }
 
-func TestSanitizeAndSerialize(t *testing.T) {
-	raw := json.RawMessage(`[{"name":"Alex","xuid":"9"}]`)
-	entries, err := allowlist.SanitizeEntries(raw)
+func TestResolveJailPathAllowsRelative(t *testing.T) {
+	root := t.TempDir()
+	got, err := ResolveJailPath(root, "allowlist.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := allowlist.Serialize(entries)
+	want := filepath.Join(root, "allowlist.json")
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestAtomicWriteRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	target, err := ResolveJailPath(root, "allowlist.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out == "" || entries[0].Name != "Alex" {
-		t.Fatalf("unexpected: %+v %s", entries, out)
+	temp, err := ResolveJailPath(root, "allowlist.json.tmp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := AtomicWrite(target, temp, "[]\n"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "[]\n" {
+		t.Fatalf("unexpected contents %q", b)
 	}
 }

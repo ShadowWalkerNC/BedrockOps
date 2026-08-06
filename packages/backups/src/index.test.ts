@@ -136,18 +136,26 @@ describe('SaveHoldDriver', () => {
     ]);
   });
 
-  it('runs hold → query → resume and always resumes on failure', async () => {
+  it('runs hold → query → snapshot → resume and always resumes on failure', async () => {
     const calls: string[] = [];
-    const result = await SaveHoldDriver.runCheckpoint(async (cmd) => {
-      calls.push(cmd);
-      if (cmd === 'save query') {
-        return 'world/level.dat:128';
+    const snapFiles: { path: string; size: number }[] = [];
+    const result = await SaveHoldDriver.runCheckpoint(
+      async (cmd) => {
+        calls.push(cmd);
+        if (cmd === 'save query') {
+          return 'world/level.dat:128';
+        }
+        return 'ok';
+      },
+      async (files) => {
+        snapFiles.push(...files);
+        expect(calls).toEqual(['save hold', 'save query']);
       }
-      return 'ok';
-    });
+    );
 
     expect(result.success).toBe(true);
     expect(result.files).toEqual([{ path: 'world/level.dat', size: 128 }]);
+    expect(snapFiles).toEqual([{ path: 'world/level.dat', size: 128 }]);
     expect(calls).toEqual(['save hold', 'save query', 'save resume']);
     expect(result.phases).toContain('DONE');
   });

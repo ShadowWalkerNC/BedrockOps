@@ -333,18 +333,31 @@ func (c *Client) handleAllowlist(frame protocol.Frame, serverID string, payload 
 		contents = serialized
 	}
 
-	if targetPath == "" {
-		base := c.cfg.ServerPathHint
-		if base == "" {
-			base = filepath.Join(os.TempDir(), "bedrockops", serverID)
-		}
-		targetPath = filepath.Join(base, "allowlist.json")
-	}
-	if tempPath == "" {
-		tempPath = targetPath + ".tmp"
+	root := c.cfg.ServerPathHint
+	if root == "" {
+		root = filepath.Join(os.TempDir(), "bedrockops", serverID)
 	}
 
-	if err := agentallowlist.AtomicWrite(targetPath, tempPath, contents); err != nil {
+	// Ignore remote absolute paths that escape the jail — only basename/relative under root.
+	if targetPath != "" && (filepath.IsAbs(targetPath) || strings.Contains(targetPath, "..")) {
+		targetPath = filepath.Base(filepath.Clean(targetPath))
+		if targetPath == "." || targetPath == string(filepath.Separator) {
+			targetPath = "allowlist.json"
+		}
+	}
+	resolvedTarget, err := agentallowlist.ResolveJailPath(root, targetPath)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		return
+	}
+	resolvedTemp, err := agentallowlist.ResolveJailPath(root, filepath.Base(resolvedTarget)+".tmp")
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		return
+	}
+	_ = tempPath // remote tempPath ignored — always use jailed sibling
+
+	if err := agentallowlist.AtomicWrite(resolvedTarget, resolvedTemp, contents); err != nil {
 		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
 		_ = c.sendLog(serverID, fmt.Sprintf("allowlist sync failed: %v", err))
 		return
@@ -354,11 +367,11 @@ func (c *Client) handleAllowlist(frame protocol.Frame, serverID string, payload 
 	if reload == "" {
 		reload = "allowlist reload"
 	}
-	_ = c.sendLog(serverID, fmt.Sprintf("allowlist written to %s (%d bytes); reload via %q", targetPath, len(contents), reload))
+	_ = c.sendLog(serverID, fmt.Sprintf("allowlist written to %s (%d bytes); reload via %q", resolvedTarget, len(contents), reload))
 
 	c.respond(frame, protocol.CmdRespPayload{
 		Success: true,
-		Output:  fmt.Sprintf("allowlist synced to %s", targetPath),
+		Output:  fmt.Sprintf("allowlist synced to %s", resolvedTarget),
 		Mode:    string(c.manager.Mode()),
 	})
 }
@@ -378,27 +391,34 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 		Payload:   mustRaw(map[string]any{"backupId": backupID, "status": "STARTING", "holdCheckpoint": true}),
 	})
 
-	// Best-effort save-hold sequence when RCON is reachable (resume always attempted by driver semantics).
-	_ = c.sendLog(serverID, "save hold checkpoint: attempting RCON save hold/query/resume")
-	host := envOr("RCON_HOST", "127.0.0.1")
-	port := 19133
-	if p := os.Getenv("RCON_PORT"); p != "" {
-		fmt.Sscanf(p, "%d", &port)
-	}
-	if out, stub, err := c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save hold"); err != nil {
-		_ = c.sendLog(serverID, fmt.Sprintf("save hold skipped: %v", err))
-		_ = stub
-		_ = out
-	} else {
-		_, _, _ = c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save query")
-		_, _, _ = c.rcon.Execute(host, port, os.Getenv("RCON_PASSWORD"), "save resume")
-	}
-
 	worldDir := lifecycle.WorldDir(c.cfg.ServerPathHint)
 	if worldDir == "" || !dirExists(worldDir) {
 		msg := fmt.Sprintf("world directory unavailable at %q — backup not executed", worldDir)
 		c.failBackup(frame, serverID, backupID, msg)
 		return
+	}
+
+	if err := agentbackup.ValidateUploadURL(payload.PresignedUploadURL); err != nil {
+		c.failBackup(frame, serverID, backupID, err.Error())
+		return
+	}
+
+	host := envOr("RCON_HOST", "127.0.0.1")
+	port := 19133
+	if p := os.Getenv("RCON_PORT"); p != "" {
+		fmt.Sscanf(p, "%d", &port)
+	}
+	password := os.Getenv("RCON_PASSWORD")
+
+	held := false
+	_ = c.sendLog(serverID, "save hold checkpoint: attempting RCON save hold/query (resume after archive)")
+	if out, stub, err := c.rcon.Execute(host, port, password, "save hold"); err != nil {
+		_ = c.sendLog(serverID, fmt.Sprintf("save hold skipped: %v", err))
+		_ = stub
+		_ = out
+	} else {
+		held = true
+		_, _, _ = c.rcon.Execute(host, port, password, "save query")
 	}
 
 	result, err := agentbackup.StreamWorldArchive(worldDir, payload.PresignedUploadURL, func(percent int, bytes int64) {
@@ -415,6 +435,13 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 			}),
 		})
 	})
+
+	if held {
+		if _, _, resumeErr := c.rcon.Execute(host, port, password, "save resume"); resumeErr != nil {
+			_ = c.sendLog(serverID, fmt.Sprintf("save resume failed: %v", resumeErr))
+		}
+	}
+
 	if err != nil {
 		c.failBackup(frame, serverID, backupID, err.Error())
 		return

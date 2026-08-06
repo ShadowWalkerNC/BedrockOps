@@ -111,6 +111,19 @@ export class PlayerTracker {
   public clear(): void {
     this.players.clear();
   }
+
+  /** Remove identities matching gamertag or XUID (GDPR). */
+  public removeByGamertagOrXuid(gamertagOrXuid: string): number {
+    const q = gamertagOrXuid.toLowerCase();
+    let removed = 0;
+    for (const [key, player] of this.players.entries()) {
+      if (player.gamertag.toLowerCase() === q || player.xuid === gamertagOrXuid || key.toLowerCase() === q) {
+        this.players.delete(key);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
 }
 
 export const playerTracker = new PlayerTracker();
@@ -149,7 +162,10 @@ export class XboxIdentityService {
   constructor(
     private readonly apiKey?: string,
     private readonly botGamertag = 'BedrockOps Onboarding Bot'
-  ) {}
+  ) {
+    // apiKey reserved for future OpenXBL HTTP calls — does not flip stub:false yet.
+    void this.apiKey;
+  }
 
   public static fromEnv(env: NodeJS.ProcessEnv = process.env): XboxIdentityService {
     return new XboxIdentityService(
@@ -190,11 +206,13 @@ export class XboxIdentityService {
       this.reverseMappings.set(xuid, trimmed);
     }
 
+    // Always stub until OpenXBL/Xbox Live HTTP integration is implemented.
+    // Having an API key configured must not flip stub:false without a live call.
     return {
       gamertag: trimmed,
       xuid,
       success: true,
-      stub: !this.apiKey,
+      stub: true,
       resolvedAt: new Date()
     };
   }
@@ -209,7 +227,7 @@ export class XboxIdentityService {
       gamertag,
       xuid: trimmed,
       success: true,
-      stub: !this.apiKey,
+      stub: true,
       resolvedAt: new Date()
     };
   }
@@ -224,7 +242,7 @@ export class XboxIdentityService {
       xuid: resolution.xuid,
       botGamertag: this.botGamertag,
       status: resolution.success ? 'PENDING' : 'FAILED',
-      stub: !this.apiKey,
+      stub: true,
       dispatchedAt: now,
       updatedAt: now
     };

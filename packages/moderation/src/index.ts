@@ -110,10 +110,12 @@ export class ModerationService {
       record.active = false;
       record.deletedAt = record.deletedAt ?? new Date();
       record.gamertag = GDPR_REDACTED;
+      record.reason = GDPR_REDACTED;
       delete record.playerXuid;
-      // Keep reason for operational audit but strip PII-bearing free text optionally later.
       updated += 1;
     }
+
+    playerTracker.removeByGamertagOrXuid(gamertagOrXuid);
 
     return { updated, gamertag: gamertagOrXuid, redactedAs: GDPR_REDACTED };
   }

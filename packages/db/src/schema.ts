@@ -57,6 +57,8 @@ export interface AgentNode {
   name: string;
   version: string;
   status: 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
+  /** SHA-256 hex of the agent bearer token. Plaintext is never stored. */
+  secretTokenHash?: string;
   lastHeartbeat?: Date;
   createdAt: Date;
 }

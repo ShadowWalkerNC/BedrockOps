@@ -58,7 +58,7 @@ export default function BedrockAdminDashboard() {
   const [modAction, setModAction] = useState('WARN');
 
   // Discord State
-  const [webhookUrl, setWebhookUrl] = useState('https://discord.com/api/webhooks/123456789/abc');
+  const [webhookUrl, setWebhookUrl] = useState('');
 
   const showNotify = (msg: string) => {
     setNotification(msg);

@@ -60,6 +60,7 @@ BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Server
 | M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2, manifest verification) | M1, M2 | COMPLETE |
 | M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | M1, M2 | COMPLETE |
 | M5 | Subdomain Allocation & Console Onboarding | Features 16-18 (Subdomain & port allocation, console onboarding, setup pipelines) | M1, M4 | COMPLETE |
+| M_SEC | Security Hardening Pass | Agent WSS auth, auth backdoor removal, honest stubs, path jails, secret stripping | M1–M5 | IN_PROGRESS |
 | M_E2E | E2E Test Suite Development (Parallel Track) | Feature 19 (Tiers 1-4 test suite infrastructure and test cases) | M1 | IN_PROGRESS |
 | M_FINAL | Final E2E Integration Pass & Hardening | Feature 20 (Phase 1 100% E2E tests pass + Phase 2 Tier 5 adversarial hardening) | M1-M5, M_E2E | PLANNED |
 

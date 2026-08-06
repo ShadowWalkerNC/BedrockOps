@@ -105,7 +105,14 @@ Without R2 credentials the control plane returns an honest presign stub; the age
 - Full setup pipeline (optional network allocation): `POST /api/v1/provisioning/setup`
 - Console onboarding (resolve + Friend Bot + allowlist seed): `POST /api/v1/provisioning/onboarding/console`
 
-DNS writes are an in-memory stub until `CLOUDFLARE_API_TOKEN` is configured.
+DNS writes are an in-memory stub until the Cloudflare DNS API is implemented (setting `CLOUDFLARE_API_TOKEN` alone does not make DNS live).
+
+### Security notes (local prototype)
+
+- Agent WebSocket requires a bearer token matching `AgentNode.secretTokenHash` (seeded token: `dev_agent_token_change_me`).
+- Production refuses weak `JWT_SECRET` / `NODE_PAIRING_SECRET`, `CORS_ORIGIN=*`, and MemoryDatabase unless `ALLOW_MEMORY_DB=true`.
+- Host providers that are not wired (Pterodactyl / Direct RCON) return `false` / `[STUB]` — they never pretend power actions succeeded.
+- Dashboard auto-login is opt-in via `NEXT_PUBLIC_DEV_AUTO_LOGIN=true`.
 
 ## Environment variables
 
@@ -117,6 +124,10 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | `PORT` | Web / shared port hint | `3000` |
 | `DATABASE_URL` | Postgres connection string | see `.env.example` |
 | `JWT_SECRET` | API JWT signing secret | change in production |
+| `NODE_PAIRING_SECRET` | Agent bootstrap pairing secret | change in production |
+| `CORS_ORIGIN` | Allowed browser origin(s) | `http://localhost:3000` |
+| `BEDROCK_AGENT_TOKEN` | Agent tunnel bearer token | see `.env.example` |
+| `NEXT_PUBLIC_DEV_AUTO_LOGIN` | Web silent admin login (dev only) | unset / `true` in example |
 | `DISCORD_WEBHOOK_URL` | Optional Discord alerts | — |
 | `RCON_HOST` / `RCON_PORT` / `RCON_PASSWORD` | Bedrock RCON | local defaults |
 
