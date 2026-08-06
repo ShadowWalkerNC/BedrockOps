@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	agentallowlist "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/allowlist"
 	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
@@ -210,6 +212,8 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleBackup(frame, serverID, payload)
 	case protocol.CmdGetStatus:
 		c.handleStatus(frame, serverID)
+	case protocol.CmdAllowlistSync:
+		c.handleAllowlist(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
@@ -307,6 +311,55 @@ func (c *Client) handleStatus(frame protocol.Frame, serverID string) {
 		TotalMemoryMb: m.MemoryLimitMB,
 		UptimeSeconds: m.UptimeSeconds,
 		ActivePlayers: m.ActiveConnections,
+	})
+}
+
+func (c *Client) handleAllowlist(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	contents := payload.Contents
+	targetPath := payload.TargetPath
+	tempPath := payload.TempPath
+
+	if contents == "" {
+		entries, err := agentallowlist.SanitizeEntries(payload.Entries)
+		if err != nil {
+			c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+			return
+		}
+		serialized, err := agentallowlist.Serialize(entries)
+		if err != nil {
+			c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+			return
+		}
+		contents = serialized
+	}
+
+	if targetPath == "" {
+		base := c.cfg.ServerPathHint
+		if base == "" {
+			base = filepath.Join(os.TempDir(), "bedrockops", serverID)
+		}
+		targetPath = filepath.Join(base, "allowlist.json")
+	}
+	if tempPath == "" {
+		tempPath = targetPath + ".tmp"
+	}
+
+	if err := agentallowlist.AtomicWrite(targetPath, tempPath, contents); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("allowlist sync failed: %v", err))
+		return
+	}
+
+	reload := payload.ReloadCommand
+	if reload == "" {
+		reload = "allowlist reload"
+	}
+	_ = c.sendLog(serverID, fmt.Sprintf("allowlist written to %s (%d bytes); reload via %q", targetPath, len(contents), reload))
+
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Output:  fmt.Sprintf("allowlist synced to %s", targetPath),
+		Mode:    string(c.manager.Mode()),
 	})
 }
 

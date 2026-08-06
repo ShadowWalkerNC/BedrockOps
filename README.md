@@ -92,6 +92,13 @@ Manual backups (`POST /api/v1/backups`) run the save-hold command plan, ask the 
 
 Without R2 credentials the control plane returns an honest presign stub; the agent still archives locally when a world directory exists.
 
+### Moderation & allowlist
+
+- Join log ingestion / player tracker: `POST /api/v1/moderation/players/join`
+- Gamertag↔XUID resolve (deterministic stub without Xbox API key): `POST /api/v1/moderation/players/resolve`
+- GDPR anonymize: `POST /api/v1/moderation/gdpr/anonymize`
+- Allowlist atomic sync plan (+ agent apply when connected): `POST /api/v1/moderation/allowlist/sync`
+
 ## Environment variables
 
 Copy `.env.example` to `.env` at the repo root. Key variables:
