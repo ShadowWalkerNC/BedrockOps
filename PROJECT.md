@@ -50,7 +50,7 @@ BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Server
 | 14 | R4.2 Persistent Infraction Ledger | Soft-delete GDPR-compliant moderation ledger (BAN, MUTE, WARN, NOTE) in PostgreSQL with anonymization | M4 | survey_3 |
 | 15 | R4.3 BDS allowlist.json Auto-Sync | Atomic file swap and RCON allowlist reload synchronization mechanism | M4 | survey_3 |
 | 16 | R5.1 Subdomain & Port Allocation | Subdomain mapping (abc123.play.bedrockops.io), UDP port pool reservation (19132-19999), and DNS record generator | M5 | survey_3 |
-| 17 | R5.2 Console Player Onboarding | Gamertag-to-XUID resolution, Xbox Friend Bot invitation, and console allowlist seeding | M5 | survey_3 |
+| 17 | R5.2 Console Player Onboarding | Gamertag-to-XUID resolution, allowlist seeding, and pluggable FriendConnect adapters (friend-session broadcast + optional BedrockConnect DNS) | M5 | survey_3 |
 | 18 | R5.3 Automated Setup Pipelines | Multi-step pipeline execution engine for server provisioning and initial deployment | M5 | survey_3 |
 | 19 | E2E Test Suite (Tiers 1-4) | Comprehensive Vitest requirement-driven opaque-box E2E test suite covering all features | M_E2E | survey_3 |
 | 20 | Final Verification & Hardening | Final E2E pass + Tier 5 white-box adversarial testing and victory audit | M_FINAL | survey_1, 2, 3 |
