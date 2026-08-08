@@ -1,12 +1,14 @@
 # BedrockOps
 
-Bedrock-first Minecraft server operations platform — server control, backups, moderation, Discord alerts, templates, and setup pipelines in one monorepo.
+Realms-first Bedrock Dedicated Server operations platform — lifecycle control, Cloudflare R2 backups, console onboarding, moderation, Discord, templates, and (later) add-on marketplace tooling in one monorepo.
 
 ## Overview
 
-BedrockOps (internal package scope: `@mc-admin/*`) is a pnpm + Turborepo monorepo for managing Bedrock Dedicated Server (BDS) communities. The dashboard, API, worker, machine agent, and Discord relay share domain packages for auth, audit, backups, moderation, and more.
+BedrockOps (internal package scope: `@mc-admin/*`) is a pnpm + Turborepo monorepo for running self-hosted Bedrock **Realms** (community BDS servers). The dashboard, API, worker, machine agent, and Discord relay share domain packages for auth, audit, backups, moderation, and more.
 
-**Current status:** Phase 1 foundation — domain packages and a working dashboard prototype. Runtime persistence uses an in-memory database for local development; Prisma/Postgres schema is in place for production wiring (see [Roadmap](#roadmap)).
+**Positioning:** software/control-plane first (self-sufficient). Hosting partners are optional later — not required to ship. Official Mojang Realms APIs are out of scope.
+
+**Current status:** Wave A foundation on `main` — domain packages and a working dashboard prototype. Runtime persistence defaults to in-memory DB for local development; Prisma/Postgres schema is ready for production wiring. See [PROJECT_PLAN.md](./PROJECT_PLAN.md) for Wave A–D delivery.
 
 ## Repository structure
 
@@ -106,16 +108,16 @@ pnpm --filter @mc-admin/db db:validate
 - **Web → API:** The dashboard proxies `/api/v1/*` to `apps/api` (port 4000). Web no longer imports `@mc-admin/db` or domain engines directly.
 - **Honest stubs:** Backups start as `PENDING`, agent/power actions return explicit stub responses until host integration is wired.
 
-Read `AGENTS.md` before contributing — it defines package boundaries and Phase 1 scope.
+Read `AGENTS.md` before contributing — it defines package boundaries and Wave A scope.
 
 ## Roadmap
 
-| Phase | Focus | Status |
-|-------|-------|--------|
-| **1** | Monorepo, domain packages, dashboard vertical slice | Prototype complete |
-| **2** | Onboarding wizard, Discord workflows, referrals, moderation UI | In progress |
-| **3** | Live console/RCON, analytics, security rules | Planned |
-| **4** | Host partner integrations, creator templates | Planned |
+| Wave | Focus | Status on `main` |
+|------|-------|------------------|
+| **A** | Real agent tunnel, RCON, Prisma, R2 backup/restore | Prototype / stubs — in-flight branches |
+| **B** | Console/FriendConnect adapters, moderation, Discord, onboarding | Planned |
+| **C** | Live console, security rules, analytics, version pins | Planned |
+| **D** | Packs/marketplace, optional host partners, rounds (later) | Planned |
 
 Details: [PROJECT_PLAN.md](./PROJECT_PLAN.md)
 
