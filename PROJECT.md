@@ -60,7 +60,7 @@ Statuses reflect **`main`**. Wave mapping and in-flight branches are documented 
 
 | # | Name | Scope | Wave | Dependencies | Status |
 |---|------|-------|------|-------------|--------|
-| M1 | Control Plane, Database Schema & HostProvider Layer | Features 1-5 (Prisma DB, HostProvider interface, REST/WS API backend, Next.js UI) | A | None | IN_PROGRESS |
+| M1 | Control Plane, Database Schema & HostProvider Layer | Features 1-5 (Prisma DB, HostProvider interface, REST/WS API backend, Next.js UI). Prisma hydrate/flush + migrations (`DB_ADAPTER=prisma`). | A | None | COMPLETE |
 | M2 | CGNAT-Safe Outbound Go Daemon Agent | Features 6-9 (Go agent binary, WSS tunnel, Docker lifecycle, telemetry, RCON logs) | A | M1 | COMPLETE |
 | M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2, manifest verification) | A | M1, M2 | IN_PROGRESS |
 | M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | B | M1, M2 | PLANNED |
