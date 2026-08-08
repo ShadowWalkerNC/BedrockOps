@@ -25,6 +25,21 @@ export interface BackupResult {
   error?: string;
 }
 
+export interface RestoreTriggerOptions {
+  backupId: string;
+  presignedDownloadUrl: string;
+}
+
+export interface RestoreResult {
+  success: boolean;
+  backupId: string;
+  stub?: boolean;
+  error?: string;
+  filesExtracted?: number;
+  fileSizeBytes?: number;
+  output?: string;
+}
+
 export interface HostProvider {
   readonly type: HostProviderType;
 
@@ -35,6 +50,7 @@ export interface HostProvider {
   executeRcon(server: BedrockServer, command: string): Promise<string>;
   streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void;
   triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult>;
+  restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult>;
 }
 
 /** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
@@ -168,6 +184,44 @@ export class DockerAgentHostProvider implements HostProvider {
       error: '[STUB] Agent tunnel not connected — backup not executed on host.'
     };
   }
+
+  public async restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult> {
+    if (this.tunnelGateway && server.agentId) {
+      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+        return {
+          success: false,
+          stub: true,
+          backupId: options.backupId,
+          error: `[STUB] Agent ${server.agentId} not connected — restore not executed on host.`
+        };
+      }
+      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RESTORE_BACKUP', {
+        backupId: options.backupId,
+        presignedDownloadUrl: options.presignedDownloadUrl
+      }) as {
+        success?: boolean;
+        stub?: boolean;
+        error?: string;
+        backupId?: string;
+        fileSizeBytes?: number;
+        output?: string;
+      };
+      return {
+        success: !!result?.success,
+        stub: result?.stub,
+        backupId: result?.backupId ?? options.backupId,
+        fileSizeBytes: result?.fileSizeBytes,
+        output: result?.output,
+        error: result?.error
+      };
+    }
+    return {
+      success: false,
+      stub: true,
+      backupId: options.backupId,
+      error: '[STUB] Agent tunnel not connected — restore not executed on host.'
+    };
+  }
 }
 
 export class PterodactylHostProvider implements HostProvider {
@@ -228,6 +282,16 @@ export class PterodactylHostProvider implements HostProvider {
       error: '[STUB] Pterodactyl backup API integration pending.'
     };
   }
+
+  public async restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult> {
+    void server;
+    return {
+      success: false,
+      stub: true,
+      backupId: options.backupId,
+      error: '[STUB] Pterodactyl restore API integration pending.'
+    };
+  }
 }
 
 export class DirectRconSshHostProvider implements HostProvider {
@@ -279,6 +343,16 @@ export class DirectRconSshHostProvider implements HostProvider {
       stub: true,
       backupId: options.backupId,
       error: '[STUB] Direct RCON/SSH backup integration pending.'
+    };
+  }
+
+  public async restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult> {
+    void server;
+    return {
+      success: false,
+      stub: true,
+      backupId: options.backupId,
+      error: '[STUB] Direct RCON/SSH restore integration pending.'
     };
   }
 }

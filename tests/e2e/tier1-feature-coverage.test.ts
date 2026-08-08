@@ -136,11 +136,21 @@ rcon.port=19133
       expect(serverBackups[0].serverId).toBe(serverId);
     });
 
-    it('validates and executes backup snapshot restore', () => {
+    it('validates and executes backup snapshot restore', async () => {
       const serverId = 'srv_bedrock_1';
       const backup = BackupEngine.triggerBackup({ serverId, isManual: true });
+      BackupEngine.completeBackup(backup.id, 1024);
 
-      const restoreResult = BackupEngine.restoreBackup(backup.id);
+      const restoreResult = await BackupEngine.executeRestore(
+        backup.id,
+        async () => ({
+          success: true,
+          filesExtracted: 1,
+          output: `Successfully restored server from ${backup.filename}`
+        }),
+        undefined,
+        { downloadUrlOverride: 'http://127.0.0.1:9/archive.tar.gz' }
+      );
       expect(restoreResult.success).toBe(true);
       expect(restoreResult.message).toContain('Successfully restored server');
       expect(restoreResult.message).toContain(backup.filename);

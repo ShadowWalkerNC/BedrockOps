@@ -123,7 +123,12 @@ backupRouter.post('/', requireRole(UserRole.MODERATOR), async (req: Authenticate
   });
 });
 
-// POST /api/v1/backups/:id/restore - Restore backup
+// POST /api/v1/backups/:id/restore - Restore backup via agent download + extract
+const restoreBodySchema = z.object({
+  /** Test/dev override — HTTP(S) archive URL when R2 is not configured. */
+  downloadUrlOverride: z.string().url().optional()
+});
+
 backupRouter.post('/:id/restore', requireRole(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
   const backup = db.backups.find(b => b.id === req.params.id);
   if (!backup) {
@@ -135,7 +140,31 @@ backupRouter.post('/:id/restore', requireRole(UserRole.ADMIN), async (req: Authe
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Target server not found' });
   }
 
-  const result = BackupEngine.restoreBackup(backup.id);
+  const body = restoreBodySchema.safeParse(req.body ?? {});
+  if (!body.success) {
+    return res.status(400).json({ error: 'INVALID_INPUT', details: body.error.format() });
+  }
+
+  const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
+
+  const result = await BackupEngine.executeRestore(
+    backup.id,
+    async (job) => {
+      const dispatched = await provider.restoreBackup(server, {
+        backupId: job.backupId,
+        presignedDownloadUrl: job.presignedDownloadUrl
+      });
+      return {
+        success: dispatched.success,
+        stub: dispatched.stub,
+        error: dispatched.error,
+        fileSizeBytes: dispatched.fileSizeBytes,
+        output: dispatched.output
+      };
+    },
+    R2PresignClient.fromEnv(),
+    { downloadUrlOverride: body.data.downloadUrlOverride }
+  );
 
   AuditLogger.record({
     actorId: req.user!.userId,
@@ -143,11 +172,22 @@ backupRouter.post('/:id/restore', requireRole(UserRole.ADMIN), async (req: Authe
     action: 'BACKUP_RESTORE',
     entityType: 'BackupRecord',
     entityId: backup.id,
-    metadata: { serverId: server.id, success: result.success, stub: result.stub }
+    metadata: {
+      serverId: server.id,
+      success: result.success,
+      stub: result.stub,
+      objectKey: result.objectKey
+    }
   });
 
   if (!result.success) {
-    return res.status(501).json({ error: 'NOT_IMPLEMENTED', ...result, backup, server });
+    const status = result.stub ? 503 : 500;
+    return res.status(status).json({
+      error: result.stub ? 'RESTORE_UNAVAILABLE' : 'RESTORE_FAILED',
+      ...result,
+      backup,
+      server
+    });
   }
 
   return res.json({ ...result, backup, server });

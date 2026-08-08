@@ -208,6 +208,8 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleRcon(frame, serverID, cmd)
 	case protocol.CmdTriggerBackup:
 		c.handleBackup(frame, serverID, payload)
+	case protocol.CmdRestoreBackup:
+		c.handleRestore(frame, serverID, payload)
 	case protocol.CmdGetStatus:
 		c.handleStatus(frame, serverID)
 	default:
@@ -404,6 +406,60 @@ func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload pro
 		Mode:          string(c.manager.Mode()),
 		Output:        fmt.Sprintf("backup archived %d bytes sha256=%s uploaded=%v", result.FileSizeBytes, result.SHA256, result.Uploaded),
 	})
+}
+
+func (c *Client) handleRestore(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	backupID := payload.BackupID
+	if backupID == "" {
+		backupID = fmt.Sprintf("bkp_restore_%d", time.Now().Unix())
+	}
+
+	downloadURL := payload.PresignedDownloadURL
+	if downloadURL == "" {
+		c.respond(frame, protocol.CmdRespPayload{
+			Success:  false,
+			Stub:     true,
+			BackupID: backupID,
+			Error:    "presignedDownloadUrl is required for RESTORE_BACKUP",
+		})
+		return
+	}
+
+	worldDir := lifecycle.WorldDir(c.cfg.ServerPathHint)
+	if worldDir == "" {
+		c.respond(frame, protocol.CmdRespPayload{
+			Success:  false,
+			Stub:     true,
+			BackupID: backupID,
+			Error:    "server path / world directory not configured on agent",
+		})
+		return
+	}
+
+	// Stop simulated/real process before replacing world files when possible.
+	_, _, _ = c.manager.Stop(serverID, false)
+	_ = c.sendLog(serverID, fmt.Sprintf("restore %s: downloading archive into %s", backupID, worldDir))
+
+	result, err := agentbackup.RestoreWorldArchive(worldDir, downloadURL)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{
+			Success:  false,
+			Stub:     true,
+			BackupID: backupID,
+			Error:    err.Error(),
+		})
+		_ = c.sendLog(serverID, fmt.Sprintf("restore failed: %v", err))
+		return
+	}
+
+	c.respond(frame, protocol.CmdRespPayload{
+		Success:       true,
+		BackupID:      backupID,
+		FileSizeBytes: result.BytesRead,
+		Mode:          string(c.manager.Mode()),
+		Output:        fmt.Sprintf("restored %d files (%d bytes) into %s", result.FilesExtracted, result.BytesRead, worldDir),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("restore %s complete (%d files)", backupID, result.FilesExtracted))
 }
 
 func (c *Client) failBackup(frame protocol.Frame, serverID, backupID, msg string) {

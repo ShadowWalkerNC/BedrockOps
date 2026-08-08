@@ -22,6 +22,7 @@ const (
 	CmdPowerAction    = "POWER_ACTION"
 	CmdRconCommand    = "RCON_COMMAND"
 	CmdTriggerBackup  = "TRIGGER_BACKUP"
+	CmdRestoreBackup  = "RESTORE_BACKUP"
 	CmdGetStatus      = "GET_STATUS"
 )
 
@@ -37,13 +38,14 @@ type Frame struct {
 
 // CmdExecPayload is the control-plane command envelope.
 type CmdExecPayload struct {
-	Command            string `json:"command"`
-	Action             string `json:"action,omitempty"`
-	RconCommand        string `json:"rconCommand,omitempty"`
-	BackupID           string `json:"backupId,omitempty"`
-	PresignedUploadURL string `json:"presignedUploadUrl,omitempty"`
-	IsManual           bool   `json:"isManual,omitempty"`
-	IsHoldCheckpoint   bool   `json:"isHoldCheckpoint,omitempty"`
+	Command              string `json:"command"`
+	Action               string `json:"action,omitempty"`
+	RconCommand          string `json:"rconCommand,omitempty"`
+	BackupID             string `json:"backupId,omitempty"`
+	PresignedUploadURL   string `json:"presignedUploadUrl,omitempty"`
+	PresignedDownloadURL string `json:"presignedDownloadUrl,omitempty"`
+	IsManual             bool   `json:"isManual,omitempty"`
+	IsHoldCheckpoint     bool   `json:"isHoldCheckpoint,omitempty"`
 }
 
 // CmdRespPayload is returned on CMD_RESP frames.
@@ -119,7 +121,7 @@ func DecodeCmdExec(raw json.RawMessage) (CmdExecPayload, error) {
 		// the merged payload is { command: <rcon>, ... } overwriting POWER style.
 		// Detect: if command looks like RCON text (not a known cmd name) treat as RCON.
 		known := map[string]bool{
-			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdGetStatus: true,
+			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdRestoreBackup: true, CmdGetStatus: true,
 		}
 		if !known[payload.Command] && payload.Action == "" && payload.BackupID == "" {
 			payload.RconCommand = payload.Command

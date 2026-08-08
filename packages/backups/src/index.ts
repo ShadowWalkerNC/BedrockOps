@@ -12,7 +12,8 @@ import {
   SaveHoldDriver,
   WorldFileEntry,
   backupIdNonce,
-  buildBackupObjectKey
+  buildBackupObjectKey,
+  objectKeyFromStorageUrl
 } from './streaming';
 
 export * from './streaming';
@@ -27,6 +28,33 @@ export interface RestoreBackupResult {
   success: boolean;
   stub?: boolean;
   message: string;
+  backupId?: string;
+  objectKey?: string;
+  filesExtracted?: number;
+}
+
+export interface RestoreDispatchResult {
+  success: boolean;
+  stub?: boolean;
+  error?: string;
+  filesExtracted?: number;
+  fileSizeBytes?: number;
+  output?: string;
+}
+
+export type RestoreDispatcher = (input: {
+  backupId: string;
+  serverId: string;
+  presignedDownloadUrl: string;
+  objectKey: string;
+}) => Promise<RestoreDispatchResult>;
+
+export interface RestoreJob {
+  backup: BackupRecord;
+  objectKey: string;
+  presignedDownloadUrl: string;
+  presignStub: boolean;
+  presignError?: string;
 }
 
 export interface CompleteBackupOptions {
@@ -170,6 +198,10 @@ export class BackupEngine {
     return db.backups.filter((b) => b.serverId === serverId);
   }
 
+  /**
+   * Synchronous restore probe used by unit/e2e suites without an agent.
+   * Returns a stub directing callers to `prepareRestore` + agent dispatch for real restores.
+   */
   public static restoreBackup(backupId: string): RestoreBackupResult {
     const backup = db.backups.find((b) => b.id === backupId);
     if (!backup) {
@@ -179,15 +211,125 @@ export class BackupEngine {
       return {
         success: false,
         stub: true,
+        backupId,
         message: `Backup ${backupId} is not completed (status: ${backup.status}). Restore unavailable until archive is finalized.`
       };
     }
 
-    // TODO: Wire agent filesystem restore (download from R2 + extract)
+    const objectKey =
+      objectKeyFromStorageUrl(backup.storageUrl) ??
+      buildBackupObjectKey(backup.serverId, backup.id, backup.filename);
+
     return {
       success: false,
       stub: true,
-      message: `Restore is not yet implemented. TODO: agent filesystem integration for ${backup.filename}.`
+      backupId,
+      objectKey,
+      message: `Restore requires agent dispatch for ${backup.filename} (objectKey=${objectKey}). Use API POST /backups/:id/restore.`
+    };
+  }
+
+  /** Build a restore job with an optional R2 presigned GET URL. */
+  public static async prepareRestore(
+    backupId: string,
+    r2?: R2PresignClient,
+    options?: { downloadUrlOverride?: string }
+  ): Promise<RestoreJob | RestoreBackupResult> {
+    const client = r2 ?? R2PresignClient.fromEnv();
+    const backup = db.backups.find((b) => b.id === backupId);
+    if (!backup) {
+      return { success: false, message: `Backup ID ${backupId} not found` };
+    }
+    if (backup.status !== BackupStatus.COMPLETED) {
+      return {
+        success: false,
+        stub: true,
+        backupId,
+        message: `Backup ${backupId} is not completed (status: ${backup.status}).`
+      };
+    }
+
+    const objectKey =
+      objectKeyFromStorageUrl(backup.storageUrl) ??
+      buildBackupObjectKey(backup.serverId, backup.id, backup.filename);
+
+    if (options?.downloadUrlOverride) {
+      return {
+        backup,
+        objectKey,
+        presignedDownloadUrl: options.downloadUrlOverride,
+        presignStub: false
+      };
+    }
+
+    const presign = await client.createPresignedGetUrl(objectKey);
+    return {
+      backup,
+      objectKey,
+      presignedDownloadUrl: presign.url,
+      presignStub: presign.stub,
+      presignError: presign.error
+    };
+  }
+
+  /** Dispatch a prepared restore through an agent/host callback. */
+  public static async executeRestore(
+    backupId: string,
+    dispatch: RestoreDispatcher,
+    r2?: R2PresignClient,
+    options?: { downloadUrlOverride?: string }
+  ): Promise<RestoreBackupResult> {
+    const prepared = await this.prepareRestore(backupId, r2, options);
+    if ('success' in prepared && prepared.success === false) {
+      return prepared;
+    }
+    const job = prepared as RestoreJob;
+
+    if (job.presignStub && !options?.downloadUrlOverride) {
+      return {
+        success: false,
+        stub: true,
+        backupId,
+        objectKey: job.objectKey,
+        message:
+          job.presignError ||
+          '[STUB] R2 credentials not configured — cannot generate restore download URL.'
+      };
+    }
+
+    if (!job.presignedDownloadUrl) {
+      return {
+        success: false,
+        stub: true,
+        backupId,
+        objectKey: job.objectKey,
+        message: 'No presigned download URL available for restore.'
+      };
+    }
+
+    const result = await dispatch({
+      backupId: job.backup.id,
+      serverId: job.backup.serverId,
+      presignedDownloadUrl: job.presignedDownloadUrl,
+      objectKey: job.objectKey
+    });
+
+    if (!result.success) {
+      return {
+        success: false,
+        stub: result.stub,
+        backupId,
+        objectKey: job.objectKey,
+        message: result.error || 'Agent restore failed'
+      };
+    }
+
+    return {
+      success: true,
+      backupId,
+      objectKey: job.objectKey,
+      filesExtracted: result.filesExtracted,
+      message: result.output || `Restore completed for ${job.backup.filename}`
     };
   }
 
