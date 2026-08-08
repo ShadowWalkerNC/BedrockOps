@@ -57,7 +57,7 @@ BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Server
 |---|------|-------|-------------|--------|
 | M1 | Control Plane, Database Schema & HostProvider Layer | Features 1-5 (Prisma DB, HostProvider interface, REST/WS API backend, Next.js UI). Prisma hydrate/flush + migrations land with Wave A1 (`DB_ADAPTER=prisma`). | None | COMPLETE |
 | M2 | CGNAT-Safe Outbound Go Daemon Agent | Features 6-9 (Go agent binary, WSS tunnel, Docker lifecycle, telemetry, RCON logs) | M1 | COMPLETE |
-| M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2, manifest verification) | M1, M2 | COMPLETE |
+| M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2 PUT/GET, agent restore extract, manifest verification) | M1, M2 | COMPLETE |
 | M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | M1, M2 | COMPLETE |
 | M5 | Subdomain Allocation & Console Onboarding | Features 16-18 (Subdomain & port allocation, console onboarding, setup pipelines) | M1, M4 | COMPLETE |
 | M_SEC | Security Hardening Pass | Agent WSS auth, auth backdoor removal, honest stubs, path jails, secret stripping | M1–M5 | COMPLETE |

@@ -86,7 +86,7 @@ describe('BackupEngine Package', () => {
     expect(backup.status).toBe(BackupStatus.FAILED);
   });
 
-  it('restore returns stub until filesystem integration is wired', () => {
+  it('restoreBackup probe returns stub directing callers to agent dispatch', () => {
     const backup = BackupEngine.triggerBackup({
       serverId: 'srv_1',
       isManual: false
@@ -96,7 +96,35 @@ describe('BackupEngine Package', () => {
     const result = BackupEngine.restoreBackup(backup.id);
     expect(result.success).toBe(false);
     expect(result.stub).toBe(true);
-    expect(result.message).toContain('not yet implemented');
+    expect(result.message).toContain('requires agent dispatch');
+    expect(result.objectKey).toContain('backups/srv_1/');
+  });
+
+  it('executeRestore dispatches through agent callback with download override', async () => {
+    const backup = BackupEngine.triggerBackup({
+      serverId: 'srv_1',
+      isManual: true
+    });
+    BackupEngine.completeBackup(backup.id, {
+      fileSizeBytes: 2048,
+      storageUrl: `r2://backups/srv_1/${backup.id}/world.tar.gz`,
+      sha256: ManifestVerifier.sha256Hex('restore-me')
+    });
+
+    const result = await BackupEngine.executeRestore(
+      backup.id,
+      async (job) => {
+        expect(job.presignedDownloadUrl).toBe('http://127.0.0.1:9/archive.tar.gz');
+        expect(job.objectKey).toBe(`backups/srv_1/${backup.id}/world.tar.gz`);
+        return { success: true, filesExtracted: 3, output: 'restored 3 files' };
+      },
+      R2PresignClient.fromEnv(),
+      { downloadUrlOverride: 'http://127.0.0.1:9/archive.tar.gz' }
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.filesExtracted).toBe(3);
+    expect(result.message).toContain('restored 3 files');
   });
 
   it('enforces retention policy by removing old backups exceeding max count', () => {
