@@ -19,11 +19,12 @@ const (
 
 // Command names embedded in CMD_EXEC payloads by HostProvider.
 const (
-	CmdPowerAction   = "POWER_ACTION"
-	CmdRconCommand   = "RCON_COMMAND"
-	CmdTriggerBackup = "TRIGGER_BACKUP"
-	CmdGetStatus     = "GET_STATUS"
-	CmdAllowlistSync = "ALLOWLIST_SYNC"
+	CmdPowerAction    = "POWER_ACTION"
+	CmdRconCommand    = "RCON_COMMAND"
+	CmdTriggerBackup  = "TRIGGER_BACKUP"
+	CmdRestoreBackup  = "RESTORE_BACKUP"
+	CmdGetStatus      = "GET_STATUS"
+	CmdAllowlistSync  = "ALLOWLIST_SYNC"
 )
 
 // Frame is the bidirectional agent ↔ API tunnel envelope.
@@ -41,15 +42,16 @@ type CmdExecPayload struct {
 	Command            string          `json:"command"`
 	Action             string          `json:"action,omitempty"`
 	RconCommand        string          `json:"rconCommand,omitempty"`
-	BackupID           string          `json:"backupId,omitempty"`
-	PresignedUploadURL string          `json:"presignedUploadUrl,omitempty"`
-	IsManual           bool            `json:"isManual,omitempty"`
-	IsHoldCheckpoint   bool            `json:"isHoldCheckpoint,omitempty"`
-	TargetPath         string          `json:"targetPath,omitempty"`
-	TempPath           string          `json:"tempPath,omitempty"`
-	Contents           string          `json:"contents,omitempty"`
-	ReloadCommand      string          `json:"reloadCommand,omitempty"`
-	Entries            json.RawMessage `json:"entries,omitempty"`
+	BackupID            string          `json:"backupId,omitempty"`
+	PresignedUploadURL  string          `json:"presignedUploadUrl,omitempty"`
+	PresignedDownloadURL string         `json:"presignedDownloadUrl,omitempty"`
+	IsManual            bool            `json:"isManual,omitempty"`
+	IsHoldCheckpoint    bool            `json:"isHoldCheckpoint,omitempty"`
+	TargetPath          string          `json:"targetPath,omitempty"`
+	TempPath            string          `json:"tempPath,omitempty"`
+	Contents            string          `json:"contents,omitempty"`
+	ReloadCommand       string          `json:"reloadCommand,omitempty"`
+	Entries             json.RawMessage `json:"entries,omitempty"`
 }
 
 // CmdRespPayload is returned on CMD_RESP frames.
@@ -125,7 +127,7 @@ func DecodeCmdExec(raw json.RawMessage) (CmdExecPayload, error) {
 		// the merged payload is { command: <rcon>, ... } overwriting POWER style.
 		// Detect: if command looks like RCON text (not a known cmd name) treat as RCON.
 		known := map[string]bool{
-			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdGetStatus: true, CmdAllowlistSync: true,
+			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdRestoreBackup: true, CmdGetStatus: true, CmdAllowlistSync: true,
 		}
 		if !known[payload.Command] && payload.Action == "" && payload.BackupID == "" {
 			payload.RconCommand = payload.Command

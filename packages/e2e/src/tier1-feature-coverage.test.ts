@@ -801,14 +801,32 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       expect(completeFrame?.payload.checksum).toMatch(/^[a-f0-9]{64}$/);
     });
 
-    it('restore of completed backup returns stub until integration wired', () => {
+    it('restore of completed backup returns stub until agent dispatch', () => {
       const backup = BackupEngine.triggerBackup({ serverId: 'srv_bedrock_1', isManual: true });
       BackupEngine.completeBackup(backup.id, 1024);
       const result = BackupEngine.restoreBackup(backup.id);
 
       expect(result.success).toBe(false);
       expect(result.stub).toBe(true);
-      expect(result.message).toContain('not yet implemented');
+      expect(result.message).toContain('requires agent dispatch');
+    });
+
+    it('executeRestore succeeds when agent dispatcher returns success', async () => {
+      const backup = BackupEngine.triggerBackup({ serverId: 'srv_bedrock_1', isManual: true });
+      BackupEngine.completeBackup(backup.id, {
+        fileSizeBytes: 2048,
+        storageUrl: `r2://backups/srv_bedrock_1/${backup.id}/snap.tar.gz`
+      });
+
+      const result = await BackupEngine.executeRestore(
+        backup.id,
+        async () => ({ success: true, filesExtracted: 2, output: 'restored ok' }),
+        undefined,
+        { downloadUrlOverride: 'http://127.0.0.1:9/snap.tar.gz' }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.filesExtracted).toBe(2);
     });
 
     it('rejects restore attempt for non-existent backup ID', () => {

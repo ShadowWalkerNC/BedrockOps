@@ -657,14 +657,14 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
   // Feature 12: R3.3 Integrity Manifest Verification (SHA256)
   // ---------------------------------------------------------------------------
   describe('R3.3 Integrity Manifest Verification (SHA256)', () => {
-    it('restores completed backup returns stub until integration wired', () => {
+    it('restores completed backup returns stub until agent dispatch', () => {
       const backup = BackupEngine.triggerBackup({ serverId: 'srv_1', isManual: true });
       BackupEngine.completeBackup(backup.id, 1024);
       const result = BackupEngine.restoreBackup(backup.id);
 
       expect(result.success).toBe(false);
       expect(result.stub).toBe(true);
-      expect(result.message).toContain('not yet implemented');
+      expect(result.message).toContain('requires agent dispatch');
     });
 
     it('fails restore when backup record status is PENDING', () => {

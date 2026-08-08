@@ -248,6 +248,21 @@ export class R2PresignClient {
     objectKey: string,
     expiresInSeconds = 3600
   ): Promise<PresignResult> {
+    return this.createPresignedUrl('PUT', objectKey, expiresInSeconds);
+  }
+
+  public async createPresignedGetUrl(
+    objectKey: string,
+    expiresInSeconds = 3600
+  ): Promise<PresignResult> {
+    return this.createPresignedUrl('GET', objectKey, expiresInSeconds);
+  }
+
+  private async createPresignedUrl(
+    method: 'PUT' | 'GET',
+    objectKey: string,
+    expiresInSeconds: number
+  ): Promise<PresignResult> {
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
     if (!this.config) {
@@ -260,11 +275,11 @@ export class R2PresignClient {
       };
     }
 
-    const url = this.signPutUrl(objectKey, expiresInSeconds);
+    const url = this.signUrl(method, objectKey, expiresInSeconds);
     return { url, objectKey, stub: false, expiresAt };
   }
 
-  private signPutUrl(objectKey: string, expiresInSeconds: number): string {
+  private signUrl(method: 'PUT' | 'GET', objectKey: string, expiresInSeconds: number): string {
     const cfg = this.config!;
     const region = 'auto';
     const service = 's3';
@@ -292,7 +307,7 @@ export class R2PresignClient {
       .join('&');
 
     const canonicalRequest = [
-      'PUT',
+      method,
       `/${encodedKey}`,
       canonicalQuery,
       `host:${host}\n`,
@@ -324,6 +339,16 @@ export class R2PresignClient {
     const kService = createHmac('sha256', kRegion).update(service).digest();
     return createHmac('sha256', kService).update('aws4_request').digest();
   }
+}
+
+/** Parse `r2://object/key` storage URLs used on completed backup records. */
+export function objectKeyFromStorageUrl(storageUrl?: string): string | undefined {
+  if (!storageUrl) return undefined;
+  if (storageUrl.startsWith('r2://')) {
+    const key = storageUrl.slice('r2://'.length).replace(/^\/+/, '');
+    return key || undefined;
+  }
+  return undefined;
 }
 
 /** Deterministic object key helper for backup archives. */

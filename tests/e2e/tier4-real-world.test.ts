@@ -161,8 +161,13 @@ describe('Tier 4: Real-World Applications (Complete Operational Workflows)', () 
     const serverLogs = AuditLogger.getLogsForEntity(server.id);
     expect(serverLogs.some((l) => l.action === 'SERVER_CRASH_DETECTED')).toBe(true);
 
-    // 4. Execute backup restore validation
-    const restoreResult = BackupEngine.restoreBackup(preIncidentBackup.id);
+    // 4. Execute backup restore validation via agent dispatcher
+    const restoreResult = await BackupEngine.executeRestore(
+      preIncidentBackup.id,
+      async () => ({ success: true, filesExtracted: 1, output: 'restored' }),
+      undefined,
+      { downloadUrlOverride: 'http://127.0.0.1:9/pre-incident.tar.gz' }
+    );
     expect(restoreResult.success).toBe(true);
 
     // 5. Re-apply template to restore clean server properties
