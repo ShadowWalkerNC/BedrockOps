@@ -434,10 +434,14 @@ describe('Tier 3: Cross-Feature Combinations (Multi-Domain Integration Flows)', 
     await BackgroundJobWorker.runScheduledBackupSweep();
     expect(BackupEngine.getBackupsForServer(server.id).length).toBe(2);
 
-    // 3. Restore server from baseline snapshot (stub until agent integration)
-    const restoreRes = BackupEngine.restoreBackup(baselineBackup.id);
-    expect(restoreRes.success).toBe(false);
-    expect(restoreRes.stub).toBe(true);
+    // 3. Restore server from baseline snapshot via agent dispatcher
+    const restoreRes = await BackupEngine.executeRestore(
+      baselineBackup.id,
+      async () => ({ success: true, filesExtracted: 1, output: 'disaster recovery restore ok' }),
+      undefined,
+      { downloadUrlOverride: 'http://127.0.0.1:9/baseline.tar.gz' }
+    );
+    expect(restoreRes.success).toBe(true);
 
     // 4. Issue RCON reload command
     const rconOut = await BedrockServerController.executeRconCommand(server, 'reload');

@@ -13,6 +13,20 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mcadmin
+          POSTGRES_PASSWORD: mcadmin_password
+          POSTGRES_DB: minecraft_admin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mcadmin -d minecraft_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       # Prisma schema validation requires a URL even when using the memory adapter at runtime.
       DATABASE_URL: postgresql://mcadmin:mcadmin_password@localhost:5432/minecraft_admin
@@ -50,8 +64,17 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @mc-admin/db db:generate
 
+      - name: Apply Prisma migrations
+        run: pnpm --filter @mc-admin/db db:migrate
+
       - name: Build
         run: pnpm build
 
       - name: Test
         run: pnpm test
+
+      - name: Prisma persistence smoke
+        env:
+          DB_ADAPTER: prisma
+          NODE_ENV: test
+        run: pnpm --filter @mc-admin/db exec vitest run src/persist.integration.test.ts

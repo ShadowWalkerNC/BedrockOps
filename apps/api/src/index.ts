@@ -3,7 +3,13 @@ import { app } from './app';
 import { config } from './config';
 import { setupWebSocketRouter } from './ws/router';
 import { agentGateway } from './ws/agentGateway';
-import { db, ServerStatus, BackupRecord, BedrockServer } from '@mc-admin/db';
+import {
+  db,
+  ServerStatus,
+  BackupRecord,
+  BedrockServer,
+  initializeDatabase
+} from '@mc-admin/db';
 import { BackupEngine } from '@mc-admin/backups';
 import { PipelineEngine } from '@mc-admin/pipelines';
 import { HostProviderFactory } from '@mc-admin/bedrock';
@@ -60,12 +66,24 @@ export class ApiServer {
   }
 }
 
-// Only start HTTP listener if file is executed directly
-if (require.main === module) {
+async function start(): Promise<void> {
+  const dbInit = await initializeDatabase(db);
+  console.log(
+    `[apps/api] Database ready (mode=${dbInit.mode}${dbInit.seeded ? ', seeded defaults' : ''})`
+  );
+
   const server = http.createServer(app);
   setupWebSocketRouter(server);
 
   server.listen(config.PORT, () => {
     console.log(`[apps/api] Control plane API server running on port ${config.PORT}`);
+  });
+}
+
+// Only start HTTP listener if file is executed directly
+if (require.main === module) {
+  start().catch((err: unknown) => {
+    console.error('[apps/api] Failed to start:', err);
+    process.exit(1);
   });
 }

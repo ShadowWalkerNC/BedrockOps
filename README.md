@@ -50,11 +50,15 @@ pnpm install
 # Copy environment template and adjust as needed
 cp .env.example .env
 
-# Start Postgres + Redis (optional for future Prisma wiring)
+# Start Postgres + Redis (required for DB_ADAPTER=prisma)
 docker compose up -d
 
-# Generate Prisma client
+# Generate Prisma client and apply migrations
 pnpm --filter @mc-admin/db db:generate
+pnpm --filter @mc-admin/db db:migrate
+
+# Optional: persist via Postgres (API hydrates memory + write-through flush)
+# Set DB_ADAPTER=prisma in .env
 
 # Run all apps in development (via Turborepo)
 pnpm dev
@@ -152,7 +156,7 @@ pnpm --filter @mc-admin/db db:validate
 
 - **Domain packages** hold business logic; apps orchestrate I/O and HTTP.
 - **Audit logging** is required for state-changing operations (server control, backups, moderation, templates, pipelines).
-- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton (`DB_ADAPTER=memory`). Set `DB_ADAPTER=prisma` when wiring Postgres persistence.
+- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton (`DB_ADAPTER=memory`). Set `DB_ADAPTER=prisma` for Postgres persistence (API hydrates on boot + write-through flush after mutating requests).
 - **Web → API:** The dashboard proxies `/api/v1/*` to `apps/api` (port 4000). Web no longer imports `@mc-admin/db` or domain engines directly.
 - **Honest stubs:** Backups start as `PENDING`, agent/power actions return explicit stub responses until host integration is wired.
 
