@@ -51,5 +51,7 @@ This monorepo houses a Bedrock-first Minecraft server operations platform. All c
 ---
 
 ## Change Management & Staged Execution
-- Respect phased delivery targets in `PROJECT_PLAN.md`.
-- Phase 1 scope is strictly enforced. Do not auto-implement Phase 2 or Phase 3 features (Java support, White-labeling, Shield security module, AI agents) during Phase 1 tasks.
+- Respect delivery waves in `PROJECT_PLAN.md` (Wave A → B → C → D).
+- **Wave A scope is strictly enforced** for foundation work: agent tunnel, real RCON, Prisma wiring, Cloudflare R2 backup/restore, and security hardening.
+- Do **not** auto-implement later-wave items during Wave A tasks: host partner APIs, marketplace, referrals, official Mojang Realms, Java/Geyser primary path, round-based modes, white-label Shield SKU, or AI agents.
+- Prefer the single host path `DOCKER_AGENT` until Wave A ship gate passes; other `HostProvider` types must fail honestly when unwired.

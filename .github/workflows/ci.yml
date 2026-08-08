@@ -13,15 +13,20 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # Prisma schema validation requires a URL even when using the memory adapter at runtime.
+      DATABASE_URL: postgresql://mcadmin:mcadmin_password@localhost:5432/minecraft_admin
+      JWT_SECRET: dev_jwt_secret_change_in_production
+      NODE_ENV: test
+      CORS_ORIGIN: http://localhost:3000
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # version comes from package.json "packageManager" (pnpm@9.0.0)
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

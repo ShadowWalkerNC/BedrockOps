@@ -1,7 +1,10 @@
 # Project: BedrockOps V6
 
+## Positioning
+BedrockOps is a **Realms-first** (self-hosted BDS) admin operating system: own the agent, Postgres, Cloudflare R2 backups, and console join adapters. Differentiates from commodity hosts on software (ops, moderation, Discord, packs) rather than price/specs. Host partners (optional) come after the core loop ships. Official Mojang Realms APIs and round-based game modes are deferred — see [PROJECT_PLAN.md](./PROJECT_PLAN.md).
+
 ## Architecture
-BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Servers (BDS) featuring CGNAT-safe outbound Go agent daemon tunneling, host provider abstraction, streaming backups to Cloudflare R2, player moderation tracking, and console onboarding.
+BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Servers (BDS) featuring CGNAT-safe outbound Go agent daemon tunneling, host provider abstraction, streaming backups to Cloudflare R2, player moderation tracking, and console onboarding (allowlist + FriendConnect-style adapters).
 
 ```
 +-------------------------------------------------------------------------+
@@ -47,21 +50,23 @@ BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Server
 | 14 | R4.2 Persistent Infraction Ledger | Soft-delete GDPR-compliant moderation ledger (BAN, MUTE, WARN, NOTE) in PostgreSQL with anonymization | M4 | survey_3 |
 | 15 | R4.3 BDS allowlist.json Auto-Sync | Atomic file swap and RCON allowlist reload synchronization mechanism | M4 | survey_3 |
 | 16 | R5.1 Subdomain & Port Allocation | Subdomain mapping (abc123.play.bedrockops.io), UDP port pool reservation (19132-19999), and DNS record generator | M5 | survey_3 |
-| 17 | R5.2 Console Player Onboarding | Gamertag-to-XUID resolution, Xbox Friend Bot invitation, and console allowlist seeding | M5 | survey_3 |
+| 17 | R5.2 Console Player Onboarding | Gamertag-to-XUID resolution, allowlist seeding, and pluggable FriendConnect adapters (friend-session broadcast + optional BedrockConnect DNS) | M5 | survey_3 |
 | 18 | R5.3 Automated Setup Pipelines | Multi-step pipeline execution engine for server provisioning and initial deployment | M5 | survey_3 |
 | 19 | E2E Test Suite (Tiers 1-4) | Comprehensive Vitest requirement-driven opaque-box E2E test suite covering all features | M_E2E | survey_3 |
 | 20 | Final Verification & Hardening | Final E2E pass + Tier 5 white-box adversarial testing and victory audit | M_FINAL | survey_1, 2, 3 |
 
 ## Milestones
-| # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| M1 | Control Plane, Database Schema & HostProvider Layer | Features 1-5 (Prisma DB, HostProvider interface, REST/WS API backend, Next.js UI) | None | IN_PROGRESS |
-| M2 | CGNAT-Safe Outbound Go Daemon Agent | Features 6-9 (Go agent binary, WSS tunnel, Docker lifecycle, telemetry, RCON logs) | M1 | PLANNED |
-| M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2, manifest verification) | M1, M2 | PLANNED |
-| M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | M1, M2 | PLANNED |
-| M5 | Subdomain Allocation & Console Onboarding | Features 16-18 (Subdomain & port allocation, console onboarding, setup pipelines) | M1, M4 | PLANNED |
-| M_E2E | E2E Test Suite Development (Parallel Track) | Feature 19 (Tiers 1-4 test suite infrastructure and test cases) | M1 | IN_PROGRESS |
-| M_FINAL | Final E2E Integration Pass & Hardening | Feature 20 (Phase 1 100% E2E tests pass + Phase 2 Tier 5 adversarial hardening) | M1-M5, M_E2E | PLANNED |
+Statuses reflect **`main`**. Wave mapping and in-flight branches are documented in [PROJECT_PLAN.md](./PROJECT_PLAN.md).
+
+| # | Name | Scope | Wave | Dependencies | Status |
+|---|------|-------|------|-------------|--------|
+| M1 | Control Plane, Database Schema & HostProvider Layer | Features 1-5 (Prisma DB, HostProvider interface, REST/WS API backend, Next.js UI) | A | None | IN_PROGRESS |
+| M2 | CGNAT-Safe Outbound Go Daemon Agent | Features 6-9 (Go agent binary, WSS tunnel, Docker lifecycle, telemetry, RCON logs) | A | M1 | PLANNED |
+| M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2, manifest verification) | A | M1, M2 | PLANNED |
+| M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | B | M1, M2 | PLANNED |
+| M5 | Subdomain Allocation & Console Onboarding | Features 16-18 (Subdomain & port allocation, console/FriendConnect onboarding, setup pipelines) | B/C | M1, M4 | PLANNED |
+| M_E2E | E2E Test Suite Development (Parallel Track) | Feature 19 (Tiers 1-4 test suite infrastructure and test cases) | Parallel | M1 | IN_PROGRESS |
+| M_FINAL | Final E2E Integration Pass & Hardening | Feature 20 (Wave A–B gates + Tier 5 adversarial hardening) | After A–B | M1-M5, M_E2E | PLANNED |
 
 ## Interface Contracts
 
