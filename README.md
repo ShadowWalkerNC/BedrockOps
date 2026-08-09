@@ -110,6 +110,22 @@ pnpm --filter @mc-admin/web dev
 
 Prefer cloning outside OneDrive/iCloud sync folders when possible.
 
+### Windows: pages stuck on “Loading…” / blank
+
+Usually the **web** app is up but the **API is not on :4000** (root `.env` sets `PORT=3000`).
+
+```powershell
+# Terminal A — API (force 4000)
+$env:PORT="4000"; $env:DB_ADAPTER="prisma"; pnpm --filter @mc-admin/api dev
+
+# Terminal B — web
+Remove-Item -Recurse -Force apps\web\.next -ErrorAction SilentlyContinue
+$env:NEXT_PUBLIC_DEV_AUTO_LOGIN="false"; $env:API_URL="http://localhost:4000"; pnpm --filter @mc-admin/web dev
+```
+
+Then open http://localhost:3000/login — not a stale tab on another port.
+Helper: `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1`
+
 ### Go agent (CGNAT-safe outbound tunnel)
 
 Production process control lives in the Go binary under `apps/agent/cmd/bedrock-agent`. It dials the control plane WebSocket at `/api/v1/ws/agent` (outbound-only, CGNAT-friendly), handles power actions, heartbeats, metrics, and backup triggers.

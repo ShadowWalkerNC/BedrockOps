@@ -140,6 +140,11 @@ export default function LoginPage() {
         <p style={{ margin: 0, fontSize: 12, color: c.onSurfaceVariant, lineHeight: 1.5 }}>
           Local seed account: <code>admin@minecraft-admin.local</code> / <code>admin</code>
         </p>
+        <p style={{ margin: 0, fontSize: 12, color: c.onSurfaceVariant, lineHeight: 1.5 }}>
+          If login fails with a network/API error, start the control plane first:
+          <br />
+          <code>PORT=4000 pnpm --filter @mc-admin/api dev</code>
+        </p>
       </form>
     </div>
   );
