@@ -68,6 +68,32 @@ export class NotificationDispatcher {
     };
   }
 
+  public static formatModerationEmbed(
+    gamertag: string,
+    actionType: string,
+    reason: string,
+    issuerName: string,
+    serverName?: string
+  ): DiscordWebhookPayload {
+    const severe = actionType === 'BAN' || actionType === 'KICK';
+    return {
+      username: 'Minecraft Ops Alert',
+      embeds: [
+        {
+          title: `Moderation: ${actionType} — ${gamertag}`,
+          description: `Player **${gamertag}** received a **${actionType}**${serverName ? ` on **${serverName}**` : ''}.`,
+          color: severe ? 0xef4444 : 0xf59e0b,
+          fields: [
+            { name: 'Reason', value: reason || 'N/A' },
+            { name: 'Issued by', value: issuerName || 'staff', inline: true },
+            { name: 'Action', value: actionType, inline: true }
+          ],
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+  }
+
   /**
    * Decide whether a real HTTP POST should be attempted.
    * Delivery is stubbed under automated tests (NODE_ENV=test) so the suite never
