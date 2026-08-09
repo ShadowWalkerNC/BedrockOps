@@ -8,7 +8,9 @@ import {
   R2PresignClient
 } from '@mc-admin/backups';
 import { HostProviderFactory } from '@mc-admin/bedrock';
+import { NotificationDispatcher } from '@mc-admin/notifications';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { dispatchAlert } from '../alerts';
 
 export const backupRouter: Router = Router();
 
@@ -89,10 +91,17 @@ backupRouter.post('/', requireRole(UserRole.MODERATOR), async (req: Authenticate
         storageUrl: job.presignStub ? undefined : `r2://${job.objectKey}`,
         verified: !!manifest
       });
+
+      await dispatchAlert(
+        NotificationDispatcher.formatBackupEmbed(server.name, job.record.filename, true, result.fileSizeBytes)
+      );
     } else if (result.stub || !result.success) {
       BackupEngine.failBackup(
         job.record.id,
         result.error || '[STUB] Backup was not executed on the host agent.'
+      );
+      await dispatchAlert(
+        NotificationDispatcher.formatBackupEmbed(server.name, job.record.filename, false)
       );
       return res.status(503).json({
         success: false,
@@ -106,6 +115,9 @@ backupRouter.post('/', requireRole(UserRole.MODERATOR), async (req: Authenticate
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     BackupEngine.failBackup(job.record.id, message);
+    await dispatchAlert(
+      NotificationDispatcher.formatBackupEmbed(server.name, job.record.filename, false)
+    );
     return res.status(503).json({
       success: false,
       backup: job.record,

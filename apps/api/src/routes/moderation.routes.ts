@@ -9,9 +9,11 @@ import {
   XboxIdentityService,
   playerTracker
 } from '@mc-admin/moderation';
+import { NotificationDispatcher } from '@mc-admin/notifications';
 import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { agentGateway } from '../ws/agentGateway';
+import { dispatchAlert } from '../alerts';
 
 export const moderationRouter: Router = Router();
 
@@ -114,7 +116,7 @@ const createModerationSchema = z.object({
   durationMinutes: z.number().optional()
 });
 
-moderationRouter.post('/', requireRole(UserRole.MODERATOR), (req: AuthenticatedRequest, res: Response) => {
+moderationRouter.post('/', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
   const parse = createModerationSchema.safeParse(req.body);
   if (!parse.success) {
     return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
@@ -141,6 +143,14 @@ moderationRouter.post('/', requireRole(UserRole.MODERATOR), (req: AuthenticatedR
     entityId: action.id,
     metadata: { gamertag, reason }
   });
+
+  // Fire a Discord alert for severe actions (best-effort, never blocks the response outcome).
+  if (actionType === 'BAN' || actionType === 'KICK') {
+    const server = serverId ? db.servers.find((s) => s.id === serverId) : undefined;
+    await dispatchAlert(
+      NotificationDispatcher.formatModerationEmbed(gamertag, actionType, reason, req.user!.username, server?.name)
+    );
+  }
 
   return res.status(201).json({ moderationAction: action });
 });
