@@ -7,11 +7,13 @@ import { nodeRouter } from './routes/node.routes';
 import { backupRouter } from './routes/backup.routes';
 import { moderationRouter } from './routes/moderation.routes';
 import { auditRouter } from './routes/audit.routes';
+import { prismaWriteThroughMiddleware } from './middleware/persist.middleware';
 
 export const app: Application = express();
 
-app.use(cors({ origin: config.CORS_ORIGIN }));
-app.use(express.json());
+app.use(cors({ origin: config.CORS_ORIGIN === '*' ? true : config.CORS_ORIGIN.split(',').map((s) => s.trim()) }));
+app.use(express.json({ limit: '1mb' }));
+app.use(prismaWriteThroughMiddleware);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

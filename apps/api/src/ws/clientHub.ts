@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
-import { verifyJwt, AuthSession } from '@mc-admin/auth';
+import { verifyJwt, AuthSession, hasPermission } from '@mc-admin/auth';
+import { UserRole, db } from '@mc-admin/db';
 import { config } from '../config';
 
 interface ClientSubscription {
@@ -15,7 +16,7 @@ export class ClientStreamHub {
     let user: AuthSession;
     try {
       user = verifyJwt<AuthSession>(token, config.JWT_SECRET);
-    } catch (err) {
+    } catch {
       ws.close(4001, 'Unauthorized');
       return;
     }
@@ -32,6 +33,10 @@ export class ClientStreamHub {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.action === 'SUBSCRIBE' && msg.serverId && msg.stream) {
+          if (!this.canSubscribe(user, msg.serverId)) {
+            ws.send(JSON.stringify({ error: 'FORBIDDEN', message: 'Not authorized for this server stream' }));
+            return;
+          }
           client.subscriptions.add(`${msg.serverId}:${msg.stream}`);
         } else if (msg.action === 'UNSUBSCRIBE' && msg.serverId && msg.stream) {
           client.subscriptions.delete(`${msg.serverId}:${msg.stream}`);
@@ -46,7 +51,19 @@ export class ClientStreamHub {
     });
   }
 
-  public broadcast(serverId: string, stream: 'LOGS' | 'METRICS' | 'STATUS', data: any) {
+  private canSubscribe(user: AuthSession, serverId: string): boolean {
+    if (hasPermission(user.role, UserRole.ADMIN)) {
+      return true;
+    }
+    const server = db.servers.find((s) => s.id === serverId && !s.deletedAt);
+    if (!server) return false;
+    if (server.ownerId === user.userId) return true;
+    return db.serverMembers.some(
+      (m) => m.serverId === serverId && m.userId === user.userId
+    );
+  }
+
+  public broadcast(serverId: string, stream: 'LOGS' | 'METRICS' | 'STATUS', data: unknown) {
     const topic = `${serverId}:${stream}`;
     const payload = JSON.stringify({ serverId, stream, data, timestamp: Date.now() });
 

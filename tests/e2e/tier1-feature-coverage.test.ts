@@ -76,10 +76,10 @@ rcon.port=19133
       expect(serialized).toContain('difficulty=easy');
     });
 
-    it('executes RCON command stub and returns formatted response', async () => {
+    it('executes RCON via real protocol and returns honest error when unreachable', async () => {
       const server = db.servers[0];
       const response = await BedrockServerController.executeRconCommand(server, 'list');
-      expect(response).toContain('[STUB]');
+      expect(response).toContain('[RCON ERROR]');
       expect(response).toContain('list');
       expect(response).toContain(server.name);
     });
@@ -113,8 +113,8 @@ rcon.port=19133
       expect(manualBackup.id).toBeDefined();
       expect(manualBackup.serverId).toBe(serverId);
       expect(manualBackup.isManual).toBe(true);
-      expect(manualBackup.status).toBe(BackupStatus.COMPLETED);
-      expect(manualBackup.filename).toMatch(/^backup_srv_bedrock_1_.*\.zip$/);
+      expect(manualBackup.status).toBe(BackupStatus.PENDING);
+      expect(manualBackup.filename).toMatch(/^backup_srv_bedrock_1_.*\.tar\.gz$/);
       expect(manualBackup.storagePath).toContain(serverId);
 
       const autoBackup = BackupEngine.triggerBackup({
@@ -136,11 +136,21 @@ rcon.port=19133
       expect(serverBackups[0].serverId).toBe(serverId);
     });
 
-    it('validates and executes backup snapshot restore', () => {
+    it('validates and executes backup snapshot restore', async () => {
       const serverId = 'srv_bedrock_1';
       const backup = BackupEngine.triggerBackup({ serverId, isManual: true });
+      BackupEngine.completeBackup(backup.id, 1024);
 
-      const restoreResult = BackupEngine.restoreBackup(backup.id);
+      const restoreResult = await BackupEngine.executeRestore(
+        backup.id,
+        async () => ({
+          success: true,
+          filesExtracted: 1,
+          output: `Successfully restored server from ${backup.filename}`
+        }),
+        undefined,
+        { downloadUrlOverride: 'http://127.0.0.1:9/archive.tar.gz' }
+      );
       expect(restoreResult.success).toBe(true);
       expect(restoreResult.message).toContain('Successfully restored server');
       expect(restoreResult.message).toContain(backup.filename);

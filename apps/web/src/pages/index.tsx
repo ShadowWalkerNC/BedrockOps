@@ -58,7 +58,7 @@ export default function BedrockAdminDashboard() {
   const [modAction, setModAction] = useState('WARN');
 
   // Discord State
-  const [webhookUrl, setWebhookUrl] = useState('https://discord.com/api/webhooks/123456789/abc');
+  const [webhookUrl, setWebhookUrl] = useState('');
 
   const showNotify = (msg: string) => {
     setNotification(msg);
@@ -181,8 +181,8 @@ export default function BedrockAdminDashboard() {
       showNotify(`Restored snapshot ${filename}.`);
     } catch (err: unknown) {
       showNotify(
-        err instanceof Error && err.message.includes('NOT_IMPLEMENTED')
-          ? `Restore not yet implemented for ${filename}.`
+        err instanceof Error && (err.message.includes('RESTORE_UNAVAILABLE') || err.message.includes('NOT_IMPLEMENTED'))
+          ? `Restore unavailable for ${filename} (agent/R2 required).`
           : `Restore failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
     }

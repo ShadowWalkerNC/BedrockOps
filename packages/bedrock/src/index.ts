@@ -1,5 +1,7 @@
 import { BedrockServer, ServerStatus } from '@mc-admin/db';
+import { RconClient } from './rcon';
 export * from './provider';
+export { RconClient } from './rcon';
 
 export interface BedrockProperties {
   'server-name': string;
@@ -43,8 +45,16 @@ export class BedrockServerController {
   }
 
   public static async executeRconCommand(server: BedrockServer, command: string): Promise<string> {
-    // TODO: Wire full RCON protocol socket client in Phase 2
-    return `[STUB] RCON response for command "${command}" on ${server.name} (${server.host}:${server.rconPort || 19133})`;
+    const host = server.host || '127.0.0.1';
+    const port = server.rconPort || 19133;
+    const password = server.rconPassword || '';
+    try {
+      return await RconClient.execute({ host, port, password, command });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Honest failure — never pretend the game command ran.
+      return `[RCON ERROR] ${message} (command=${JSON.stringify(command)} server=${server.name} ${host}:${port})`;
+    }
   }
 
   public static setServerStatus(server: BedrockServer, status: ServerStatus): BedrockServer {

@@ -1,4 +1,5 @@
 import { BedrockServer, HostProviderType } from '@mc-admin/db';
+import { RconClient } from './rcon';
 
 export interface ServerMetrics {
   cpuPercent: number;
@@ -25,6 +26,21 @@ export interface BackupResult {
   error?: string;
 }
 
+export interface RestoreTriggerOptions {
+  backupId: string;
+  presignedDownloadUrl: string;
+}
+
+export interface RestoreResult {
+  success: boolean;
+  backupId: string;
+  stub?: boolean;
+  error?: string;
+  filesExtracted?: number;
+  fileSizeBytes?: number;
+  output?: string;
+}
+
 export interface HostProvider {
   readonly type: HostProviderType;
 
@@ -35,44 +51,77 @@ export interface HostProvider {
   executeRcon(server: BedrockServer, command: string): Promise<string>;
   streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void;
   triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult>;
+  restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult>;
+}
+
+/** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
+export interface AgentTunnelGatewayLike {
+  sendCommand(nodeId: string, serverId: string, command: string, payload: Record<string, unknown>): Promise<unknown>;
+  isNodeConnected?(nodeId: string): boolean;
 }
 
 export class DockerAgentHostProvider implements HostProvider {
   public readonly type = HostProviderType.DOCKER_AGENT;
 
-  constructor(private tunnelGateway?: any) {}
+  constructor(private tunnelGateway?: AgentTunnelGatewayLike) {}
 
-  public async startServer(server: BedrockServer): Promise<boolean> {
+  public setTunnelGateway(gateway: AgentTunnelGatewayLike): void {
+    this.tunnelGateway = gateway;
+  }
+
+  private async power(server: BedrockServer, action: 'START' | 'STOP' | 'KILL' | 'RESTART'): Promise<boolean> {
     if (!server.agentId) {
       throw new Error(`Server ${server.id} has no assigned agentNode`);
     }
-    if (this.tunnelGateway) {
-      await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action: 'START' });
-      return true;
+    if (!this.tunnelGateway) {
+      console.warn(`[STUB] DockerAgentHostProvider.${action} — no tunnel gateway registered for agent ${server.agentId}`);
+      return false;
     }
-    // TODO: Wire agent tunnel in Phase 2
-    console.warn(`[STUB] DockerAgentHostProvider.startServer — no tunnel for agent ${server.agentId}`);
-    return false;
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      console.warn(`[STUB] DockerAgentHostProvider.${action} — agent ${server.agentId} is not connected`);
+      return false;
+    }
+    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action }) as {
+      success?: boolean;
+    };
+    return result?.success !== false;
+  }
+
+  public async startServer(server: BedrockServer): Promise<boolean> {
+    return this.power(server, 'START');
   }
 
   public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
-    if (!server.agentId) {
-      throw new Error(`Server ${server.id} has no assigned agentNode`);
-    }
-    if (this.tunnelGateway) {
-      await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action: force ? 'KILL' : 'STOP' });
-      return true;
-    }
-    console.warn(`[STUB] DockerAgentHostProvider.stopServer — no tunnel for agent ${server.agentId}`);
-    return false;
+    return this.power(server, force ? 'KILL' : 'STOP');
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
-    await this.stopServer(server);
-    return this.startServer(server);
+    return this.power(server, 'RESTART');
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
+    if (this.tunnelGateway && server.agentId) {
+      if (!this.tunnelGateway.isNodeConnected || this.tunnelGateway.isNodeConnected(server.agentId)) {
+        try {
+          const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'GET_STATUS', {}) as {
+            cpuPercent?: number;
+            memoryMb?: number;
+            totalMemoryMb?: number;
+            uptimeSeconds?: number;
+            activePlayers?: number;
+          };
+          return {
+            cpuPercent: result.cpuPercent ?? 0,
+            memoryMb: result.memoryMb ?? 0,
+            totalMemoryMb: result.totalMemoryMb,
+            uptimeSeconds: result.uptimeSeconds ?? 0,
+            activePlayers: result.activePlayers ?? 0,
+          };
+        } catch {
+          // Fall through to empty metrics when agent is unreachable
+        }
+      }
+    }
     return {
       cpuPercent: 0,
       memoryMb: 0,
@@ -83,9 +132,18 @@ export class DockerAgentHostProvider implements HostProvider {
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
     if (this.tunnelGateway && server.agentId) {
-      return this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', { command });
+      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+        return `[STUB] Agent ${server.agentId} not connected — RCON not executed`;
+      }
+      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', {
+        rconCommand: command
+      }) as { output?: string; error?: string; stub?: boolean };
+      if (result?.error && !result.output) {
+        return result.error;
+      }
+      return result?.output ?? JSON.stringify(result);
     }
-    return `[DockerAgent] Executed "${command}" on server ${server.name} (${server.id})`;
+    return `[STUB] DockerAgent tunnel not connected — RCON "${command}" not executed on ${server.id}`;
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
@@ -97,13 +155,72 @@ export class DockerAgentHostProvider implements HostProvider {
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
     if (this.tunnelGateway && server.agentId) {
-      return this.tunnelGateway.sendCommand(server.agentId, server.id, 'TRIGGER_BACKUP', options);
+      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+        return {
+          success: false,
+          stub: true,
+          backupId: options.backupId,
+          error: `[STUB] Agent ${server.agentId} not connected — backup not executed on host.`
+        };
+      }
+      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'TRIGGER_BACKUP', {
+        backupId: options.backupId,
+        presignedUploadUrl: options.presignedUploadUrl,
+        isManual: options.isManual,
+        isHoldCheckpoint: options.isHoldCheckpoint
+      }) as BackupResult;
+      return {
+        success: !!result?.success,
+        stub: result?.stub,
+        backupId: result?.backupId ?? options.backupId,
+        fileSizeBytes: result?.fileSizeBytes,
+        sha256: result?.sha256,
+        error: result?.error
+      };
     }
     return {
       success: false,
       stub: true,
       backupId: options.backupId,
       error: '[STUB] Agent tunnel not connected — backup not executed on host.'
+    };
+  }
+
+  public async restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult> {
+    if (this.tunnelGateway && server.agentId) {
+      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+        return {
+          success: false,
+          stub: true,
+          backupId: options.backupId,
+          error: `[STUB] Agent ${server.agentId} not connected — restore not executed on host.`
+        };
+      }
+      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RESTORE_BACKUP', {
+        backupId: options.backupId,
+        presignedDownloadUrl: options.presignedDownloadUrl
+      }) as {
+        success?: boolean;
+        stub?: boolean;
+        error?: string;
+        backupId?: string;
+        fileSizeBytes?: number;
+        output?: string;
+      };
+      return {
+        success: !!result?.success,
+        stub: result?.stub,
+        backupId: result?.backupId ?? options.backupId,
+        fileSizeBytes: result?.fileSizeBytes,
+        output: result?.output,
+        error: result?.error
+      };
+    }
+    return {
+      success: false,
+      stub: true,
+      backupId: options.backupId,
+      error: '[STUB] Agent tunnel not connected — restore not executed on host.'
     };
   }
 }
@@ -113,23 +230,33 @@ export class PterodactylHostProvider implements HostProvider {
 
   constructor(private apiBaseUrl?: string, private apiKey?: string) {}
 
+  private notImplemented(action: string, server: BedrockServer): never | false {
+    console.warn(
+      `[STUB] PterodactylHostProvider.${action} — panel API integration pending for ${server.pterodactylServerId || server.id}`
+    );
+    return false;
+  }
+
   public async startServer(server: BedrockServer): Promise<boolean> {
     if (!server.pterodactylServerId && !server.id) {
       throw new Error(`Server ${server.id} has no pterodactylServerId specified`);
     }
-    return true;
+    // TODO: Call Pterodactyl power API when apiBaseUrl + apiKey are configured.
+    void this.apiBaseUrl;
+    void this.apiKey;
+    return this.notImplemented('START', server);
   }
 
-  public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
-    return true;
+  public async stopServer(server: BedrockServer, _force = false): Promise<boolean> {
+    return this.notImplemented('STOP', server);
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
-    await this.stopServer(server);
-    return this.startServer(server);
+    return this.notImplemented('RESTART', server);
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
+    void server;
     return {
       cpuPercent: 0,
       memoryMb: 0,
@@ -139,15 +266,16 @@ export class PterodactylHostProvider implements HostProvider {
   }
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
-    return `[Pterodactyl] Sent command "${command}" to server ${server.pterodactylServerId || server.id}`;
+    return `[STUB] Pterodactyl RCON not executed for ${server.pterodactylServerId || server.id}: ${command}`;
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
-    onLog(`[Pterodactyl] Connected to console WebSocket for ${server.pterodactylServerId || server.id}`);
+    onLog(`[STUB] Pterodactyl console WebSocket not connected for ${server.pterodactylServerId || server.id}`);
     return () => {};
   }
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
+    void server;
     return {
       success: false,
       stub: true,
@@ -155,25 +283,42 @@ export class PterodactylHostProvider implements HostProvider {
       error: '[STUB] Pterodactyl backup API integration pending.'
     };
   }
+
+  public async restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult> {
+    void server;
+    return {
+      success: false,
+      stub: true,
+      backupId: options.backupId,
+      error: '[STUB] Pterodactyl restore API integration pending.'
+    };
+  }
 }
 
 export class DirectRconSshHostProvider implements HostProvider {
   public readonly type = HostProviderType.DIRECT_RCON_SSH;
 
-  public async startServer(server: BedrockServer): Promise<boolean> {
-    return true;
+  private notImplemented(action: string, server: BedrockServer): false {
+    console.warn(
+      `[STUB] DirectRconSshHostProvider.${action} — SSH/RCON lifecycle integration pending for ${server.host}`
+    );
+    return false;
   }
 
-  public async stopServer(server: BedrockServer, force = false): Promise<boolean> {
-    return true;
+  public async startServer(server: BedrockServer): Promise<boolean> {
+    return this.notImplemented('START', server);
+  }
+
+  public async stopServer(server: BedrockServer, _force = false): Promise<boolean> {
+    return this.notImplemented('STOP', server);
   }
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
-    await this.stopServer(server);
-    return this.startServer(server);
+    return this.notImplemented('RESTART', server);
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
+    void server;
     return {
       cpuPercent: 0,
       memoryMb: 0,
@@ -183,20 +328,39 @@ export class DirectRconSshHostProvider implements HostProvider {
   }
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
-    return `[DirectRCON] Executed "${command}" via TCP RCON socket to ${server.host}:${server.rconPort || 19133}`;
+    const host = server.host || '127.0.0.1';
+    const port = server.rconPort || 19133;
+    const password = server.rconPassword || '';
+    try {
+      return await RconClient.execute({ host, port, password, command });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return `[RCON ERROR] ${message} (command=${JSON.stringify(command)} ${host}:${port})`;
+    }
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
-    onLog(`[DirectRCON] Log tail started for ${server.host}`);
+    onLog(`[STUB] DirectRCON log tail not connected for ${server.host}`);
     return () => {};
   }
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
+    void server;
     return {
       success: false,
       stub: true,
       backupId: options.backupId,
       error: '[STUB] Direct RCON/SSH backup integration pending.'
+    };
+  }
+
+  public async restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult> {
+    void server;
+    return {
+      success: false,
+      stub: true,
+      backupId: options.backupId,
+      error: '[STUB] Direct RCON/SSH restore integration pending.'
     };
   }
 }
@@ -206,6 +370,18 @@ export class HostProviderFactory {
 
   public static registerProvider(type: HostProviderType, provider: HostProvider): void {
     this.providers.set(type, provider);
+  }
+
+  /** Bind the live agent WebSocket gateway into the Docker agent provider. */
+  public static bindAgentTunnel(gateway: AgentTunnelGatewayLike): DockerAgentHostProvider {
+    const existing = this.providers.get(HostProviderType.DOCKER_AGENT);
+    if (existing instanceof DockerAgentHostProvider) {
+      existing.setTunnelGateway(gateway);
+      return existing;
+    }
+    const provider = new DockerAgentHostProvider(gateway);
+    this.providers.set(HostProviderType.DOCKER_AGENT, provider);
+    return provider;
   }
 
   public static getProvider(type: HostProviderType | string): HostProvider {
@@ -230,5 +406,10 @@ export class HostProviderFactory {
     }
 
     return provider;
+  }
+
+  /** Test helper — clears cached provider instances. */
+  public static reset(): void {
+    this.providers.clear();
   }
 }

@@ -11,6 +11,9 @@ coverage
 .DS_Store
 .netlify
 
+# Go agent build artifacts
+apps/agent/bin/
+
 # Prisma
 packages/db/prisma/dev.db
 packages/db/prisma/dev.db-journal

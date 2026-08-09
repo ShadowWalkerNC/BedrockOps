@@ -1,10 +1,6 @@
-import {
-  UserRole,
-  ServerStatus,
-  BackupStatus,
-  ModerationType,
-  PipelineStatus
-} from './schema';
+import { createHash } from 'crypto';
+import { UserRole, ServerStatus } from './schema';
+import { assertDatabaseModeAllowed, isMemoryDatabaseMode } from './adapter';
 
 import type {
   User,
@@ -24,6 +20,23 @@ import type {
 export * from './schema';
 export * from './client';
 export * from './adapter';
+export * from './persist';
+
+/** Well-known bcrypt hash of password "admin" (cost 10) for local/test seeding only. */
+export const DEV_ADMIN_PASSWORD_HASH =
+  '$2a$10$Sh1gOjVviMfq2IbRugR.k.DTz1c5rOoj8fGzBXEDXj/lIJyLgHDZq';
+
+/** Dev agent bearer token — hash is seeded; plaintext ships only in .env.example. */
+export const DEV_AGENT_TOKEN = 'dev_agent_token_change_me';
+
+export function hashAgentToken(token: string): string {
+  return createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+/** @deprecated Use assertDatabaseModeAllowed — kept for callers from security hardening. */
+export function assertMemoryDbAllowed(): void {
+  assertDatabaseModeAllowed();
+}
 
 export class MemoryDatabase {
   public users: User[] = [];
@@ -45,6 +58,7 @@ export class MemoryDatabase {
       id: 'usr_admin_1',
       username: 'admin',
       email: 'admin@minecraft-admin.local',
+      passwordHash: DEV_ADMIN_PASSWORD_HASH,
       role: UserRole.OWNER,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -55,6 +69,7 @@ export class MemoryDatabase {
       name: 'Local Docker Host Agent',
       version: 'v1.0.0-static-go',
       status: 'ONLINE',
+      secretTokenHash: hashAgentToken(DEV_AGENT_TOKEN),
       lastHeartbeat: new Date(),
       createdAt: new Date()
     });
@@ -115,5 +130,11 @@ export class MemoryDatabase {
   }
 }
 
+assertDatabaseModeAllowed();
 export const db = new MemoryDatabase();
-db.seedDefaults();
+
+// Memory mode seeds at import for unit tests / local dev.
+// Prisma mode hydrates (and seeds if empty) via initializeDatabase() in the API boot path.
+if (isMemoryDatabaseMode()) {
+  db.seedDefaults();
+}

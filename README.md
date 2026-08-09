@@ -52,11 +52,15 @@ pnpm install
 # Copy environment template and adjust as needed
 cp .env.example .env
 
-# Start Postgres + Redis (optional for future Prisma wiring)
+# Start Postgres + Redis (required for DB_ADAPTER=prisma)
 docker compose up -d
 
-# Generate Prisma client
+# Generate Prisma client and apply migrations
 pnpm --filter @mc-admin/db db:generate
+pnpm --filter @mc-admin/db db:migrate
+
+# Optional: persist via Postgres (API hydrates memory + write-through flush)
+# Set DB_ADAPTER=prisma in .env
 
 # Run all apps in development (via Turborepo)
 pnpm dev
@@ -68,7 +72,38 @@ pnpm dev
 |---------|-----|
 | Web dashboard | http://localhost:3000 |
 | API control plane | http://localhost:4000 |
-| Agent daemon | http://localhost:5050 |
+| Agent daemon (TS shim) | http://localhost:5050 |
+
+### Go agent (CGNAT-safe outbound tunnel)
+
+Production process control lives in the Go binary under `apps/agent/cmd/bedrock-agent`. It dials the control plane WebSocket at `/api/v1/ws/agent` (outbound-only, CGNAT-friendly), handles power actions, heartbeats, metrics, and backup triggers.
+
+```bash
+# Build
+pnpm --filter @mc-admin/agent agent:build
+
+# Run against local API (simulated lifecycle when -bds-bin is omitted)
+./apps/agent/bin/bedrock-agent \
+  -control-plane http://127.0.0.1:4000 \
+  -node-id node_docker_agent_1
+```
+
+Set `-bds-bin /path/to/bedrock_server` for live process management.
+
+### Streaming backups (Cloudflare R2)
+
+Manual backups (`POST /api/v1/backups`) run the save-hold command plan, ask the connected agent to stream a `tar.gz` archive, and optionally PUT to an R2 presigned URL when these env vars are set:
+
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+
+Without R2 credentials the control plane returns an honest presign stub; the agent still archives locally when a world directory exists.
+
+### Security notes (local prototype)
+
+- Agent WebSocket requires a bearer token matching `AgentNode.secretTokenHash` (seeded token: `dev_agent_token_change_me`).
+- Production refuses weak `JWT_SECRET` / `NODE_PAIRING_SECRET`, `CORS_ORIGIN=*`, and MemoryDatabase unless `ALLOW_MEMORY_DB=true`.
+- Host providers that are not wired (Pterodactyl / Direct RCON) return `false` / `[STUB]` — they never pretend power actions succeeded.
+- Dashboard auto-login is opt-in via `NEXT_PUBLIC_DEV_AUTO_LOGIN=true`.
 
 ## Environment variables
 
@@ -80,6 +115,10 @@ Copy `.env.example` to `.env` at the repo root. Key variables:
 | `PORT` | Web / shared port hint | `3000` |
 | `DATABASE_URL` | Postgres connection string | see `.env.example` |
 | `JWT_SECRET` | API JWT signing secret | change in production |
+| `NODE_PAIRING_SECRET` | Agent bootstrap pairing secret | change in production |
+| `CORS_ORIGIN` | Allowed browser origin(s) | `http://localhost:3000` |
+| `BEDROCK_AGENT_TOKEN` | Agent tunnel bearer token | see `.env.example` |
+| `NEXT_PUBLIC_DEV_AUTO_LOGIN` | Web silent admin login (dev only) | unset / `true` in example |
 | `DISCORD_WEBHOOK_URL` | Optional Discord alerts | — |
 | `RCON_HOST` / `RCON_PORT` / `RCON_PASSWORD` | Bedrock RCON | local defaults |
 
@@ -104,7 +143,7 @@ pnpm --filter @mc-admin/db db:validate
 
 - **Domain packages** hold business logic; apps orchestrate I/O and HTTP.
 - **Audit logging** is required for state-changing operations (server control, backups, moderation, templates, pipelines).
-- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton (`DB_ADAPTER=memory`). Set `DB_ADAPTER=prisma` when wiring Postgres persistence.
+- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton (`DB_ADAPTER=memory`). Set `DB_ADAPTER=prisma` for Postgres persistence (API hydrates on boot + write-through flush after mutating requests).
 - **Web → API:** The dashboard proxies `/api/v1/*` to `apps/api` (port 4000). Web no longer imports `@mc-admin/db` or domain engines directly.
 - **Honest stubs:** Backups start as `PENDING`, agent/power actions return explicit stub responses until host integration is wired.
 

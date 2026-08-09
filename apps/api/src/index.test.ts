@@ -113,4 +113,57 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.auditLogs)).toBe(true);
   });
+
+  it('rejects login when password does not match the stored hash', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@minecraft-admin.local', password: 'admin123' });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('strips rconPassword from server list responses', async () => {
+    const res = await request(app)
+      .get('/api/v1/servers')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.servers[0].rconPassword).toBeUndefined();
+    expect(res.body.servers[0].hasRconPassword).toBe(true);
+  });
+
+  it('rejects mass-assignment of status/ownerId on PATCH', async () => {
+    const serverId = db.servers[0].id;
+    const res = await request(app)
+      .patch(`/api/v1/servers/${serverId}`)
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ status: 'ONLINE', ownerId: 'usr_attacker', name: 'Renamed' });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('Agent WebSocket auth', () => {
+  it('authenticates seeded node with DEV agent token', async () => {
+    const { authenticateAgentUpgrade } = await import('./ws/router');
+    const { DEV_AGENT_TOKEN } = await import('@mc-admin/db');
+    const req = {
+      headers: { authorization: `Bearer ${DEV_AGENT_TOKEN}` },
+      url: '/api/v1/ws/agent?nodeId=node_docker_agent_1'
+    } as import('http').IncomingMessage;
+
+    expect(authenticateAgentUpgrade(req, 'node_docker_agent_1')).toEqual({ ok: true });
+  });
+
+  it('rejects missing or invalid agent tokens', async () => {
+    const { authenticateAgentUpgrade } = await import('./ws/router');
+    const bare = { headers: {}, url: '/api/v1/ws/agent?nodeId=node_docker_agent_1' } as import('http').IncomingMessage;
+    expect(authenticateAgentUpgrade(bare, 'node_docker_agent_1').ok).toBe(false);
+
+    const bad = {
+      headers: { authorization: 'Bearer totally-wrong' },
+      url: '/api/v1/ws/agent?nodeId=node_docker_agent_1'
+    } as import('http').IncomingMessage;
+    expect(authenticateAgentUpgrade(bad, 'node_docker_agent_1').ok).toBe(false);
+  });
 });
