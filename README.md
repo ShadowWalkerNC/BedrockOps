@@ -84,9 +84,23 @@ pnpm dev
 
 | Service | URL |
 |---------|-----|
-| Web dashboard | http://localhost:3000 |
+| Web dashboard | http://localhost:3000/login |
 | API control plane | http://localhost:4000 |
 | Agent daemon (TS shim) | http://localhost:5050 |
+
+### Next.js `vendor-chunks` / missing module errors
+
+If the dashboard crashes with `Cannot find module './chunks/vendor-chunks/next@…'`, the `.next` cache is stale/corrupt (common after branch switches, crashed `next dev`, or repos under **OneDrive**):
+
+```powershell
+# from repo root (Windows PowerShell)
+pnpm --filter @mc-admin/web clean
+pnpm --filter @mc-admin/web dev
+# or one-shot:
+pnpm --filter @mc-admin/web dev:clean
+```
+
+Prefer cloning outside OneDrive/iCloud sync folders when possible.
 
 ### Go agent (CGNAT-safe outbound tunnel)
 

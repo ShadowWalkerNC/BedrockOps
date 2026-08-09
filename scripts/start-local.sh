@@ -80,6 +80,9 @@ PORT=4000 DB_ADAPTER=prisma NODE_ENV="${NODE_ENV:-development}" \
   pnpm --filter @mc-admin/api dev > /tmp/bedrockops-logs/api.log 2>&1 &
 echo $! > /tmp/bedrockops-logs/api.pid
 
+# Wipe stale Next cache (corrupt vendor-chunks are common after branch switches / OneDrive sync).
+pnpm --filter @mc-admin/web clean >/dev/null 2>&1 || rm -rf apps/web/.next
+
 NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 \
   pnpm --filter @mc-admin/web dev > /tmp/bedrockops-logs/web.log 2>&1 &
 echo $! > /tmp/bedrockops-logs/web.pid
