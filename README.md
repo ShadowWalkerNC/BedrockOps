@@ -1,182 +1,365 @@
-# BedrockOps
+<p align="center">
+  <img src="docs/images/00-hero-bedrockops.png" alt="BedrockOps — the open admin stack for Bedrock Realms" width="100%" />
+</p>
 
-**The operating system for Bedrock Realms.**
+<h1 align="center">BedrockOps</h1>
 
-BedrockOps is a Realms-first control plane for Minecraft Bedrock Dedicated Servers — start/stop, live console, offsite backups, moderation, Discord alerts, console onboarding, and version-aware ops in one stack.
+<p align="center">
+  <strong>The open admin stack for Minecraft Bedrock Realms.</strong><br/>
+  Free forever. Fork it. Self-host it. Help us build it.
+</p>
 
-> **This is my SaaS.** The product, brand, and hosted BedrockOps service are mine.
->
-> **This repo is free to fork.** Clone it, self-host it, hack on it, send PRs. You’re welcome to run your own control plane. You’re not getting commodity RAM hosting — you’re getting (or forking) the software that makes community Realms actually operable.
-
----
-
-## Why it exists
-
-Most Bedrock “hosts” compete on specs and price. Operators still drown in FTP panels, brittle backups, opaque crashes, and staff tools that feel bolted on.
-
-BedrockOps competes on **software**:
-
-| Hosts sell | BedrockOps sells |
-|------------|------------------|
-| CPU / RAM / disk | Lifecycle, safety, and staff workflows |
-| A panel for one box | A Realms admin OS across your fleet |
-| “Hope the world saved” | Streaming backups, audit trails, honest failure modes |
-
-**Positioning:** Realms-first (self-hosted BDS). Own the agent, Postgres, R2 backups, and join adapters. Hosting partners are optional later — never a prerequisite to ship. Official Mojang Realms APIs are out of scope.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#product-tour">Demo</a> ·
+  <a href="#why-bedrockops">Why this exists</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#contributing">Contributing</a>
+</p>
 
 ---
 
-## What’s in the box
+## Product tour
 
-- **Ops Room dashboard** — power actions, live console, player profiles, setup wizard
-- **CGNAT-safe Go agent** — outbound WebSocket tunnel; no inbound ports required on the game host
-- **Streaming backups** — save-hold → agent archive → optional Cloudflare R2
-- **Moderation ledger** — warn / mute / kick / ban / note with GDPR anonymize + allowlist sync
-- **Console onboarding** — subdomain/port allocation, FriendConnect-style adapters, Xbox resolve (when keyed)
-- **Discord alerts** — bans, backups, crashes (webhook; slash commands scaffolded)
-- **Version matrix** — pin BDS builds, mismatch warnings, backup-before-update
-- **Honest stubs** — if the agent, R2, or Discord isn’t wired, the API says so instead of lying
+Real UI. Real pages. Captured from a running local stack.
 
-Shippable Waves **A–C** are on `main`. Wave **D** (packs, marketplace, host partners, rounds) is planned next. Details: [SHIP_READINESS.md](./SHIP_READINESS.md) · [PROJECT_PLAN.md](./PROJECT_PLAN.md)
+![BedrockOps product tour](docs/demo/bedrockops-product-tour.gif)
 
----
+[Download the full MP4 walkthrough](docs/demo/bedrockops-product-tour.mp4) · poster:
 
-## SaaS vs fork
+<p align="center">
+  <img src="docs/demo/poster-dashboard.png" alt="BedrockOps dashboard poster" width="820" />
+</p>
 
-| | Hosted BedrockOps (SaaS) | This repo (fork / self-host) |
-|--|--------------------------|------------------------------|
-| Who runs the control plane | Me | You |
-| Brand / product | BedrockOps | Your fork — please don’t pretend to *be* BedrockOps Cloud |
-| Game servers | Your Realms, managed through the product | Your metal / VPS + the Go agent |
-| Cost model | SaaS | Your infra + your time |
-| Contributions | Welcome via PR | Same |
+| Login | Ops Room | Live console |
+|:--:|:--:|:--:|
+| ![Login](docs/images/01-login.png) | ![Ops Room](docs/images/03-ops-room.png) | ![Console](docs/images/04-console.png) |
 
-Fork freely. If you build something useful, open a pull request. If you want the managed product, that’s the SaaS — not something this README pretends to bill you for in git.
+| Worlds | Settings | Setup wizard |
+|:--:|:--:|:--:|
+| ![Worlds](docs/images/05-worlds.png) | ![Settings](docs/images/06-settings.png) | ![Setup](docs/images/08-setup.png) |
+
+<p align="center">
+  <img src="docs/images/02-dashboard.png" alt="BedrockOps Operations Overview dashboard" width="920" />
+</p>
 
 ---
 
-## Quick start (local)
+## Why BedrockOps
+
+Running a Bedrock community server should feel like Realms for your players — and like a **real ops console** for your staff.
+
+Most hosting panels stop at “here’s RAM and an FTP box.” You still get:
+
+- mystery crashes with no trail  
+- backups that maybe happened  
+- moderation that lives in someone’s Discord DMs  
+- join flows that confuse console players  
+- no audit history when something goes wrong at 2am  
+
+**BedrockOps is different.** It’s a full control plane for self-hosted Bedrock Dedicated Servers:
+
+- a dashboard your admins will actually use  
+- a Go agent that dials *out* (works behind home NAT / CGNAT)  
+- streaming backups with honest failure modes  
+- a moderation ledger with GDPR anonymize  
+- Discord alerts, version pins, live console, setup wizard  
+
+**This repo is free.** No paid tier buried in the README. No “contact sales.”  
+Fork it. Run it on your VPS, your homelab, your spare PC.  
+If you improve it — **please open a pull request.** That’s how this grows.
+
+---
+
+## Who it’s for
+
+| You are… | BedrockOps helps you… |
+|----------|------------------------|
+| A Realm owner with friends on Xbox / Switch / mobile | Onboard players without tribal knowledge |
+| A small community with staff | Moderate with records, not vibes |
+| A homelab / VPS operator | Control BDS like a real service |
+| A tinkerer who hates fake “success” UIs | Trust the panel — stubs are labeled stubs |
+| An open-source contributor | Ship meaningful PRs across Go, TS, and UX |
+
+---
+
+## Features
+
+### Operations that feel intentional
+
+- **Power controls** — start / stop / restart through the agent (not “hope systemctl worked”)
+- **Ops Room** — per-realm status, version pin, quick actions
+- **Live console** — stream BDS stdout/stderr; send commands when RCON is wired
+- **Setup wizard** — create → onboard → first backup without reading twelve wiki pages
+
+### Safety & recovery
+
+- **Streaming backups** — save-hold sequence → agent `tar.gz` archive  
+- **Optional Cloudflare R2** — offsite when you set keys; local/agent archive otherwise  
+- **Restore with confirmation** — dangerous actions ask first  
+- **Crash detection** — unexpected process exit can page Discord  
+
+### People & community
+
+- **Moderation ledger** — WARN / MUTE / KICK / BAN / NOTE  
+- **Player tracking** — join ingest + search  
+- **GDPR anonymize** — soft-delete path for player data  
+- **Allowlist sync** — atomic `allowlist.json` write plan via agent  
+
+### Connectivity that matches how Bedrock is actually played
+
+- **Outbound agent tunnel** — CGNAT-friendly WebSocket to the control plane  
+- **Subdomain + UDP port allocation** — play.* style onboarding adapters  
+- **Xbox / OpenXBL resolve** — live when keyed; honest stub without  
+
+### Operator polish
+
+- **Settings** — account, agents, integration readiness, realm config  
+- **Worlds** — world path + snapshot/restore surface  
+- **Plugins / templates** — catalog today; pack install refuses until Wave D (no fake success)  
+- **Audit log** — state-changing actions leave a trail  
+- **Analytics + rate limits** — destructive-action throttles, join-flood detection  
+
+<p align="center">
+  <img src="docs/images/07-plugins.png" alt="Templates and plugins page" width="860" />
+</p>
+
+---
+
+## Architecture (simple version)
+
+```text
+┌────────────┐     REST / WS      ┌────────────┐     outbound WSS     ┌────────────┐
+│  Dashboard │ ─────────────────► │    API     │ ◄─────────────────── │  Go agent  │
+│  apps/web  │                    │  apps/api  │                      │ apps/agent │
+└────────────┘                    └─────┬──────┘                      └─────┬──────┘
+                                        │                                   │
+                                        ▼                                   ▼
+                                   Postgres                            Bedrock BDS
+                                   (Prisma)                         (process + files)
+```
+
+| Piece | Role |
+|-------|------|
+| `apps/web` | Operator UI (Next.js) |
+| `apps/api` | Auth, REST, agent gateway, audits |
+| `apps/agent` | Process/filesystem/RCON on the game host |
+| `apps/worker` | Scheduled backup + retention sweeps |
+| `apps/discord` | Webhooks / slash-command relay |
+| `packages/*` | Shared domain libs (`@mc-admin/*`) |
+
+Deeper map: [PROJECT_PLAN.md](./PROJECT_PLAN.md) · contributor rules: [AGENTS.md](./AGENTS.md) · ship status: [SHIP_READINESS.md](./SHIP_READINESS.md)
+
+---
+
+## Quick start
+
+### Requirements
+
+- **Node.js 18+**
+- **pnpm 9** — `corepack enable && corepack prepare pnpm@9.0.0 --activate`
+- **Docker** — for Postgres
+- **Go 1.22+** — to build the agent (optional for UI-only poking)
+
+### Mac / Linux (recommended)
 
 ```bash
+git clone https://github.com/ShadowWalkerNC/BedrockOps.git
+cd BedrockOps
 pnpm install
 cp .env.example .env
 ./scripts/start-local.sh
-# → http://localhost:3000/login
-#    admin@minecraft-admin.local / admin
 ```
 
-Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1`  
-(Always run the API with `PORT=4000` — root `.env` uses `PORT=3000` for the web app.)
+Open **http://localhost:3000/login**
 
-| Service | URL |
-|---------|-----|
-| Dashboard | http://localhost:3000/login |
-| API | http://localhost:4000/health |
+| Field | Value |
+|-------|--------|
+| Email | `admin@minecraft-admin.local` |
+| Password | `admin` |
 
-### Manual path
+That’s a local seed account for development. Change it before you expose anything to the internet.
+
+### Windows
+
+```powershell
+git clone https://github.com/ShadowWalkerNC/BedrockOps.git
+cd BedrockOps
+pnpm install
+copy .env.example .env
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
+```
+
+Then run **two** terminals (root `.env` uses `PORT=3000` for the website — the API must override to **4000**):
+
+```powershell
+# Terminal A — API
+$env:PORT="4000"
+$env:DB_ADAPTER="prisma"
+pnpm --filter @mc-admin/api dev
+
+# Terminal B — dashboard
+$env:API_URL="http://localhost:4000"
+$env:NEXT_PUBLIC_DEV_AUTO_LOGIN="false"
+pnpm --filter @mc-admin/web clean
+pnpm --filter @mc-admin/web dev
+```
+
+Open http://localhost:3000/login with the same seed login.
+
+> **Avoid OneDrive / iCloud sync folders** for the clone. They corrupt Next.js `.next` caches.  
+> If you see `Cannot find module './chunks/vendor-chunks/…'`, run:
+>
+> ```powershell
+> pnpm --filter @mc-admin/web clean
+> pnpm --filter @mc-admin/web dev
+> ```
+
+### Connect an agent (optional, but this is where it gets fun)
 
 ```bash
-pnpm install && cp .env.example .env
-docker compose up -d postgres
-pnpm --filter @mc-admin/db db:generate
-pnpm --filter @mc-admin/db db:migrate
-# Terminal A
-PORT=4000 DB_ADAPTER=prisma pnpm --filter @mc-admin/api dev
-# Terminal B
-NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 pnpm --filter @mc-admin/web dev
-# Terminal C (optional agent — simulated BDS if -bds-bin omitted)
 pnpm --filter @mc-admin/agent agent:build
+
 ./apps/agent/bin/bedrock-agent \
   -control-plane http://127.0.0.1:4000 \
   -node-id node_docker_agent_1 \
   -token dev_agent_token_change_me
 ```
 
-### Prerequisites
+| Mode | How |
+|------|-----|
+| Simulated lifecycle | Omit `-bds-bin` — perfect for UI demos |
+| Live BDS | Add `-bds-bin /path/to/bedrock_server` |
 
-- Node.js 18+
-- pnpm 9 (`corepack enable && corepack prepare pnpm@9.0.0 --activate`)
-- Go 1.22+ (agent build/tests)
-- Docker (Postgres via `docker compose`)
+Seed token above matches the default Memory/Prisma seed hash. Rotate it for anything real.
 
 ---
 
-## Repository layout
+## Day-2 configuration
 
-```
-apps/
-  web/       Next.js operator dashboard
-  api/       REST + WebSocket control plane (:4000)
-  worker/    Scheduled backups & retention
-  agent/     Go machine daemon (BDS process, RCON, files)
-  discord/   Webhooks / slash-command relay
-packages/    Domain libs — db, auth, audit, bedrock, backups,
-             moderation, notifications, templates, pipelines, ui
-```
+Copy `.env.example` → `.env`. Important knobs:
 
-Internal package scope: `@mc-admin/*`. Coding boundaries: [AGENTS.md](./AGENTS.md).
+| Variable | Purpose |
+|----------|---------|
+| `DB_ADAPTER=prisma` | Postgres persistence (recommended) |
+| `DATABASE_URL` | Postgres connection string |
+| `JWT_SECRET` | Sign dashboard sessions (use a long random string) |
+| `NODE_PAIRING_SECRET` | Agent pairing hardness |
+| `CORS_ORIGIN` | Your dashboard origin (`http://localhost:3000` locally) |
+| `BEDROCK_AGENT_TOKEN` | Must match the agent node’s hashed token |
+| `R2_*` | Optional offsite backups |
+| `DISCORD_WEBHOOK_URL` | Optional live alerts |
+| `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID` | Optional live play DNS |
+| `XBOX_API_KEY` / `OPENXBL_API_KEY` | Optional live gamertag↔XUID |
+
+**Missing keys never fake success.** Backups, Discord, DNS, and Xbox paths return honest stubs / pending states until configured. That’s a feature.
+
+Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
 
 ---
 
 ## Useful commands
 
 ```bash
-pnpm dev          # all workspace apps
-pnpm build        # build everything
-pnpm test         # Vitest (+ Go tests in apps/agent)
-pnpm typecheck    # full-repo TypeScript (includes tests)
-pnpm lint         # lint (primarily web today)
+pnpm install
+pnpm dev                 # workspace apps
+pnpm test                # Vitest (+ Go tests in apps/agent)
+pnpm typecheck           # full TypeScript (includes tests)
+pnpm build
+pnpm lint
 
 pnpm --filter @mc-admin/db db:generate
 pnpm --filter @mc-admin/db db:migrate
-pnpm --filter @mc-admin/web clean     # wipe stale .next (Windows/OneDrive-friendly)
+pnpm --filter @mc-admin/web clean
+pnpm --filter @mc-admin/agent agent:build
 ```
-
----
-
-## Configuration notes
-
-Copy `.env.example` → `.env`. Important knobs:
-
-| Variable | Notes |
-|----------|--------|
-| `DB_ADAPTER=prisma` | Production-shaped local / real deploys (needs Postgres) |
-| `JWT_SECRET` / `NODE_PAIRING_SECRET` | Strong secrets in production (min 32 chars) |
-| `CORS_ORIGIN` | Dashboard origin — never `*` in production |
-| `BEDROCK_AGENT_TOKEN` | Must match hashed token on the `AgentNode` |
-| `R2_*` | Optional offsite backups; honest stub without them |
-| `DISCORD_WEBHOOK_URL` | Optional live alerts |
-| `NEXT_PUBLIC_DEV_AUTO_LOGIN` | Dev-only silent login — keep `false` for prod-shaped play |
-
-Full validation: `packages/config` + `apps/api/src/config.ts`. Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md).
-
-**Honest stubs by design.** Missing agent / R2 / Discord / DNS / Xbox keys never fake success — they return explicit stub or pending states.
 
 ---
 
 ## Roadmap
 
-| Wave | Focus | Status |
-|------|-------|--------|
-| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Done on `main` |
-| **B** | Moderation, allowlist, subdomain onboarding, Discord | Done on `main` |
-| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins UI | Done on `main` |
-| **D** | Pack engine, marketplace, host partners, seasonal rounds | Next |
+| Wave | What | Status |
+|------|------|--------|
+| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Shipped on `main` |
+| **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped on `main` |
+| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped on `main` |
+| **D** | Pack/add-on engine, marketplace, host partners, seasonal rounds | Next — **come help** |
+
+If Wave D excites you (packs, Script API, marketplace UX, Pterodactyl wiring), open an issue or PR. We’ll take serious contributions over vaporware screenshots.
 
 ---
 
 ## Contributing
 
-1. Read [AGENTS.md](./AGENTS.md) (package boundaries, no fake stubs, audit everything).
-2. Prefer small PRs against `main`.
-3. Keep Wave D features honest — don’t pretend pack install or partner hosts work until wired.
+**Please contribute.** This project gets better when operators who actually run Realms send patches.
+
+### Great first PRs
+
+- Docs that would have saved *you* an hour  
+- Windows / Docker gotchas  
+- Empty states and UX copy  
+- Tests around bugs you hit  
+- Hardening env validation / error messages  
+- Real agent edge cases (process exit, pipe drain, allowlist races)  
+
+### Ground rules
+
+1. Read [AGENTS.md](./AGENTS.md) — package boundaries matter.  
+2. **No fake stubs.** If a host action didn’t happen, say so.  
+3. Audit state-changing ops.  
+4. Prefer small, reviewable PRs against `main`.  
+5. Keep TypeScript strict; run `pnpm test` / `pnpm typecheck` when you can.
+
+### How to send a change
+
+```bash
+git checkout -b fix/my-improvement
+# ...make the change...
+pnpm test
+git push -u origin HEAD
+# open a pull request on GitHub
+```
+
+Found a bug but can’t code it? [Open an issue](https://github.com/ShadowWalkerNC/BedrockOps/issues) with repro steps. That still helps.
 
 ---
 
-## License & trademark
+## FAQ
 
-**Free to fork** for self-hosting, learning, and contribution.
+**Is this free?**  
+Yes. Free to clone, free to fork, free to self-host.
 
-The **BedrockOps** name and hosted SaaS offering remain mine. Don’t present a public fork as the official BedrockOps cloud product.
+**Do I need to pay for hosting?**  
+Only whatever VPS/homelab you already use for Bedrock. BedrockOps itself isn’t a paid panel.
 
-If you need a formal SPDX license file for corporate compliance, open an issue and we’ll pin one — until then: fork freely, attribute reasonably, don’t impersonate the SaaS.
+**Does it replace Aternos / Apex / etc.?**  
+It doesn’t sell you RAM. It makes *your* Bedrock dedicated server operable like a product.
+
+**Can I run it without R2 / Discord / Cloudflare?**  
+Yes. Those integrations light up when configured; otherwise they fail honestly.
+
+**Is Java Edition supported?**  
+Bedrock-first by design. Java / Geyser paths are not the primary focus right now.
+
+**Where’s the demo video?**  
+Right at the top — GIF preview + [MP4](docs/demo/bedrockops-product-tour.mp4). Screenshots live in [`docs/images/`](docs/images/).
+
+---
+
+## License
+
+**Free to use. Free to fork. Free to improve.**
+
+Take the code. Run your Realms. Send commits back if you can.  
+If you publish a public fork, a link to this repo is appreciated.
+
+---
+
+<p align="center">
+  <strong>Stop administrating Bedrock with folklore.</strong><br/>
+  Fork BedrockOps. Stand up a Realm. Open a PR.
+</p>
+
+<p align="center">
+  <img src="docs/images/08-setup.png" alt="BedrockOps setup wizard" width="720" />
+</p>
