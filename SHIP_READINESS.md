@@ -20,9 +20,9 @@ production, and what is intentionally deferred.
 | — | Unified "command center" UI design system across pages | ✅ Implemented |
 | — | Ops Room BDS version pin / mismatch UI | ✅ Implemented |
 | — | Setup wizard (create realm → onboard → first backup) | ✅ Implemented (`/setup`) |
-| B5 | Discord slash commands + channel mapping | ⬜ Optional (`apps/discord` is webhook-only) |
-| B4 | Live Xbox / FriendConnect adapters | ⬜ Needs `XBOX_API_KEY` / OpenXBL (honest stub today) |
-| R5.1 | Live Cloudflare DNS writes | ⬜ Needs `CLOUDFLARE_API_TOKEN` + `PLAY_BASE_DOMAIN` |
+| B5 | Discord slash commands + channel mapping | ✅ Scaffolded — needs `DISCORD_BOT_TOKEN` + `DISCORD_APPLICATION_ID` + `DISCORD_GUILD_ID` |
+| B4 | Live Xbox / OpenXBL gamertag resolve | ✅ Wired — needs `XBOX_API_KEY`/`OPENXBL_API_KEY` (honest stub without key) |
+| R5.1 | Live Cloudflare DNS writes | ✅ Wired — needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID` |
 
 ## Required production configuration
 
@@ -37,7 +37,7 @@ deployment, set these (see `.env.example`, `packages/config/src/env.ts`,
 - Agent pairing: per-node bearer token (hashed on `AgentNode`); rotate the seeded `dev_agent_token_change_me`.
 - `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` — Cloudflare R2 for offsite backups (without these, backups archive locally / report honest stubs).
 - `DISCORD_WEBHOOK_URL` (+ optional `DISCORD_BOT_TOKEN`) — live alert delivery (otherwise alerts are recorded but not sent).
-- Optional: `XBOX_API_KEY`/`OPENXBL_API_KEY` (gamertag↔XUID + friend invites), `CLOUDFLARE_API_TOKEN` + `PLAY_BASE_DOMAIN` (live DNS for subdomains). Without these, resolution/DNS are deterministic honest stubs.
+- Optional: `XBOX_API_KEY`/`OPENXBL_API_KEY` (gamertag↔XUID + friend invites), `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID` + `PLAY_BASE_DOMAIN` (live DNS for subdomains), `DISCORD_APPLICATION_ID` + `DISCORD_GUILD_ID` (slash commands). Without these, resolution/DNS/slash registration are honest stubs.
 
 ## Pre-ship checklist
 

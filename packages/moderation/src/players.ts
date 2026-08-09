@@ -183,9 +183,35 @@ export class XboxIdentityService {
     const key = trimmed.toLowerCase();
     let xuid = this.customMappings.get(key);
 
+    if (!xuid && this.apiKey) {
+      // Live OpenXBL lookup when an API key is configured.
+      try {
+        const live = await this.resolveGamertagLive(trimmed);
+        if (live) {
+          this.customMappings.set(key, live.xuid);
+          this.reverseMappings.set(live.xuid, live.gamertag);
+          return { ...live, success: true, stub: false, resolvedAt: new Date() };
+        }
+        return {
+          gamertag: trimmed,
+          xuid: '',
+          success: false,
+          stub: false,
+          resolvedAt: new Date()
+        };
+      } catch {
+        return {
+          gamertag: trimmed,
+          xuid: '',
+          success: false,
+          stub: false,
+          resolvedAt: new Date()
+        };
+      }
+    }
+
     if (!xuid) {
-      // TODO: Call OpenXBL / Xbox Live profile API when XBOX_API_KEY is configured.
-      // Until a live client is wired, resolution is a deterministic stub.
+      // Honest deterministic stub when no API key is configured.
       xuid = this.generateDeterministicXuid(trimmed);
       this.customMappings.set(key, xuid);
       this.reverseMappings.set(xuid, trimmed);
@@ -198,6 +224,43 @@ export class XboxIdentityService {
       stub: !this.apiKey,
       resolvedAt: new Date()
     };
+  }
+
+  /**
+   * OpenXBL gamertag search. Returns null when the API responds without a usable XUID
+   * (caller treats that as an honest live miss, not a silent stub).
+   */
+  private async resolveGamertagLive(
+    gamertag: string
+  ): Promise<{ gamertag: string; xuid: string } | null> {
+    const res = await fetch(`https://xbl.io/api/v2/search/${encodeURIComponent(gamertag)}`, {
+      headers: {
+        'X-Authorization': this.apiKey!,
+        Accept: 'application/json'
+      }
+    });
+    if (!res.ok) {
+      throw new Error(`OpenXBL HTTP ${res.status}`);
+    }
+    const json = (await res.json()) as {
+      people?: { gamertag?: string; xuid?: string; displayPicRaw?: string }[];
+      // Some OpenXBL routes nest under profileUsers
+      profileUsers?: { id?: string; settings?: { id: string; value: string }[] }[];
+    };
+
+    const person = json.people?.find((p) => p.xuid);
+    if (person?.xuid) {
+      return { gamertag: person.gamertag || gamertag, xuid: person.xuid };
+    }
+
+    const profile = json.profileUsers?.[0];
+    if (profile?.id) {
+      const gt =
+        profile.settings?.find((s) => s.id === 'Gamertag')?.value || gamertag;
+      return { gamertag: gt, xuid: profile.id };
+    }
+
+    return null;
   }
 
   public async resolveXuid(xuid: string): Promise<GamertagResolution> {

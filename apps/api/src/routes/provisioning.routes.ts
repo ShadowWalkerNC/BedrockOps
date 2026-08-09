@@ -34,7 +34,7 @@ const networkSchema = z.object({
   preferredPort: z.number().int().optional()
 });
 
-provisioningRouter.post('/network', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, res: Response) => {
+provisioningRouter.post('/network', requireRole(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
   const parse = networkSchema.safeParse(req.body);
   if (!parse.success) {
     return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
@@ -46,7 +46,7 @@ provisioningRouter.post('/network', requireRole(UserRole.ADMIN), (req: Authentic
   }
 
   try {
-    const allocation = allocator.allocate({
+    const allocation = await allocator.allocate({
       serverId: parse.data.serverId,
       nodeIp: parse.data.nodeIp,
       subdomain: parse.data.subdomain || generateSubdomain(parse.data.serverId),
@@ -63,7 +63,12 @@ provisioningRouter.post('/network', requireRole(UserRole.ADMIN), (req: Authentic
       action: 'NETWORK_ALLOCATE',
       entityType: 'BedrockServer',
       entityId: server.id,
-      metadata: { fqdn: allocation.fqdn, port: allocation.port, stub: allocation.dns.stub }
+      metadata: {
+        fqdn: allocation.fqdn,
+        port: allocation.port,
+        stub: allocation.dns.stub,
+        liveError: allocation.dns.liveError
+      }
     });
 
     return res.status(201).json({ allocation, server });
