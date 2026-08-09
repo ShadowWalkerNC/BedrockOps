@@ -178,11 +178,24 @@ func (m *Manager) Start(serverID, serverPath string) (State, Mode, error) {
 		}
 		inst.cmd = cmd
 
-		go m.pumpLines(serverID, stdout)
-		go m.pumpLines(serverID, stderr)
+		// Drain stdout/stderr before treating the process as exited so log
+		// handlers always see lines that were written before the child quit.
+		// (cmd.Wait closes pipe ends and must not race ahead of readers.)
+		var pumps sync.WaitGroup
+		pumps.Add(2)
+		go func() {
+			defer pumps.Done()
+			m.pumpLines(serverID, stdout)
+		}()
+		go func() {
+			defer pumps.Done()
+			m.pumpLines(serverID, stderr)
+		}()
 
 		go func(cmd *exec.Cmd, serverID string, gen int) {
 			waitErr := cmd.Wait()
+			pumps.Wait()
+
 			m.mu.Lock()
 			intentional := m.intentionalStop[serverID] == gen
 			if intentional {

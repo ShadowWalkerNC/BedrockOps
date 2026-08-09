@@ -63,10 +63,10 @@ Statuses reflect **`main`**. Wave mapping and in-flight branches are documented 
 | M1 | Control Plane, Database Schema & HostProvider Layer | Features 1-5 (Prisma DB, HostProvider interface, REST/WS API backend, Next.js UI). Prisma hydrate/flush + migrations (`DB_ADAPTER=prisma`). | A | None | COMPLETE |
 | M2 | CGNAT-Safe Outbound Go Daemon Agent | Features 6-9 (Go agent binary, WSS tunnel, Docker lifecycle, telemetry, real Source RCON codec) | A | M1 | COMPLETE |
 | M3 | Streaming Backup Engine & Cloudflare R2 Integration | Features 10-12 (Save-hold driver, streaming gzip tar, presigned R2 PUT/GET, agent restore extract, manifest verification) | A | M1, M2 | COMPLETE |
-| M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | B | M1, M2 | PLANNED |
-| M5 | Subdomain Allocation & Console Onboarding | Features 16-18 (Subdomain & port allocation, console/FriendConnect onboarding, setup pipelines) | B/C | M1, M4 | PLANNED |
-| M_E2E | E2E Test Suite Development (Parallel Track) | Feature 19 (Tiers 1-4 test suite infrastructure and test cases) | Parallel | M1 | IN_PROGRESS |
-| M_FINAL | Final E2E Integration Pass & Hardening | Feature 20 (Wave A–B gates + Tier 5 adversarial hardening) | After A–B | M1-M5, M_E2E | PLANNED |
+| M4 | Moderation Ledger & Allowlist Sync | Features 13-15 (Join tracking, infraction ledger, GDPR anonymize, allowlist.json sync) | B | M1, M2 | COMPLETE |
+| M5 | Subdomain Allocation & Console Onboarding | Features 16-18 (Subdomain & port allocation, console/FriendConnect onboarding, setup pipelines) | B/C | M1, M4 | COMPLETE |
+| M_E2E | E2E Test Suite Development (Parallel Track) | Feature 19 (Tiers 1-4 test suite infrastructure and test cases) | Parallel | M1 | COMPLETE |
+| M_FINAL | Final E2E Integration Pass & Hardening | Feature 20 (Wave A–C gates + prod smoke; see SHIP_READINESS.md) | After A–C | M1-M5, M_E2E | IN_PROGRESS |
 
 ## Interface Contracts
 
