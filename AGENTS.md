@@ -55,3 +55,22 @@ This monorepo houses a Bedrock-first Minecraft server operations platform. All c
 - **Wave A scope is strictly enforced** for foundation work: agent tunnel, real RCON, Prisma wiring, Cloudflare R2 backup/restore, and security hardening.
 - Do **not** auto-implement later-wave items during Wave A tasks: host partner APIs, marketplace, referrals, official Mojang Realms, Java/Geyser primary path, round-based modes, white-label Shield SKU, or AI agents.
 - Prefer the single host path `DOCKER_AGENT` until Wave A ship gate passes; other `HostProvider` types must fail honestly when unwired.
+
+---
+
+## Cursor Cloud specific instructions
+
+The startup update script already runs `pnpm install` and `pnpm --filter @mc-admin/db db:generate`, so dependencies and the Prisma client are ready when a session begins. Do not re-run install steps unless something is broken.
+
+### Services & how to run them
+- **Core end-to-end = `apps/api` (port 4000) + `apps/web` (port 3000).** Standard commands live in `README.md` / `package.json`; run the whole stack with `pnpm dev`, or start just the core with `pnpm --filter @mc-admin/api dev` and `pnpm --filter @mc-admin/web dev`.
+- The web dashboard proxies `/api/v1/*` to `API_URL` (default `http://localhost:4000`), so start the API before (or alongside) the web app.
+- Optional services (`worker`, `discord`, and the Go `agent`) are not needed to exercise the dashboard's core flow.
+
+### Non-obvious gotchas
+- **No database service is required for local dev.** `DB_ADAPTER` defaults to an in-memory, pre-seeded store (seeded admin user, one Bedrock server, one agent node). Postgres/Redis in `docker-compose.yml` are only needed when you explicitly set `DB_ADAPTER=prisma`.
+- **`prisma generate` is mandatory before test/build/run.** `@mc-admin/db` instantiates `PrismaClient` at import time, so `api`, `worker`, and `e2e` fail to load if the client is missing. If you ever hit "@prisma/client did not initialize", run `pnpm --filter @mc-admin/db db:generate`.
+- **Web dev auto-login is env-gated and `next dev` does NOT read the repo-root `.env`.** The dashboard silently logs in only when `NEXT_PUBLIC_DEV_AUTO_LOGIN=true` is in the web app's environment — pass it inline (e.g. `NEXT_PUBLIC_DEV_AUTO_LOGIN=true pnpm --filter @mc-admin/web dev`) or put it in `apps/web/.env.local`. Without it the dashboard throws "Not authenticated". The dev-only login is `admin@minecraft-admin.local` / `admin`.
+- **API health check is `GET /health`** (not under `/api/v1`). All domain routes are under `/api/v1/*` and require a JWT.
+- **Go 1.22+ is required** for the agent: `pnpm build` runs `go build` and `pnpm test` runs `go test ./...` in `apps/agent`.
+- **Honest stubs are expected in dev.** With no Go agent connected, power actions return `503` + `[STUB]` and backups stay `PENDING`. This is intended behavior, not a bug.
