@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { db } from '@mc-admin/db';
+import { PlayerLogParser, playerTracker } from '@mc-admin/moderation';
 import { clientStreamHub } from './clientHub';
 
 export interface AgentFrame {
@@ -93,6 +94,18 @@ export class AgentTunnelGateway {
       case 'LOG_LINE': {
         if (frame.serverId) {
           clientStreamHub.broadcast(frame.serverId, 'LOGS', frame.payload);
+        }
+        // R4.1 — capture player identity from BDS "Player connected" log lines.
+        const line = typeof frame.payload?.line === 'string' ? frame.payload.line : undefined;
+        if (line) {
+          const join = PlayerLogParser.parseJoinLog(line);
+          if (join) {
+            playerTracker.recordJoin({
+              gamertag: join.gamertag,
+              xuid: join.xuid,
+              serverId: frame.serverId
+            });
+          }
         }
         break;
       }

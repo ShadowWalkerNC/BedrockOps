@@ -105,6 +105,64 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(db.auditLogs.some(a => a.action === 'MODERATION_BAN')).toBe(true);
   });
 
+  it('tracks a player join and lists them on GET /api/v1/moderation/players/search', async () => {
+    const joinRes = await request(app)
+      .post('/api/v1/moderation/players/join')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        serverId: 'srv_bedrock_1',
+        line: '[2026-08-09 12:00:00:000 INFO] Player connected: JoinTester, xuid: 2535411111111111'
+      });
+
+    expect(joinRes.status).toBe(201);
+    expect(joinRes.body.player.gamertag).toBe('JoinTester');
+    expect(joinRes.body.player.xuid).toBe('2535411111111111');
+
+    const searchRes = await request(app)
+      .get('/api/v1/moderation/players/search?q=JoinTester')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(searchRes.status).toBe(200);
+    expect(searchRes.body.tracked.some((p: { gamertag: string }) => p.gamertag === 'JoinTester')).toBe(true);
+  });
+
+  it('GDPR-anonymizes a player and records an audit log', async () => {
+    await request(app)
+      .post('/api/v1/moderation')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ gamertag: 'RightToBeForgotten', playerXuid: '2535422222222222', actionType: 'BAN', reason: 'Test' });
+
+    const res = await request(app)
+      .post('/api/v1/moderation/gdpr/anonymize')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ gamertagOrXuid: 'RightToBeForgotten' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.updated).toBe(1);
+    expect(db.auditLogs.some((a) => a.action === 'MODERATION_GDPR_ANONYMIZE')).toBe(true);
+
+    const listRes = await request(app)
+      .get('/api/v1/moderation')
+      .set('Authorization', `Bearer ${authToken}`);
+    expect(listRes.body.moderationActions.some((m: { gamertag: string }) => m.gamertag === 'RightToBeForgotten')).toBe(false);
+  });
+
+  it('returns an atomic allowlist write plan (202 stub) when no agent is connected', async () => {
+    const res = await request(app)
+      .post('/api/v1/moderation/allowlist/sync')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        serverId: 'srv_bedrock_1',
+        entries: [{ name: 'AlexCraft', xuid: '2535433333333333' }]
+      });
+
+    expect(res.status).toBe(202);
+    expect(res.body.stub).toBe(true);
+    expect(res.body.plan.entriesCount).toBe(1);
+    expect(res.body.plan.targetPath).toContain('allowlist.json');
+    expect(db.auditLogs.some((a) => a.action === 'ALLOWLIST_SYNC')).toBe(true);
+  });
+
   it('lists audit logs on GET /api/v1/audit', async () => {
     const res = await request(app)
       .get('/api/v1/audit')
