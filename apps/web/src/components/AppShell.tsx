@@ -18,9 +18,9 @@ const NAV: NavDef[] = [
   { key: 'setup', label: 'Setup', href: '/setup' },
   { key: 'console', label: 'Console', href: '/console' },
   { key: 'players', label: 'Players', href: '/players' },
-  { key: 'plugins', label: 'Plugins', soon: true },
-  { key: 'worlds', label: 'Worlds', soon: true },
-  { key: 'settings', label: 'Settings', soon: true }
+  { key: 'worlds', label: 'Worlds', href: '/worlds' },
+  { key: 'plugins', label: 'Plugins', href: '/plugins' },
+  { key: 'settings', label: 'Settings', href: '/settings' }
 ];
 
 const c = THEME.colors;

@@ -356,6 +356,32 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.body.servers[0].hasRconPassword).toBe(true);
   });
 
+  it('lists realm templates on GET /api/v1/templates', async () => {
+    const res = await request(app)
+      .get('/api/v1/templates')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.templates)).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_vanilla_survival')).toBe(true);
+  });
+
+  it('returns non-secret system status on GET /api/v1/system/status', async () => {
+    const res = await request(app)
+      .get('/api/v1/system/status')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(res.body.dbAdapter).toBeDefined();
+    expect(res.body.integrations).toMatchObject({
+      r2: expect.any(Boolean),
+      discordWebhook: expect.any(Boolean),
+      cloudflareDns: expect.any(Boolean),
+      xbox: expect.any(Boolean)
+    });
+  });
+
   it('rejects mass-assignment of status/ownerId on PATCH', async () => {
     const serverId = db.servers[0].id;
     const res = await request(app)
