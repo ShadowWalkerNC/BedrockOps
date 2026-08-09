@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '@mc-admin/db';
+import { db, ServerStatus, type BedrockServer } from '@mc-admin/db';
 import { BdsVersionMatrix } from './versions';
 
-function makeServer(version: string) {
+function makeServer(version: string): BedrockServer {
   return {
     id: 'srv_test',
     name: 'Test',
@@ -10,7 +10,7 @@ function makeServer(version: string) {
     host: '127.0.0.1',
     port: 19132,
     serverPath: '/tmp/x',
-    status: 'ONLINE' as const,
+    status: ServerStatus.ONLINE,
     maxPlayers: 10,
     gameMode: 'survival',
     difficulty: 'hard',

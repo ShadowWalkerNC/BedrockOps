@@ -21,12 +21,12 @@ export interface AgentFrame {
   nodeId: string;
   serverId?: string;
   timestamp: number;
-  payload: any;
+  payload: Record<string, unknown>;
 }
 
 interface PendingCommand {
-  resolve: (value: any) => void;
-  reject: (reason: any) => void;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
   timeout: NodeJS.Timeout;
 }
 
@@ -90,7 +90,7 @@ export class AgentTunnelGateway {
         if (pending) {
           clearTimeout(pending.timeout);
           session.pendingCommands.delete(frame.id);
-          pending.resolve(frame.payload);
+          pending.resolve(frame.payload as unknown);
         }
         break;
       }
@@ -99,7 +99,7 @@ export class AgentTunnelGateway {
           clientStreamHub.broadcast(frame.serverId, 'LOGS', frame.payload);
         }
         // R4.1 — capture player identity from BDS "Player connected" log lines.
-        const line = typeof frame.payload?.line === 'string' ? frame.payload.line : undefined;
+        const line = typeof frame.payload.line === 'string' ? frame.payload.line : undefined;
         if (line) {
           const join = PlayerLogParser.parseJoinLog(line);
           if (join) {
@@ -120,7 +120,7 @@ export class AgentTunnelGateway {
       case 'CRASH': {
         if (frame.serverId) {
           const reason =
-            typeof frame.payload?.reason === 'string' ? frame.payload.reason : 'agent-reported crash';
+            typeof frame.payload.reason === 'string' ? frame.payload.reason : 'agent-reported crash';
           await recordServerCrash(frame.serverId, reason, {
             actorId: session.nodeId,
             actorName: `agent:${session.nodeId}`
@@ -141,7 +141,12 @@ export class AgentTunnelGateway {
     }
   }
 
-  public sendCommand(nodeId: string, serverId: string, command: string, payload: any): Promise<any> {
+  public sendCommand(
+    nodeId: string,
+    serverId: string,
+    command: string,
+    payload: Record<string, unknown> = {}
+  ): Promise<unknown> {
     const session = this.sessions.get(nodeId);
     if (!session || session.ws.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error(`Agent node ${nodeId} is not connected`));

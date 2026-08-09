@@ -1,7 +1,7 @@
-import http from 'http';
+import http, { type IncomingMessage } from 'http';
+import type { Duplex } from 'stream';
 import { parse } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
-import { IncomingMessage } from 'http';
 import { timingSafeEqual } from 'crypto';
 import { agentGateway } from './agentGateway';
 import { clientStreamHub } from './clientHub';
@@ -102,7 +102,7 @@ export function setupWebSocketRouter(server: http.Server) {
     clientStreamHub.handleConnection(ws, token);
   });
 
-  server.on('upgrade', (request, socket, head) => {
+  server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const { pathname, query } = parse(request.url || '', true);
 
     if (pathname === '/api/v1/ws/agent') {

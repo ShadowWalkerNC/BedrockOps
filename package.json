@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",
-    "clean": "turbo clean"
+    "clean": "turbo clean",
+    "typecheck": "turbo typecheck"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

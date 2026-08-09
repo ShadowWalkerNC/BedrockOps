@@ -100,7 +100,7 @@ function writePacket(socket: net.Socket, requestId: number, type: number, payloa
   buf.writeInt32LE(type, 8);
   payloadBuf.copy(buf, 12);
   return new Promise((resolve, reject) => {
-    socket.write(buf, (err) => (err ? reject(err) : resolve()));
+    socket.write(buf, (err: Error | null | undefined) => (err ? reject(err) : resolve()));
   });
 }
 

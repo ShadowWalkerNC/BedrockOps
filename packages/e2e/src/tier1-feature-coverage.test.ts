@@ -119,7 +119,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
         id: 'node_vps_west',
         name: 'US West VPS Node',
         version: 'v1.1.0-go',
-        status: 'ONLINE',
+        status: 'ONLINE' as const,
         lastHeartbeat: new Date(),
         createdAt: new Date(),
       };
@@ -226,7 +226,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       expect(session.role).toBe(UserRole.OWNER);
       expect(session.token).toBeDefined();
       expect(typeof session.token).toBe('string');
-      expect(session.token.length).toBeGreaterThan(10);
+      expect(session.token!.length).toBeGreaterThan(10);
     });
 
     it('validates role-based access hierarchy for OWNER, ADMIN, MODERATOR, and VIEWER', () => {
@@ -251,7 +251,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
     it('validates session token structure and user ID assignment', () => {
       const session = generateDevSession('test_user', UserRole.VIEWER);
       expect(session.token).toBeDefined();
-      expect(session.token.length).toBeGreaterThan(10);
+      expect(session.token!.length).toBeGreaterThan(10);
       expect(session.userId).toBe('usr_dev_1');
     });
   });
