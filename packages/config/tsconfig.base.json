@@ -8,6 +8,8 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
+    "downlevelIteration": true,
+    "noImplicitOverride": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true

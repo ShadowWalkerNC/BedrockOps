@@ -209,7 +209,7 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       expect(session.username).toBe('CustomMod');
       expect(session.role).toBe(UserRole.MODERATOR);
       expect(typeof session.token).toBe('string');
-      expect(session.token.length).toBeGreaterThan(10);
+      expect(session.token!.length).toBeGreaterThan(10);
     });
 
     it('generateDevSession handles empty username string gracefully', () => {
@@ -329,8 +329,7 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
         id: 'mem_1',
         serverId: 'srv_bedrock_1',
         userId: 'usr_admin_1',
-        role: UserRole.ADMIN,
-        createdAt: new Date(),
+        role: UserRole.ADMIN
       });
 
       const members = db.serverMembers.filter((m) => m.serverId === 'srv_bedrock_1');
