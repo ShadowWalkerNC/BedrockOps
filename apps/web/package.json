@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "node ./scripts/clean-next.cjs && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "clean": "node ./scripts/clean-next.cjs",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
   },
   "dependencies": {

@@ -1,6 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { THEME } from '@mc-admin/ui';
+import { logout } from '../lib/api-client';
 
 export type NavKey = 'dashboard' | 'setup' | 'console' | 'players' | 'plugins' | 'worlds' | 'settings';
 
@@ -31,6 +33,12 @@ export interface AppShellProps {
 }
 
 export const AppShell: React.FC<AppShellProps> = ({ active, topRight, children }) => {
+  const router = useRouter();
+  const onSignOut = () => {
+    logout();
+    void router.push('/login');
+  };
+
   return (
     <div
       style={{
@@ -115,6 +123,23 @@ export const AppShell: React.FC<AppShellProps> = ({ active, topRight, children }
         </nav>
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8, fontFamily: THEME.fonts.mono, fontSize: 12, color: c.onSurfaceVariant }}>
+          <button
+            type="button"
+            onClick={onSignOut}
+            style={{
+              textAlign: 'left',
+              background: 'transparent',
+              border: `1px solid ${c.outline}`,
+              color: c.onSurfaceVariant,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              cursor: 'pointer',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 12
+            }}
+          >
+            Sign out
+          </button>
           <span>◷ Help</span>
           <span>▤ Logs</span>
         </div>
