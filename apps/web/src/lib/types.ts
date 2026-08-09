@@ -11,6 +11,51 @@ export interface DashboardServer {
   maxPlayers: number;
   gameMode: string;
   difficulty: string;
+  serverPath?: string;
+  agentId?: string;
+  hostProvider?: string;
+}
+
+export interface DashboardNode {
+  id: string;
+  name: string;
+  version: string;
+  status: string;
+  hasToken?: boolean;
+  lastHeartbeat?: string;
+  createdAt?: string;
+}
+
+export interface DashboardSessionUser {
+  userId: string;
+  email: string;
+  username: string;
+  role: string;
+}
+
+export interface SystemStatus {
+  status: string;
+  timestamp: string;
+  nodeEnv: string;
+  dbAdapter: string;
+  corsOrigin: string;
+  integrations: {
+    r2: boolean;
+    discordWebhook: boolean;
+    discordSlash: boolean;
+    cloudflareDns: boolean;
+    xbox: boolean;
+  };
+}
+
+export interface RealmTemplate {
+  id: string;
+  name: string;
+  description: string;
+  bdsVersion: string;
+  defaultProperties: Record<string, string>;
+  addonPacks: string[];
+  createdAt: string;
 }
 
 export interface DashboardBackup {
