@@ -163,13 +163,13 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       expect(started).toBe(false);
     });
 
-    it('DirectRconSshHostProvider returns honest RCON stub for empty command', async () => {
+    it('DirectRconSshHostProvider returns honest RCON error for empty command', async () => {
       const provider = new DirectRconSshHostProvider();
       const server = db.servers[0];
 
       const response = await provider.executeRcon(server, '');
-      expect(response).toContain('[STUB]');
-      expect(response).toContain('DirectRCON');
+      expect(response).toContain('[RCON ERROR]');
+      expect(response).toMatch(/empty|command/i);
     });
 
     it('HostProvider streamLogs handles stream subscription and unsubscribe callback', () => {

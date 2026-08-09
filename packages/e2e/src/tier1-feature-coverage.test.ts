@@ -201,9 +201,8 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       const provider = HostProviderFactory.getProvider(HostProviderType.DIRECT_RCON_SSH);
 
       const rconRes = await provider.executeRcon(server, 'list');
-      expect(rconRes).toContain('[STUB]');
+      expect(rconRes).toContain('[RCON ERROR]');
       expect(rconRes).toContain('list');
-      expect(rconRes).toContain('DirectRCON');
 
       let loggedLine = '';
       const unsubscribe = provider.streamLogs(server, (line) => {

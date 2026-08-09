@@ -1,4 +1,5 @@
 import { BedrockServer, HostProviderType } from '@mc-admin/db';
+import { RconClient } from './rcon';
 
 export interface ServerMetrics {
   cpuPercent: number;
@@ -327,8 +328,15 @@ export class DirectRconSshHostProvider implements HostProvider {
   }
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
-    // TODO: Implement real TCP RCON framing; do not claim execution succeeded.
-    return `[STUB] DirectRCON command not framed for ${server.host}:${server.rconPort || 19133}: ${command}`;
+    const host = server.host || '127.0.0.1';
+    const port = server.rconPort || 19133;
+    const password = server.rconPassword || '';
+    try {
+      return await RconClient.execute({ host, port, password, command });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return `[RCON ERROR] ${message} (command=${JSON.stringify(command)} ${host}:${port})`;
+    }
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {

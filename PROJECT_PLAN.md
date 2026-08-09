@@ -243,10 +243,11 @@ export interface ConsoleJoinAdapter {
 
 ## Immediate next actions
 
-1. Land Wave A candidates in order: **agent tunnel → R2 backups → security hardening**, with Prisma wiring as soon as API can run against Postgres.
-2. Keep Wave B console adapters designed as plugins (FriendConnect/friend-session + allowlist).
-3. Do not start marketplace, host-partner APIs, or rounds until Wave A ship gate passes.
-4. Use hosting friendships as **business development after product-market fit**, not as engineering prerequisites.
+1. ~~Land Wave A candidates~~ — agent tunnel, real RCON, R2 backup/restore, Prisma hydrate/flush, and security hardening are on the Wave A completion branch.
+2. Merge Wave A to `main` after CI green; run live agent + R2 smoke against staging.
+3. Keep Wave B console adapters designed as plugins (FriendConnect/friend-session + allowlist).
+4. Do not start marketplace, host-partner APIs, or rounds until Wave A ship gate passes on `main`.
+5. Use hosting friendships as **business development after product-market fit**, not as engineering prerequisites.
 
 ---
 

@@ -35,7 +35,9 @@ describe('HostProvider Strategy Pattern', () => {
     expect(startResult).toBe(false);
 
     const rconResult = await provider.executeRcon(server, 'list');
-    expect(rconResult).toContain('[STUB]');
+    // Unreachable host → honest error (never fake command success).
+    expect(rconResult).toContain('[RCON ERROR]');
+    expect(rconResult).toContain('list');
     expect(rconResult).toContain('list');
 
     const metrics = await provider.getStatus(server);

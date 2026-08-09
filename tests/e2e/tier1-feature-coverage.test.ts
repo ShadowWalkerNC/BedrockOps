@@ -76,10 +76,10 @@ rcon.port=19133
       expect(serialized).toContain('difficulty=easy');
     });
 
-    it('executes RCON command stub and returns formatted response', async () => {
+    it('executes RCON via real protocol and returns honest error when unreachable', async () => {
       const server = db.servers[0];
       const response = await BedrockServerController.executeRconCommand(server, 'list');
-      expect(response).toContain('[STUB]');
+      expect(response).toContain('[RCON ERROR]');
       expect(response).toContain('list');
       expect(response).toContain(server.name);
     });
