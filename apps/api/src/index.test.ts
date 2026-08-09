@@ -226,6 +226,17 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(alert).toBeDefined();
   });
 
+  it('returns live host metrics on GET /api/v1/servers/:id/status', async () => {
+    const res = await request(app)
+      .get('/api/v1/servers/srv_bedrock_1/status')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.serverId).toBe('srv_bedrock_1');
+    expect(res.body.metrics).toHaveProperty('cpuPercent');
+    expect(res.body.metrics).toHaveProperty('activePlayers');
+  });
+
   it('lists audit logs on GET /api/v1/audit', async () => {
     const res = await request(app)
       .get('/api/v1/audit')

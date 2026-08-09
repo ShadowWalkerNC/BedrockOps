@@ -212,6 +212,17 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), rateLimitDestru
   return res.json({ success: true, action, server: toPublicServer(server) });
 });
 
+// GET /api/v1/servers/:id/status - live host metrics from the agent (zeros when offline)
+serverRouter.get('/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
+  if (!server) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+  const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
+  const metrics = await provider.getStatus(server);
+  return res.json({ serverId: server.id, status: server.status, metrics });
+});
+
 // POST /api/v1/servers/:id/rcon - Execute RCON command
 const rconSchema = z.object({
   command: z.string().min(1)
