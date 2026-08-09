@@ -4,6 +4,8 @@ import { db, ServerStatus, UserRole, HostProviderType, BedrockServer } from '@mc
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rateLimitDestructive } from '../middleware/rate-limit.middleware';
+import { recordServerCrash } from '../crash';
 
 export const serverRouter: Router = Router();
 
@@ -158,7 +160,7 @@ const powerSchema = z.object({
   action: z.enum(['START', 'STOP', 'RESTART', 'KILL'])
 });
 
-serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), rateLimitDestructive('server_power'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const parse = powerSchema.safeParse(req.body);
   if (!parse.success) {
@@ -208,6 +210,17 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: Aut
   return res.json({ success: true, action, server: toPublicServer(server) });
 });
 
+// GET /api/v1/servers/:id/status - live host metrics from the agent (zeros when offline)
+serverRouter.get('/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
+  if (!server) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+  const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
+  const metrics = await provider.getStatus(server);
+  return res.json({ serverId: server.id, status: server.status, metrics });
+});
+
 // POST /api/v1/servers/:id/rcon - Execute RCON command
 const rconSchema = z.object({
   command: z.string().min(1)
@@ -238,4 +251,25 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
   });
 
   return res.json({ success: true, output: result });
+});
+
+// POST /api/v1/servers/:id/crash - record a crash event (from agent/health monitor)
+const crashSchema = z.object({ reason: z.string().optional() });
+
+serverRouter.post('/:id/crash', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
+  const parse = crashSchema.safeParse(req.body ?? {});
+  if (!parse.success) {
+    return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
+  }
+
+  const result = await recordServerCrash(req.params.id, parse.data.reason, {
+    actorId: req.user!.userId,
+    actorName: req.user!.username
+  });
+  if (!result.ok) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+
+  const server = db.servers.find((s) => s.id === req.params.id)!;
+  return res.json({ success: true, server: toPublicServer(server), crashCount24h: result.crashCount24h });
 });

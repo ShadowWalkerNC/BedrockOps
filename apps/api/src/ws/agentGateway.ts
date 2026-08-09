@@ -1,6 +1,9 @@
 import WebSocket from 'ws';
 import { db } from '@mc-admin/db';
+import { PlayerLogParser, playerTracker } from '@mc-admin/moderation';
 import { clientStreamHub } from './clientHub';
+import { notePlayerJoin } from '../joinFlood';
+import { recordServerCrash } from '../crash';
 
 export interface AgentFrame {
   id: string;
@@ -13,16 +16,17 @@ export interface AgentFrame {
     | 'BACKUP_START'
     | 'BACKUP_PROGRESS'
     | 'BACKUP_COMPLETE'
-    | 'BACKUP_ERROR';
+    | 'BACKUP_ERROR'
+    | 'CRASH';
   nodeId: string;
   serverId?: string;
   timestamp: number;
-  payload: any;
+  payload: Record<string, unknown>;
 }
 
 interface PendingCommand {
-  resolve: (value: any) => void;
-  reject: (reason: any) => void;
+  resolve: (value: unknown) => void;
+  reject: (reason: unknown) => void;
   timeout: NodeJS.Timeout;
 }
 
@@ -55,7 +59,7 @@ export class AgentTunnelGateway {
     ws.on('message', (raw: WebSocket.RawData) => {
       try {
         const frame: AgentFrame = JSON.parse(raw.toString());
-        this.processFrame(session, frame);
+        void this.processFrame(session, frame);
       } catch (err) {
         console.error(`[AgentGateway] Frame parse error from node ${nodeId}:`, err);
       }
@@ -70,7 +74,7 @@ export class AgentTunnelGateway {
     });
   }
 
-  private processFrame(session: AgentSession, frame: AgentFrame) {
+  private async processFrame(session: AgentSession, frame: AgentFrame) {
     session.lastHeartbeat = new Date();
 
     switch (frame.type) {
@@ -86,13 +90,45 @@ export class AgentTunnelGateway {
         if (pending) {
           clearTimeout(pending.timeout);
           session.pendingCommands.delete(frame.id);
-          pending.resolve(frame.payload);
+          pending.resolve(frame.payload as unknown);
         }
         break;
       }
       case 'LOG_LINE': {
         if (frame.serverId) {
           clientStreamHub.broadcast(frame.serverId, 'LOGS', frame.payload);
+        }
+        // R4.1 — capture player identity from BDS "Player connected" log lines.
+        const line = typeof frame.payload.line === 'string' ? frame.payload.line : undefined;
+        if (line) {
+          const join = PlayerLogParser.parseJoinLog(line);
+          if (join) {
+            playerTracker.recordJoin({
+              gamertag: join.gamertag,
+              xuid: join.xuid,
+              serverId: frame.serverId
+            });
+            await notePlayerJoin({
+              gamertag: join.gamertag,
+              xuid: join.xuid,
+              serverId: frame.serverId
+            });
+          }
+        }
+        break;
+      }
+      case 'CRASH': {
+        if (frame.serverId) {
+          const reason =
+            typeof frame.payload.reason === 'string' ? frame.payload.reason : 'agent-reported crash';
+          await recordServerCrash(frame.serverId, reason, {
+            actorId: session.nodeId,
+            actorName: `agent:${session.nodeId}`
+          });
+          clientStreamHub.broadcast(frame.serverId, 'STATUS', {
+            status: 'ERROR',
+            reason
+          });
         }
         break;
       }
@@ -105,7 +141,12 @@ export class AgentTunnelGateway {
     }
   }
 
-  public sendCommand(nodeId: string, serverId: string, command: string, payload: any): Promise<any> {
+  public sendCommand(
+    nodeId: string,
+    serverId: string,
+    command: string,
+    payload: Record<string, unknown> = {}
+  ): Promise<unknown> {
     const session = this.sessions.get(nodeId);
     if (!session || session.ws.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error(`Agent node ${nodeId} is not connected`));

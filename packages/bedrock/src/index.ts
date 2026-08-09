@@ -1,6 +1,7 @@
 import { BedrockServer, ServerStatus } from '@mc-admin/db';
 import { RconClient } from './rcon';
 export * from './provider';
+export * from './versions';
 export { RconClient } from './rcon';
 
 export interface BedrockProperties {

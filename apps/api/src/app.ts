@@ -6,6 +6,9 @@ import { serverRouter } from './routes/server.routes';
 import { nodeRouter } from './routes/node.routes';
 import { backupRouter } from './routes/backup.routes';
 import { moderationRouter } from './routes/moderation.routes';
+import { provisioningRouter } from './routes/provisioning.routes';
+import { analyticsRouter } from './routes/analytics.routes';
+import { versionsRouter } from './routes/versions.routes';
 import { auditRouter } from './routes/audit.routes';
 import { prismaWriteThroughMiddleware } from './middleware/persist.middleware';
 
@@ -26,4 +29,7 @@ app.use('/api/v1/servers', serverRouter);
 app.use('/api/v1/nodes', nodeRouter);
 app.use('/api/v1/backups', backupRouter);
 app.use('/api/v1/moderation', moderationRouter);
+app.use('/api/v1/provisioning', provisioningRouter);
+app.use('/api/v1/analytics', analyticsRouter);
+app.use('/api/v1/versions', versionsRouter);
 app.use('/api/v1/audit', auditRouter);

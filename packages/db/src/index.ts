@@ -119,14 +119,24 @@ export class MemoryDatabase {
       createdAt: new Date()
     });
 
-    this.bdsVersions.push({
-      id: 'bds_v1_20_80',
-      version: '1.20.80',
-      downloadUrl: 'https://minecraft.azureedge.net/bin-linux/bedrock-server-1.20.80.05.zip',
-      releaseDate: new Date('2024-04-15'),
-      isLatest: true,
-      isSupported: true
-    });
+    this.bdsVersions.push(
+      {
+        id: 'bds_v1_20_80',
+        version: '1.20.80',
+        downloadUrl: 'https://minecraft.azureedge.net/bin-linux/bedrock-server-1.20.80.05.zip',
+        releaseDate: new Date('2024-04-15'),
+        isLatest: false,
+        isSupported: true
+      },
+      {
+        id: 'bds_v1_21_0',
+        version: '1.21.0',
+        downloadUrl: 'https://minecraft.azureedge.net/bin-linux/bedrock-server-1.21.0.03.zip',
+        releaseDate: new Date('2024-06-15'),
+        isLatest: true,
+        isSupported: true
+      }
+    );
   }
 }
 

@@ -42,6 +42,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@mc-admin/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@mc-admin/audit':
         specifier: workspace:*
         version: link:../../packages/audit
@@ -137,6 +140,9 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
+      vitest:
+        specifier: ^1.5.0
+        version: 1.6.1(@types/node@20.19.43)
 
   apps/web:
     dependencies:
@@ -183,6 +189,9 @@ importers:
       '@mc-admin/backups':
         specifier: workspace:*
         version: link:../../packages/backups
+      '@mc-admin/bedrock':
+        specifier: workspace:*
+        version: link:../../packages/bedrock
       '@mc-admin/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -196,6 +205,19 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.19.43)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.5.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/analytics:
+    dependencies:
+      '@mc-admin/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -409,6 +431,9 @@ importers:
       '@mc-admin/db':
         specifier: workspace:*
         version: link:../db
+      '@mc-admin/moderation':
+        specifier: workspace:*
+        version: link:../moderation
       '@mc-admin/notifications':
         specifier: workspace:*
         version: link:../notifications

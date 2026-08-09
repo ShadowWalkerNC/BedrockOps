@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/allowlist"
 	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
@@ -53,12 +54,43 @@ func NewClient(cfg Config, manager *lifecycle.Manager, collector *metrics.Collec
 	if cfg.ReconnectWait == 0 {
 		cfg.ReconnectWait = 5 * time.Second
 	}
-	return &Client{
+	c := &Client{
 		cfg:       cfg,
 		manager:   manager,
 		collector: collector,
 		rcon:      rcon.NewClient(),
 	}
+	// Forward live BDS stdout/stderr as LOG_LINE and unexpected exits as CRASH.
+	manager.SetHandlers(c.onProcessLog, c.onProcessExit)
+	return c
+}
+
+func (c *Client) onProcessLog(serverID, line string) {
+	_ = c.sendLog(serverID, line)
+}
+
+func (c *Client) onProcessExit(serverID string, unexpected bool, waitErr error) {
+	if !unexpected {
+		_ = c.sendLog(serverID, "process exited (intentional stop)")
+		return
+	}
+	reason := "process exited unexpectedly"
+	if waitErr != nil {
+		reason = waitErr.Error()
+	}
+	_ = c.sendCrash(serverID, reason)
+	_ = c.sendLog(serverID, "CRASH: "+reason)
+}
+
+func (c *Client) sendCrash(serverID, reason string) error {
+	return c.sendFrame(protocol.Frame{
+		ID:        fmt.Sprintf("crash_%d", time.Now().UnixNano()),
+		Type:      protocol.TypeCrash,
+		NodeID:    c.cfg.NodeID,
+		ServerID:  serverID,
+		Timestamp: time.Now().Unix(),
+		Payload:   mustRaw(map[string]any{"reason": reason}),
+	})
 }
 
 // Run dials the control plane and serves forever (reconnects on disconnect).
@@ -212,6 +244,8 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleRestore(frame, serverID, payload)
 	case protocol.CmdGetStatus:
 		c.handleStatus(frame, serverID)
+	case protocol.CmdAllowlistSync:
+		c.handleAllowlistSync(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
@@ -310,6 +344,39 @@ func (c *Client) handleStatus(frame protocol.Frame, serverID string) {
 		UptimeSeconds: m.UptimeSeconds,
 		ActivePlayers: m.ActiveConnections,
 	})
+}
+
+func (c *Client) handleAllowlistSync(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	// Determine the file contents: prefer the control-plane-serialized contents,
+	// otherwise serialize the provided entries locally.
+	entries, err := allowlist.SanitizeEntries(payload.Entries)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: fmt.Sprintf("invalid allowlist entries: %v", err)})
+		return
+	}
+
+	contents := payload.Contents
+	if contents == "" {
+		serialized, serr := allowlist.Serialize(entries)
+		if serr != nil {
+			c.respond(frame, protocol.CmdRespPayload{Success: false, Error: fmt.Sprintf("serialize allowlist: %v", serr)})
+			return
+		}
+		contents = serialized
+	}
+
+	if err := allowlist.AtomicWrite(payload.TargetPath, payload.TempPath, contents); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("allowlist sync failed: %v", err))
+		return
+	}
+
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("allowlist synced: wrote %d entries -> %s", len(entries), payload.TargetPath),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("allowlist synced (%d entries) -> %s", len(entries), payload.TargetPath))
 }
 
 func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
