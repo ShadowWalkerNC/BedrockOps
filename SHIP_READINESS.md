@@ -37,7 +37,7 @@ deployment, set these (see `.env.example`, `packages/config/src/env.ts`,
 - Agent pairing: per-node bearer token (hashed on `AgentNode`); rotate the seeded `dev_agent_token_change_me`.
 - `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` — Cloudflare R2 for offsite backups (without these, backups archive locally / report honest stubs).
 - `DISCORD_WEBHOOK_URL` (+ optional `DISCORD_BOT_TOKEN`) — live alert delivery (otherwise alerts are recorded but not sent).
-- Optional: `XBOX_API_KEY`/`OPENXBL_API_KEY` (gamertag↔XUID + friend invites), `CLOUDFLARE_API_TOKEN` + `PLAY_BASE_DOMAIN` (live DNS for subdomains). Without these, resolution/DNS are deterministic honest stubs.
+- Optional: `XBOX_API_KEY`/`OPENXBL_API_KEY` (gamertag↔XUID + friend invites), `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ZONE_ID` + `PLAY_BASE_DOMAIN` (live DNS for subdomains), `DISCORD_APPLICATION_ID` + `DISCORD_GUILD_ID` (slash commands). Without these, resolution/DNS/slash registration are honest stubs.
 
 ## Pre-ship checklist
 
