@@ -26,6 +26,23 @@ interface TrackedPlayer {
   lastSeenAt: string;
 }
 
+interface VersionCheck {
+  serverId: string;
+  pinnedVersion: string;
+  latestVersion: string | null;
+  isLatest: boolean;
+  isSupported: boolean;
+  mismatch: boolean;
+  warning?: string;
+}
+
+interface CatalogVersion {
+  id: string;
+  version: string;
+  isLatest: boolean;
+  isSupported: boolean;
+}
+
 function fmtUptime(sec: number): string {
   if (!sec) return '0m';
   const d = Math.floor(sec / 86400);
@@ -42,6 +59,10 @@ export default function ServerOpsRoom() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [players, setPlayers] = useState<TrackedPlayer[]>([]);
   const [logTail, setLogTail] = useState<string[]>([]);
+  const [versionCheck, setVersionCheck] = useState<VersionCheck | null>(null);
+  const [catalog, setCatalog] = useState<CatalogVersion[]>([]);
+  const [pinVersion, setPinVersion] = useState('');
+  const [pinning, setPinning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tailRef = useRef<HTMLDivElement>(null);
@@ -54,14 +75,19 @@ export default function ServerOpsRoom() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [s, st, pl] = await Promise.all([
+      const [s, st, pl, ver, cat] = await Promise.all([
         apiFetch<{ server: DashboardServer }>(`/servers/${id}`),
         apiFetch<{ metrics: Metrics }>(`/servers/${id}/status`),
-        apiFetch<{ tracked: TrackedPlayer[] }>(`/moderation/players/search?q=`)
+        apiFetch<{ tracked: TrackedPlayer[] }>(`/moderation/players/search?q=`),
+        apiFetch<{ check: VersionCheck }>(`/versions/servers/${id}/check`),
+        apiFetch<{ versions: CatalogVersion[]; latest: CatalogVersion | null }>(`/versions`)
       ]);
       setServer(s.server);
       setMetrics(st.metrics);
       setPlayers(pl.tracked.filter((p) => p.serverId === id));
+      setVersionCheck(ver.check);
+      setCatalog(cat.versions);
+      setPinVersion(cat.latest?.version || s.server.version);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load server');
     }
@@ -115,6 +141,32 @@ export default function ServerOpsRoom() {
       notify(`Backup ${res.backup.status.toLowerCase()} (${res.backup.filename}).`);
     } catch (e) {
       notify(`Backup: ${e instanceof Error ? e.message : 'error'}`);
+    }
+  };
+
+  const pinBdsVersion = async () => {
+    if (!pinVersion) return;
+    setPinning(true);
+    try {
+      const res = await apiFetch<{
+        result: { version: string; previousVersion: string };
+        check: VersionCheck;
+        backup?: { filename: string };
+      }>(`/versions/servers/${id}/pin`, {
+        method: 'POST',
+        body: JSON.stringify({ version: pinVersion, backupBefore: true })
+      });
+      setVersionCheck(res.check);
+      notify(
+        `Pinned BDS ${res.result.version}` +
+          (res.backup ? ` (pre-update backup ${res.backup.filename})` : '') +
+          '.'
+      );
+      await load();
+    } catch (e) {
+      notify(`Pin failed: ${e instanceof Error ? e.message : 'error'}`);
+    } finally {
+      setPinning(false);
     }
   };
 
@@ -177,6 +229,49 @@ export default function ServerOpsRoom() {
               <Link href="/console" style={{ ...quick(), textAlign: 'center', textDecoration: 'none' }}>▧ Console</Link>
               <button onClick={() => power('RESTART')} style={quick()}>⟳ Restart</button>
               <button onClick={load} style={quick()}>↻ Refresh</button>
+            </div>
+          </Panel>
+
+          <Panel title="⧉ BDS Version">
+            {versionCheck && (
+              <div style={{ marginBottom: 12, fontFamily: THEME.fonts.mono, fontSize: 12, color: c.onSurfaceVariant }}>
+                <div>Pinned: <strong style={{ color: c.onSurface }}>{versionCheck.pinnedVersion}</strong>
+                  {versionCheck.isLatest ? ' · latest' : versionCheck.latestVersion ? ` · latest ${versionCheck.latestVersion}` : ''}
+                </div>
+                {versionCheck.warning && (
+                  <div style={{ marginTop: 6, color: c.tertiary, borderLeft: `3px solid ${c.tertiary}`, paddingLeft: 8 }}>
+                    {versionCheck.warning}
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select
+                value={pinVersion}
+                onChange={(e) => setPinVersion(e.target.value)}
+                style={{
+                  flex: 1,
+                  background: c.surfaceContainerLowest,
+                  color: c.onSurface,
+                  border: `2px solid ${c.outline}`,
+                  borderRadius: THEME.radius.md,
+                  padding: '8px 10px',
+                  fontFamily: THEME.fonts.mono,
+                  fontSize: 12
+                }}
+              >
+                {catalog.map((v) => (
+                  <option key={v.id} value={v.version}>
+                    {v.version}{v.isLatest ? ' (latest)' : ''}{!v.isSupported ? ' (unsupported)' : ''}
+                  </option>
+                ))}
+              </select>
+              <button onClick={pinBdsVersion} disabled={pinning || !pinVersion} style={ghost(c.primary)}>
+                {pinning ? '…' : 'Pin'}
+              </button>
+            </div>
+            <div style={{ marginTop: 8, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono, fontSize: 11 }}>
+              Pin takes a safety backup first, then updates the realm version pin.
             </div>
           </Panel>
         </div>

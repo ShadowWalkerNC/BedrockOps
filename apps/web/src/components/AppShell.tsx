@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { THEME } from '@mc-admin/ui';
 
-export type NavKey = 'dashboard' | 'console' | 'players' | 'plugins' | 'worlds' | 'settings';
+export type NavKey = 'dashboard' | 'setup' | 'console' | 'players' | 'plugins' | 'worlds' | 'settings';
 
 interface NavDef {
   key: NavKey;
@@ -13,6 +13,7 @@ interface NavDef {
 
 const NAV: NavDef[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/' },
+  { key: 'setup', label: 'Setup', href: '/setup' },
   { key: 'console', label: 'Console', href: '/console' },
   { key: 'players', label: 'Players', href: '/players' },
   { key: 'plugins', label: 'Plugins', soon: true },
