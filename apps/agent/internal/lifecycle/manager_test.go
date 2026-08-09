@@ -2,7 +2,10 @@ package lifecycle_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -83,28 +86,40 @@ func TestWorldDir(t *testing.T) {
 
 func TestManagerPipesStdoutAndReportsUnexpectedExit(t *testing.T) {
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "fake-bds")
-	// Emit a BDS-style join line then exit non-zero (unexpected crash).
-	script := "#!/bin/sh\necho 'Player connected: LogPipeTester, xuid: 2535499999999999'\nexit 7\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	bin := buildFakeBDS(t, dir, "Player connected: LogPipeTester, xuid: 2535499999999999", 7)
 
 	m := lifecycle.NewManager(bin)
-	var lines []string
-	var exitUnexpected bool
-	done := make(chan struct{}, 2)
+	var (
+		mu             sync.Mutex
+		lines          []string
+		exitUnexpected bool
+		exitSeen       bool
+	)
+	logSeen := make(chan struct{}, 1)
+	exitCh := make(chan struct{}, 1)
 	m.SetHandlers(
 		func(serverID, line string) {
 			if serverID != "srv_log" {
 				t.Errorf("unexpected serverID %s", serverID)
+				return
 			}
+			mu.Lock()
 			lines = append(lines, line)
-			done <- struct{}{}
+			mu.Unlock()
+			select {
+			case logSeen <- struct{}{}:
+			default:
+			}
 		},
 		func(serverID string, unexpected bool, waitErr error) {
+			mu.Lock()
 			exitUnexpected = unexpected
-			done <- struct{}{}
+			exitSeen = true
+			mu.Unlock()
+			select {
+			case exitCh <- struct{}{}:
+			default:
+			}
 		},
 	)
 
@@ -113,20 +128,28 @@ func TestManagerPipesStdoutAndReportsUnexpectedExit(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 
-	// Wait for log + exit callbacks (with timeout).
-	for i := 0; i < 2; i++ {
-		select {
-		case <-done:
-		case <-time.After(3 * time.Second):
-			t.Fatal("timed out waiting for log/exit handlers")
-		}
+	// Wait for log then exit (exit is gated on pipe drain, so order is stable).
+	select {
+	case <-logSeen:
+	case <-time.After(10 * time.Second):
+		mu.Lock()
+		got := append([]string(nil), lines...)
+		mu.Unlock()
+		t.Fatalf("timed out waiting for log handler; lines=%#v", got)
+	}
+	select {
+	case <-exitCh:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for exit handler")
 	}
 
+	mu.Lock()
+	defer mu.Unlock()
 	if len(lines) == 0 || lines[0] != "Player connected: LogPipeTester, xuid: 2535499999999999" {
 		t.Fatalf("expected join log line, got %#v", lines)
 	}
-	if !exitUnexpected {
-		t.Fatal("expected unexpected exit after non-zero process exit")
+	if !exitSeen || !exitUnexpected {
+		t.Fatalf("expected unexpected exit after non-zero process exit (seen=%v unexpected=%v)", exitSeen, exitUnexpected)
 	}
 	// Process exit should settle ERROR for unexpected death.
 	deadline := time.Now().Add(2 * time.Second)
@@ -137,4 +160,31 @@ func TestManagerPipesStdoutAndReportsUnexpectedExit(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("expected ERROR state after crash, got %s", m.GetState("srv_log"))
+}
+
+// buildFakeBDS compiles a tiny Go program that prints one line and exits.
+// Using a compiled binary avoids shell stdout buffering flakes under pipes.
+func buildFakeBDS(t *testing.T, dir, line string, exitCode int) string {
+	t.Helper()
+	src := filepath.Join(dir, "fake_bds.go")
+	bin := filepath.Join(dir, "fake-bds")
+	program := "package main\n" +
+		"import (\n" +
+		"\t\"fmt\"\n" +
+		"\t\"os\"\n" +
+		")\n" +
+		"func main() {\n" +
+		"\tfmt.Println(`" + line + "`)\n" +
+		"\tos.Exit(" + strconv.Itoa(exitCode) + ")\n" +
+		"}\n"
+	if err := os.WriteFile(src, []byte(program), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("go", "build", "-o", bin, src)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build fake-bds: %v\n%s", err, out)
+	}
+	return bin
 }
