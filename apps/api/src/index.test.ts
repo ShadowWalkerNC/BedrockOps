@@ -5,6 +5,7 @@ import { db } from '@mc-admin/db';
 import { NotificationDispatcher } from '@mc-admin/notifications';
 import { signJwt } from '@mc-admin/auth';
 import { UserRole } from '@mc-admin/db';
+import { resetRateLimits } from './middleware/rate-limit.middleware';
 
 describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
   let authToken: string;
@@ -17,6 +18,7 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     db.agentNodes = [];
     NotificationDispatcher.sentMessages = [];
     db.seedDefaults();
+    resetRateLimits();
 
     authToken = signJwt(
       { userId: 'usr_admin_1', username: 'admin', role: UserRole.OWNER },
@@ -161,6 +163,34 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.body.plan.entriesCount).toBe(1);
     expect(res.body.plan.targetPath).toContain('allowlist.json');
     expect(db.auditLogs.some((a) => a.action === 'ALLOWLIST_SYNC')).toBe(true);
+  });
+
+  it('returns operational analytics on GET /api/v1/analytics/overview', async () => {
+    const res = await request(app)
+      .get('/api/v1/analytics/overview')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.overview.servers.total).toBeGreaterThanOrEqual(1);
+    expect(res.body.overview.agents.total).toBeGreaterThanOrEqual(1);
+    expect(res.body.overview.backups.successRatePct).toBeGreaterThanOrEqual(0);
+    expect(typeof res.body.overview.generatedAt).toBe('string');
+  });
+
+  it('rate-limits repeated destructive power actions with a 429', async () => {
+    let got429 = false;
+    for (let i = 0; i < 40; i++) {
+      const res = await request(app)
+        .post('/api/v1/servers/srv_bedrock_1/power')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ action: 'RESTART' });
+      if (res.status === 429) {
+        got429 = true;
+        expect(res.body.error).toBe('RATE_LIMITED');
+        break;
+      }
+    }
+    expect(got429).toBe(true);
   });
 
   it('lists audit logs on GET /api/v1/audit', async () => {

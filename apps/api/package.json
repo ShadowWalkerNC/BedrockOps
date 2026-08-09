@@ -13,6 +13,7 @@
     "@mc-admin/db": "workspace:*",
     "@mc-admin/auth": "workspace:*",
     "@mc-admin/audit": "workspace:*",
+    "@mc-admin/analytics": "workspace:*",
     "@mc-admin/bedrock": "workspace:*",
     "@mc-admin/backups": "workspace:*",
     "@mc-admin/moderation": "workspace:*",

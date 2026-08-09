@@ -4,6 +4,7 @@ import { db, ServerStatus, UserRole, HostProviderType, BedrockServer } from '@mc
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rateLimitDestructive } from '../middleware/rate-limit.middleware';
 
 export const serverRouter: Router = Router();
 
@@ -158,7 +159,7 @@ const powerSchema = z.object({
   action: z.enum(['START', 'STOP', 'RESTART', 'KILL'])
 });
 
-serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), rateLimitDestructive('server_power'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const parse = powerSchema.safeParse(req.body);
   if (!parse.success) {
