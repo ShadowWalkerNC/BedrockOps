@@ -1,209 +1,182 @@
 # BedrockOps
 
-Realms-first Bedrock Dedicated Server operations platform — lifecycle control, Cloudflare R2 backups, console onboarding, moderation, Discord, templates, and (later) add-on marketplace tooling in one monorepo.
+**The operating system for Bedrock Realms.**
 
-## Overview
+BedrockOps is a Realms-first control plane for Minecraft Bedrock Dedicated Servers — start/stop, live console, offsite backups, moderation, Discord alerts, console onboarding, and version-aware ops in one stack.
 
-BedrockOps (internal package scope: `@mc-admin/*`) is a pnpm + Turborepo monorepo for running self-hosted Bedrock **Realms** (community BDS servers). The dashboard, API, worker, machine agent, and Discord relay share domain packages for auth, audit, backups, moderation, and more.
+> **This is my SaaS.** The product, brand, and hosted BedrockOps service are mine.
+>
+> **This repo is free to fork.** Clone it, self-host it, hack on it, send PRs. You’re welcome to run your own control plane. You’re not getting commodity RAM hosting — you’re getting (or forking) the software that makes community Realms actually operable.
 
-**Positioning:** software/control-plane first (self-sufficient). Hosting partners are optional later — not required to ship. Official Mojang Realms APIs are out of scope.
+---
 
-**Current status:** Wave A foundation on `main` — domain packages and a working dashboard prototype. Runtime persistence defaults to in-memory DB for local development; Prisma/Postgres schema is ready for production wiring. See [PROJECT_PLAN.md](./PROJECT_PLAN.md) for Wave A–D delivery.
+## Why it exists
 
-## Repository structure
+Most Bedrock “hosts” compete on specs and price. Operators still drown in FTP panels, brittle backups, opaque crashes, and staff tools that feel bolted on.
 
-```
-.
-├── apps/
-│   ├── web/       # Next.js admin dashboard
-│   ├── api/       # Express REST + WebSocket control plane (port 4000)
-│   ├── worker/    # Scheduled backups and background jobs
-│   ├── agent/     # Bedrock machine daemon (process/filesystem control)
-│   └── discord/   # Discord webhook / bot relay
-├── packages/
-│   ├── db/        # Prisma schema + development memory store
-│   ├── config/    # Zod environment validation
-│   ├── auth/      # JWT + RBAC
-│   ├── audit/     # Structured audit logging
-│   ├── bedrock/   # BDS config parser, host providers, RCON
-│   ├── backups/   # Backup snapshots and retention
-│   ├── moderation/# Player moderation records
-│   ├── notifications/ # Discord payload formatters
-│   ├── templates/ # Server template engine
-│   ├── pipelines/ # Setup pipeline orchestrator
-│   └── ui/        # Shared React UI tokens and components
-├── docker-compose.yml   # Postgres 16 + Redis 7
-├── PROJECT_PLAN.md      # Product roadmap and phases
-└── AGENTS.md            # Coding standards and package boundaries
-```
+BedrockOps competes on **software**:
 
-## Prerequisites
+| Hosts sell | BedrockOps sells |
+|------------|------------------|
+| CPU / RAM / disk | Lifecycle, safety, and staff workflows |
+| A panel for one box | A Realms admin OS across your fleet |
+| “Hope the world saved” | Streaming backups, audit trails, honest failure modes |
 
-- **Node.js** 18+
-- **pnpm** 9 (`corepack enable && corepack prepare pnpm@9.0.0 --activate`)
-- **Docker** (optional, for Postgres/Redis via `docker compose`)
+**Positioning:** Realms-first (self-hosted BDS). Own the agent, Postgres, R2 backups, and join adapters. Hosting partners are optional later — never a prerequisite to ship. Official Mojang Realms APIs are out of scope.
 
-## Quick start
+---
 
-### Production-shaped local (recommended)
+## What’s in the box
+
+- **Ops Room dashboard** — power actions, live console, player profiles, setup wizard
+- **CGNAT-safe Go agent** — outbound WebSocket tunnel; no inbound ports required on the game host
+- **Streaming backups** — save-hold → agent archive → optional Cloudflare R2
+- **Moderation ledger** — warn / mute / kick / ban / note with GDPR anonymize + allowlist sync
+- **Console onboarding** — subdomain/port allocation, FriendConnect-style adapters, Xbox resolve (when keyed)
+- **Discord alerts** — bans, backups, crashes (webhook; slash commands scaffolded)
+- **Version matrix** — pin BDS builds, mismatch warnings, backup-before-update
+- **Honest stubs** — if the agent, R2, or Discord isn’t wired, the API says so instead of lying
+
+Shippable Waves **A–C** are on `main`. Wave **D** (packs, marketplace, host partners, rounds) is planned next. Details: [SHIP_READINESS.md](./SHIP_READINESS.md) · [PROJECT_PLAN.md](./PROJECT_PLAN.md)
+
+---
+
+## SaaS vs fork
+
+| | Hosted BedrockOps (SaaS) | This repo (fork / self-host) |
+|--|--------------------------|------------------------------|
+| Who runs the control plane | Me | You |
+| Brand / product | BedrockOps | Your fork — please don’t pretend to *be* BedrockOps Cloud |
+| Game servers | Your Realms, managed through the product | Your metal / VPS + the Go agent |
+| Cost model | SaaS | Your infra + your time |
+| Contributions | Welcome via PR | Same |
+
+Fork freely. If you build something useful, open a pull request. If you want the managed product, that’s the SaaS — not something this README pretends to bill you for in git.
+
+---
+
+## Quick start (local)
 
 ```bash
 pnpm install
-cp .env.example .env   # if you don't have one yet
-./scripts/start-local.sh
-# → http://localhost:3000/login  (admin@minecraft-admin.local / admin)
-```
-
-This starts Postgres, applies Prisma migrations, mints strong JWT/pairing secrets,
-disables silent auto-login, and launches API + web + Go agent (+ worker).
-
-### Manual / memory-mode quick path
-
-```bash
-# Install dependencies
-pnpm install
-
-# Copy environment template and adjust as needed
 cp .env.example .env
-
-# Start Postgres + Redis (required for DB_ADAPTER=prisma)
-docker compose up -d
-
-# Generate Prisma client and apply migrations
-pnpm --filter @mc-admin/db db:generate
-pnpm --filter @mc-admin/db db:migrate
-
-# Optional: persist via Postgres (API hydrates memory + write-through flush)
-# Set DB_ADAPTER=prisma in .env
-
-# Run all apps in development (via Turborepo)
-pnpm dev
+./scripts/start-local.sh
+# → http://localhost:3000/login
+#    admin@minecraft-admin.local / admin
 ```
 
-### Default dev URLs
+Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1`  
+(Always run the API with `PORT=4000` — root `.env` uses `PORT=3000` for the web app.)
 
 | Service | URL |
 |---------|-----|
-| Web dashboard | http://localhost:3000/login |
-| API control plane | http://localhost:4000 |
-| Agent daemon (TS shim) | http://localhost:5050 |
+| Dashboard | http://localhost:3000/login |
+| API | http://localhost:4000/health |
 
-### Next.js `vendor-chunks` / missing module errors
-
-If the dashboard crashes with `Cannot find module './chunks/vendor-chunks/next@…'`, the `.next` cache is stale/corrupt (common after branch switches, crashed `next dev`, or repos under **OneDrive**):
-
-```powershell
-# from repo root (Windows PowerShell)
-# Stop the running web/dev server first (Ctrl+C in that terminal).
-pnpm --filter @mc-admin/web clean
-pnpm --filter @mc-admin/web dev
-# or one-shot:
-pnpm --filter @mc-admin/web dev:clean
-```
-
-If you still see PowerShell parse errors, delete the cache manually:
-
-```powershell
-Remove-Item -Recurse -Force apps\web\.next -ErrorAction SilentlyContinue
-pnpm --filter @mc-admin/web dev
-```
-
-Prefer cloning outside OneDrive/iCloud sync folders when possible.
-
-### Go agent (CGNAT-safe outbound tunnel)
-
-Production process control lives in the Go binary under `apps/agent/cmd/bedrock-agent`. It dials the control plane WebSocket at `/api/v1/ws/agent` (outbound-only, CGNAT-friendly), handles power actions, heartbeats, metrics, and backup triggers.
+### Manual path
 
 ```bash
-# Build
+pnpm install && cp .env.example .env
+docker compose up -d postgres
+pnpm --filter @mc-admin/db db:generate
+pnpm --filter @mc-admin/db db:migrate
+# Terminal A
+PORT=4000 DB_ADAPTER=prisma pnpm --filter @mc-admin/api dev
+# Terminal B
+NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 pnpm --filter @mc-admin/web dev
+# Terminal C (optional agent — simulated BDS if -bds-bin omitted)
 pnpm --filter @mc-admin/agent agent:build
-
-# Run against local API (simulated lifecycle when -bds-bin is omitted)
 ./apps/agent/bin/bedrock-agent \
   -control-plane http://127.0.0.1:4000 \
-  -node-id node_docker_agent_1
+  -node-id node_docker_agent_1 \
+  -token dev_agent_token_change_me
 ```
 
-Set `-bds-bin /path/to/bedrock_server` for live process management.
+### Prerequisites
 
-### Streaming backups (Cloudflare R2)
+- Node.js 18+
+- pnpm 9 (`corepack enable && corepack prepare pnpm@9.0.0 --activate`)
+- Go 1.22+ (agent build/tests)
+- Docker (Postgres via `docker compose`)
 
-Manual backups (`POST /api/v1/backups`) run the save-hold command plan, ask the connected agent to stream a `tar.gz` archive, and optionally PUT to an R2 presigned URL when these env vars are set:
+---
 
-`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+## Repository layout
 
-Without R2 credentials the control plane returns an honest presign stub; the agent still archives locally when a world directory exists.
+```
+apps/
+  web/       Next.js operator dashboard
+  api/       REST + WebSocket control plane (:4000)
+  worker/    Scheduled backups & retention
+  agent/     Go machine daemon (BDS process, RCON, files)
+  discord/   Webhooks / slash-command relay
+packages/    Domain libs — db, auth, audit, bedrock, backups,
+             moderation, notifications, templates, pipelines, ui
+```
 
-### Security notes (local prototype)
+Internal package scope: `@mc-admin/*`. Coding boundaries: [AGENTS.md](./AGENTS.md).
 
-- Agent WebSocket requires a bearer token matching `AgentNode.secretTokenHash` (seeded token: `dev_agent_token_change_me`).
-- Production refuses weak `JWT_SECRET` / `NODE_PAIRING_SECRET`, `CORS_ORIGIN=*`, and MemoryDatabase unless `ALLOW_MEMORY_DB=true`.
-- Host providers that are not wired (Pterodactyl / Direct RCON) return `false` / `[STUB]` — they never pretend power actions succeeded.
-- Dashboard auto-login is opt-in via `NEXT_PUBLIC_DEV_AUTO_LOGIN=true`.
+---
 
-## Environment variables
-
-Copy `.env.example` to `.env` at the repo root. Key variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NODE_ENV` | Runtime environment | `development` |
-| `PORT` | Web / shared port hint | `3000` |
-| `DATABASE_URL` | Postgres connection string | see `.env.example` |
-| `JWT_SECRET` | API JWT signing secret | change in production |
-| `NODE_PAIRING_SECRET` | Agent bootstrap pairing secret | change in production |
-| `CORS_ORIGIN` | Allowed browser origin(s) | `http://localhost:3000` |
-| `BEDROCK_AGENT_TOKEN` | Agent tunnel bearer token | see `.env.example` |
-| `NEXT_PUBLIC_DEV_AUTO_LOGIN` | Web silent admin login (dev only) | unset / `true` in example |
-| `DISCORD_WEBHOOK_URL` | Optional Discord alerts | — |
-| `RCON_HOST` / `RCON_PORT` / `RCON_PASSWORD` | Bedrock RCON | local defaults |
-
-See `packages/config/src/env.ts` and `apps/api/src/config.ts` for full validation schemas.
-
-## Scripts
+## Useful commands
 
 ```bash
-pnpm dev          # Start all workspace dev servers
-pnpm build        # Build all packages and apps
-pnpm test         # Run Vitest across workspaces
-pnpm lint         # Lint all workspaces
-pnpm clean        # Turbo clean
+pnpm dev          # all workspace apps
+pnpm build        # build everything
+pnpm test         # Vitest (+ Go tests in apps/agent)
+pnpm typecheck    # full-repo TypeScript (includes tests)
+pnpm lint         # lint (primarily web today)
 
-# Database (Prisma)
 pnpm --filter @mc-admin/db db:generate
-pnpm --filter @mc-admin/db db:push
-pnpm --filter @mc-admin/db db:validate
+pnpm --filter @mc-admin/db db:migrate
+pnpm --filter @mc-admin/web clean     # wipe stale .next (Windows/OneDrive-friendly)
 ```
 
-## Architecture notes
+---
 
-- **Domain packages** hold business logic; apps orchestrate I/O and HTTP.
-- **Audit logging** is required for state-changing operations (server control, backups, moderation, templates, pipelines).
-- **Development DB:** `packages/db` exports a seeded `MemoryDatabase` singleton (`DB_ADAPTER=memory`). Set `DB_ADAPTER=prisma` for Postgres persistence (API hydrates on boot + write-through flush after mutating requests).
-- **Web → API:** The dashboard proxies `/api/v1/*` to `apps/api` (port 4000). Web no longer imports `@mc-admin/db` or domain engines directly.
-- **Honest stubs:** Backups start as `PENDING`, agent/power actions return explicit stub responses until host integration is wired.
+## Configuration notes
 
-Read `AGENTS.md` before contributing — it defines package boundaries and Wave A scope.
+Copy `.env.example` → `.env`. Important knobs:
+
+| Variable | Notes |
+|----------|--------|
+| `DB_ADAPTER=prisma` | Production-shaped local / real deploys (needs Postgres) |
+| `JWT_SECRET` / `NODE_PAIRING_SECRET` | Strong secrets in production (min 32 chars) |
+| `CORS_ORIGIN` | Dashboard origin — never `*` in production |
+| `BEDROCK_AGENT_TOKEN` | Must match hashed token on the `AgentNode` |
+| `R2_*` | Optional offsite backups; honest stub without them |
+| `DISCORD_WEBHOOK_URL` | Optional live alerts |
+| `NEXT_PUBLIC_DEV_AUTO_LOGIN` | Dev-only silent login — keep `false` for prod-shaped play |
+
+Full validation: `packages/config` + `apps/api/src/config.ts`. Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md).
+
+**Honest stubs by design.** Missing agent / R2 / Discord / DNS / Xbox keys never fake success — they return explicit stub or pending states.
+
+---
 
 ## Roadmap
 
-| Wave | Focus | Status on `main` |
-|------|-------|------------------|
-| **A** | Real agent tunnel, RCON, Prisma, R2 backup/restore | Prototype / stubs — in-flight branches |
-| **B** | Console/FriendConnect adapters, moderation, Discord, onboarding | Planned |
-| **C** | Live console, security rules, analytics, version pins | Planned |
-| **D** | Packs/marketplace, optional host partners, rounds (later) | Planned |
+| Wave | Focus | Status |
+|------|-------|--------|
+| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Done on `main` |
+| **B** | Moderation, allowlist, subdomain onboarding, Discord | Done on `main` |
+| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins UI | Done on `main` |
+| **D** | Pack engine, marketplace, host partners, seasonal rounds | Next |
 
-Details: [PROJECT_PLAN.md](./PROJECT_PLAN.md)
+---
 
-## Testing
+## Contributing
 
-```bash
-pnpm test
-pnpm --filter @mc-admin/backups test
-pnpm --filter @mc-admin/e2e test
-```
+1. Read [AGENTS.md](./AGENTS.md) (package boundaries, no fake stubs, audit everything).
+2. Prefer small PRs against `main`.
+3. Keep Wave D features honest — don’t pretend pack install or partner hosts work until wired.
 
-## License
+---
 
-Private — all rights reserved unless otherwise specified.
+## License & trademark
+
+**Free to fork** for self-hosting, learning, and contribution.
+
+The **BedrockOps** name and hosted SaaS offering remain mine. Don’t present a public fork as the official BedrockOps cloud product.
+
+If you need a formal SPDX license file for corporate compliance, open an issue and we’ll pin one — until then: fork freely, attribute reasonably, don’t impersonate the SaaS.
