@@ -12,6 +12,7 @@
     "@mc-admin/config": "workspace:*",
     "@mc-admin/db": "workspace:*",
     "@mc-admin/backups": "workspace:*",
+    "@mc-admin/bedrock": "workspace:*",
     "@mc-admin/pipelines": "workspace:*"
   },
   "devDependencies": {

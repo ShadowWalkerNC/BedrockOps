@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db, BackupStatus, ModerationType } from '@mc-admin/db';
-import { OperationalMetrics, RateLimiter, detectJoinFlood } from './index';
+import { OperationalMetrics, RateLimiter, detectJoinFlood, JoinFloodMonitor } from './index';
 
 describe('OperationalMetrics.overview', () => {
   beforeEach(() => {
@@ -105,5 +105,18 @@ describe('detectJoinFlood', () => {
     const res = detectJoinFlood(events, { windowMs: 1000, threshold: 1, now });
     expect(res.flood).toBe(false);
     expect(res.count).toBe(0);
+  });
+});
+
+describe('JoinFloodMonitor', () => {
+  it('accumulates joins and flags a flood', () => {
+    const monitor = new JoinFloodMonitor({ windowMs: 60_000, threshold: 3 });
+    expect(monitor.record('x1').flood).toBe(false);
+    expect(monitor.record('x1').flood).toBe(false);
+    const hit = monitor.record('x1');
+    expect(hit.flood).toBe(true);
+    expect(hit.suspiciousBotPattern).toBe(true);
+    monitor.reset();
+    expect(monitor.record('x2').flood).toBe(false);
   });
 });

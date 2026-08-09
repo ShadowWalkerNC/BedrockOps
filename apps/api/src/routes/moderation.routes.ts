@@ -14,6 +14,7 @@ import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { agentGateway } from '../ws/agentGateway';
 import { dispatchAlert } from '../alerts';
+import { notePlayerJoin } from '../joinFlood';
 
 export const moderationRouter: Router = Router();
 
@@ -80,7 +81,7 @@ const joinSchema = z.object({
 moderationRouter.post(
   '/players/join',
   requireRole(UserRole.MODERATOR),
-  (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: Response) => {
     const parse = joinSchema.safeParse(req.body);
     if (!parse.success) {
       return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
@@ -102,7 +103,8 @@ moderationRouter.post(
     }
 
     const player = playerTracker.recordJoin({ gamertag, xuid, serverId: parse.data.serverId });
-    return res.status(201).json({ player });
+    const flood = await notePlayerJoin({ gamertag, xuid, serverId: parse.data.serverId });
+    return res.status(201).json({ player, flood });
   }
 );
 

@@ -54,12 +54,43 @@ func NewClient(cfg Config, manager *lifecycle.Manager, collector *metrics.Collec
 	if cfg.ReconnectWait == 0 {
 		cfg.ReconnectWait = 5 * time.Second
 	}
-	return &Client{
+	c := &Client{
 		cfg:       cfg,
 		manager:   manager,
 		collector: collector,
 		rcon:      rcon.NewClient(),
 	}
+	// Forward live BDS stdout/stderr as LOG_LINE and unexpected exits as CRASH.
+	manager.SetHandlers(c.onProcessLog, c.onProcessExit)
+	return c
+}
+
+func (c *Client) onProcessLog(serverID, line string) {
+	_ = c.sendLog(serverID, line)
+}
+
+func (c *Client) onProcessExit(serverID string, unexpected bool, waitErr error) {
+	if !unexpected {
+		_ = c.sendLog(serverID, "process exited (intentional stop)")
+		return
+	}
+	reason := "process exited unexpectedly"
+	if waitErr != nil {
+		reason = waitErr.Error()
+	}
+	_ = c.sendCrash(serverID, reason)
+	_ = c.sendLog(serverID, "CRASH: "+reason)
+}
+
+func (c *Client) sendCrash(serverID, reason string) error {
+	return c.sendFrame(protocol.Frame{
+		ID:        fmt.Sprintf("crash_%d", time.Now().UnixNano()),
+		Type:      protocol.TypeCrash,
+		NodeID:    c.cfg.NodeID,
+		ServerID:  serverID,
+		Timestamp: time.Now().Unix(),
+		Payload:   mustRaw(map[string]any{"reason": reason}),
+	})
 }
 
 // Run dials the control plane and serves forever (reconnects on disconnect).

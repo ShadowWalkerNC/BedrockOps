@@ -2,6 +2,8 @@ import WebSocket from 'ws';
 import { db } from '@mc-admin/db';
 import { PlayerLogParser, playerTracker } from '@mc-admin/moderation';
 import { clientStreamHub } from './clientHub';
+import { notePlayerJoin } from '../joinFlood';
+import { recordServerCrash } from '../crash';
 
 export interface AgentFrame {
   id: string;
@@ -14,7 +16,8 @@ export interface AgentFrame {
     | 'BACKUP_START'
     | 'BACKUP_PROGRESS'
     | 'BACKUP_COMPLETE'
-    | 'BACKUP_ERROR';
+    | 'BACKUP_ERROR'
+    | 'CRASH';
   nodeId: string;
   serverId?: string;
   timestamp: number;
@@ -56,7 +59,7 @@ export class AgentTunnelGateway {
     ws.on('message', (raw: WebSocket.RawData) => {
       try {
         const frame: AgentFrame = JSON.parse(raw.toString());
-        this.processFrame(session, frame);
+        void this.processFrame(session, frame);
       } catch (err) {
         console.error(`[AgentGateway] Frame parse error from node ${nodeId}:`, err);
       }
@@ -71,7 +74,7 @@ export class AgentTunnelGateway {
     });
   }
 
-  private processFrame(session: AgentSession, frame: AgentFrame) {
+  private async processFrame(session: AgentSession, frame: AgentFrame) {
     session.lastHeartbeat = new Date();
 
     switch (frame.type) {
@@ -105,7 +108,27 @@ export class AgentTunnelGateway {
               xuid: join.xuid,
               serverId: frame.serverId
             });
+            await notePlayerJoin({
+              gamertag: join.gamertag,
+              xuid: join.xuid,
+              serverId: frame.serverId
+            });
           }
+        }
+        break;
+      }
+      case 'CRASH': {
+        if (frame.serverId) {
+          const reason =
+            typeof frame.payload?.reason === 'string' ? frame.payload.reason : 'agent-reported crash';
+          await recordServerCrash(frame.serverId, reason, {
+            actorId: session.nodeId,
+            actorName: `agent:${session.nodeId}`
+          });
+          clientStreamHub.broadcast(frame.serverId, 'STATUS', {
+            status: 'ERROR',
+            reason
+          });
         }
         break;
       }

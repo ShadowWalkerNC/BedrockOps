@@ -94,6 +94,55 @@ export class NotificationDispatcher {
     };
   }
 
+  public static formatCrashEmbed(
+    serverName: string,
+    reason: string | undefined,
+    crashCount24h: number
+  ): DiscordWebhookPayload {
+    return {
+      username: 'Minecraft Ops Alert',
+      embeds: [
+        {
+          title: `⚠ Crash Detected: ${serverName}`,
+          description: `Server **${serverName}** crashed${reason ? `: ${reason}` : '.'}`,
+          color: 0xef4444,
+          fields: [
+            { name: 'Crashes (24h)', value: String(crashCount24h), inline: true },
+            { name: 'Status', value: 'ERROR', inline: true }
+          ],
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+  }
+
+  public static formatJoinFloodEmbed(input: {
+    serverName?: string;
+    count: number;
+    uniqueXuids: number;
+    suspiciousBotPattern: boolean;
+    windowMs: number;
+    sampleGamertag?: string;
+  }): DiscordWebhookPayload {
+    const where = input.serverName ? ` on **${input.serverName}**` : '';
+    return {
+      username: 'Minecraft Ops Alert',
+      embeds: [
+        {
+          title: input.suspiciousBotPattern ? 'Join Flood / Bot Pattern Detected' : 'Join Flood Detected',
+          description: `Elevated join rate${where}${input.sampleGamertag ? ` (latest: **${input.sampleGamertag}**)` : ''}.`,
+          color: 0xf59e0b,
+          fields: [
+            { name: 'Joins (window)', value: String(input.count), inline: true },
+            { name: 'Unique XUIDs', value: String(input.uniqueXuids), inline: true },
+            { name: 'Window', value: `${Math.round(input.windowMs / 1000)}s`, inline: true }
+          ],
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+  }
+
   /**
    * Decide whether a real HTTP POST should be attempted.
    * Delivery is stubbed under automated tests (NODE_ENV=test) so the suite never

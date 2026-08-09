@@ -3,11 +3,9 @@ import { z } from 'zod';
 import { db, ServerStatus, UserRole, HostProviderType, BedrockServer } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
-import { NotificationDispatcher } from '@mc-admin/notifications';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { rateLimitDestructive } from '../middleware/rate-limit.middleware';
-
-const CRASH_WINDOW_MS = 24 * 60 * 60 * 1000;
+import { recordServerCrash } from '../crash';
 
 export const serverRouter: Router = Router();
 
@@ -259,54 +257,19 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
 const crashSchema = z.object({ reason: z.string().optional() });
 
 serverRouter.post('/:id/crash', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
-  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
-  if (!server) {
-    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
-  }
   const parse = crashSchema.safeParse(req.body ?? {});
   if (!parse.success) {
     return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
   }
 
-  const now = new Date();
-  // Roll the 24h crash counter.
-  if (server.lastCrashAt && now.getTime() - new Date(server.lastCrashAt).getTime() > CRASH_WINDOW_MS) {
-    server.crashCount24h = 0;
-  }
-  server.crashCount24h = (server.crashCount24h ?? 0) + 1;
-  server.lastCrashAt = now;
-  server.status = ServerStatus.ERROR;
-  server.updatedAt = now;
-
-  AuditLogger.record({
+  const result = await recordServerCrash(req.params.id, parse.data.reason, {
     actorId: req.user!.userId,
-    actorName: req.user!.username,
-    action: 'SERVER_CRASH_DETECTED',
-    entityType: 'BedrockServer',
-    entityId: server.id,
-    metadata: { reason: parse.data.reason, crashCount24h: server.crashCount24h }
+    actorName: req.user!.username
   });
-
-  // Best-effort Discord crash alert (real delivery when DISCORD_WEBHOOK_URL is set).
-  try {
-    await NotificationDispatcher.sendWebhook(process.env.DISCORD_WEBHOOK_URL || '', {
-      username: 'Minecraft Ops Alert',
-      embeds: [
-        {
-          title: `⚠ Crash Detected: ${server.name}`,
-          description: `Server **${server.name}** crashed${parse.data.reason ? `: ${parse.data.reason}` : '.'}`,
-          color: 0xef4444,
-          fields: [
-            { name: 'Crashes (24h)', value: String(server.crashCount24h), inline: true },
-            { name: 'Status', value: 'ERROR', inline: true }
-          ],
-          timestamp: now.toISOString()
-        }
-      ]
-    });
-  } catch {
-    // Alerting is best-effort and must not fail the crash-report request.
+  if (!result.ok) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
 
-  return res.json({ success: true, server: toPublicServer(server), crashCount24h: server.crashCount24h });
+  const server = db.servers.find((s) => s.id === req.params.id)!;
+  return res.json({ success: true, server: toPublicServer(server), crashCount24h: result.crashCount24h });
 });

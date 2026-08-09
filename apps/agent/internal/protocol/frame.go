@@ -15,6 +15,7 @@ const (
 	TypeBackupProgress FrameType = "BACKUP_PROGRESS"
 	TypeBackupComplete FrameType = "BACKUP_COMPLETE"
 	TypeBackupError    FrameType = "BACKUP_ERROR"
+	TypeCrash          FrameType = "CRASH"
 )
 
 // Command names embedded in CMD_EXEC payloads by HostProvider.

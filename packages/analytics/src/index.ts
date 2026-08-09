@@ -129,3 +129,23 @@ export function detectJoinFlood(
   const suspiciousBotPattern = flood && uniqueXuids > 0 && inWindow.length / uniqueXuids >= 3;
   return { flood, suspiciousBotPattern, count: inWindow.length, uniqueXuids };
 }
+
+/**
+ * Stateful join-flood accumulator used by the API agent gateway / join ingest.
+ */
+export class JoinFloodMonitor {
+  private events: JoinEvent[] = [];
+
+  constructor(private readonly opts: { windowMs: number; threshold: number }) {}
+
+  public record(xuid: string, at: number = Date.now()): JoinFloodResult {
+    this.events.push({ xuid, at });
+    const windowStart = at - this.opts.windowMs;
+    this.events = this.events.filter((e) => e.at > windowStart);
+    return detectJoinFlood(this.events, { ...this.opts, now: at });
+  }
+
+  public reset(): void {
+    this.events = [];
+  }
+}
