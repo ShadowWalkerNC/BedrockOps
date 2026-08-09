@@ -13,47 +13,49 @@ function writePacket(socket: net.Socket, requestId: number, type: number, payloa
   socket.write(buf);
 }
 
-async function readPacket(socket: net.Socket): Promise<{ requestId: number; type: number; payload: string }> {
-  const sizeBuf = await readExact(socket, 4);
-  const size = sizeBuf.readInt32LE(0);
-  const body = await readExact(socket, size);
-  const requestId = body.readInt32LE(0);
-  const type = body.readInt32LE(4);
-  let end = body.length;
-  while (end > 8 && body[end - 1] === 0) end -= 1;
-  return { requestId, type, payload: body.subarray(8, end).toString('utf8') };
-}
-
-function readExact(socket: net.Socket, length: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    let acc = Buffer.alloc(0);
-    const onData = (chunk: Buffer) => {
-      acc = Buffer.concat([acc, chunk]);
-      if (acc.length >= length) {
-        socket.off('data', onData);
-        socket.off('error', onError);
-        resolve(acc.subarray(0, length));
+function attachMockRconServer(
+  socket: net.Socket,
+  handler: (packet: { requestId: number; type: number; payload: string }) => void
+): void {
+  let buffer = Buffer.alloc(0);
+  socket.on('data', (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+    while (buffer.length >= 4) {
+      const size = buffer.readInt32LE(0);
+      if (buffer.length < 4 + size) {
+        return;
       }
-    };
-    const onError = (err: Error) => reject(err);
-    socket.on('data', onData);
-    socket.on('error', onError);
+      const body = buffer.subarray(4, 4 + size);
+      buffer = buffer.subarray(4 + size);
+      const requestId = body.readInt32LE(0);
+      const type = body.readInt32LE(4);
+      let end = body.length;
+      while (end > 8 && body[end - 1] === 0) {
+        end -= 1;
+      }
+      handler({
+        requestId,
+        type,
+        payload: body.subarray(8, end).toString('utf8')
+      });
+    }
   });
 }
 
 describe('RconClient', () => {
   it('authenticates and executes a command against a mock RCON server', async () => {
     const server = net.createServer((socket) => {
-      void (async () => {
-        const auth = await readPacket(socket);
-        expect(auth.type).toBe(3);
-        expect(auth.payload).toBe('pw');
-        writePacket(socket, auth.requestId, 2, '');
-        const cmd = await readPacket(socket);
-        expect(cmd.type).toBe(2);
-        expect(cmd.payload).toBe('list');
-        writePacket(socket, cmd.requestId, 0, 'There are 1/10 players online');
-      })();
+      attachMockRconServer(socket, (packet) => {
+        if (packet.type === 3) {
+          expect(packet.payload).toBe('pw');
+          writePacket(socket, packet.requestId, 2, '');
+          return;
+        }
+        if (packet.type === 2) {
+          expect(packet.payload).toBe('list');
+          writePacket(socket, packet.requestId, 0, 'There are 1/10 players online');
+        }
+      });
     });
 
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -75,11 +77,11 @@ describe('RconClient', () => {
 
   it('rejects auth failures', async () => {
     const server = net.createServer((socket) => {
-      void (async () => {
-        const auth = await readPacket(socket);
-        writePacket(socket, -1, 2, '');
-        void auth;
-      })();
+      attachMockRconServer(socket, (packet) => {
+        if (packet.type === 3) {
+          writePacket(socket, -1, 2, '');
+        }
+      });
     });
 
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

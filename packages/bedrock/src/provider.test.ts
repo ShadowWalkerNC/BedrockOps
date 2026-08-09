@@ -35,10 +35,14 @@ describe('HostProvider Strategy Pattern', () => {
     expect(startResult).toBe(false);
 
     const rconResult = await provider.executeRcon(server, 'list');
-    // Unreachable host → honest error (never fake command success).
-    expect(rconResult).toContain('[RCON ERROR]');
+    // Disconnected Docker agent → honest stub (never fake command success).
+    expect(rconResult).toContain('[STUB]');
     expect(rconResult).toContain('list');
-    expect(rconResult).toContain('list');
+
+    const direct = HostProviderFactory.getProvider(HostProviderType.DIRECT_RCON_SSH);
+    const directRcon = await direct.executeRcon(server, 'list');
+    expect(directRcon).toContain('[RCON ERROR]');
+    expect(directRcon).toContain('list');
 
     const metrics = await provider.getStatus(server);
     expect(metrics).toHaveProperty('cpuPercent');

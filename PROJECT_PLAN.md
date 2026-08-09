@@ -35,21 +35,18 @@ This is **not** a race on RAM pricing against hosts. Competing hosts (e.g. Purpi
 
 ---
 
-## Current State (as of plan rewrite)
+## Current State (as of Wave A completion branch)
 
-**`main` today:** Phase-0 / M1 prototype — monorepo, Prisma schema, in-memory DB default, API + dashboard vertical slice, domain packages with honest stubs, strong E2E mock harness. Agent/worker/Discord apps are thin skeletons on `main`.
+**`main`:** Phase-0 / M1 prototype baseline + Realms-first plan rewrite.
 
-**In-flight feature branches** (stacked toward Wave A–B; merge only after CI green and honest integration):
+**Wave A completion branch** (`cursor/wave-a-complete-1b80`): lands A1–A5 without Wave B (M4/M5) — Go agent WSS tunnel, Source RCON codec, R2 streaming backup/restore, Prisma hydrate/flush + migrations, agent auth / honest stubs / upload host allowlist.
+
+**Deferred Wave B draft branches** (do not merge ahead of Wave A ship gate):
 
 | Branch | Intent |
 |--------|--------|
-| `cursor/go-agent-tunnel-ab1c` | CGNAT-safe Go agent + WSS tunnel (M2) |
-| `cursor/streaming-backups-r2-ab1c` | Save-hold + streaming backups → R2 (M3) |
 | `cursor/moderation-allowlist-m4-ab1c` | Player tracking, GDPR, allowlist sync (M4) |
 | `cursor/subdomain-onboarding-m5-ab1c` | Subdomain/ports + console onboarding (M5) |
-| `cursor/security-audit-remediation-ab1c` | Agent auth hardening, path jails, stub honesty |
-
-Treat those branches as implementation candidates for the waves below — not as “done on main.”
 
 ---
 

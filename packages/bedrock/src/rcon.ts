@@ -33,11 +33,12 @@ export class RconClient {
     }
 
     const socket = await connectWithTimeout(host, port, timeoutMs);
+    const reader = new PacketReader(socket);
+
     try {
-      socket.setTimeout(timeoutMs);
       const authId = allocId();
       await writePacket(socket, authId, PACKET_TYPE_AUTH, password);
-      const authResp = await readPacket(socket);
+      const authResp = await withTimeout(reader.read(), timeoutMs, 'rcon auth read timed out');
       if (authResp.requestId === AUTH_FAILURE_ID) {
         throw new Error('rcon authentication failed (invalid password)');
       }
@@ -47,7 +48,7 @@ export class RconClient {
 
       const cmdId = allocId();
       await writePacket(socket, cmdId, PACKET_TYPE_COMMAND, command);
-      const cmdResp = await readPacket(socket);
+      const cmdResp = await withTimeout(reader.read(), timeoutMs, 'rcon command read timed out');
       if (cmdResp.requestId === AUTH_FAILURE_ID) {
         throw new Error('rcon session not authenticated');
       }
@@ -56,6 +57,7 @@ export class RconClient {
       }
       return cmdResp.payload;
     } finally {
+      reader.close();
       socket.destroy();
     }
   }
@@ -102,70 +104,118 @@ function writePacket(socket: net.Socket, requestId: number, type: number, payloa
   });
 }
 
-async function readPacket(socket: net.Socket): Promise<{ requestId: number; type: number; payload: string }> {
-  const sizeBuf = await readExact(socket, 4);
-  const size = sizeBuf.readInt32LE(0);
-  if (size < MIN_PACKET_BODY || size > MAX_PACKET_BODY) {
-    throw new Error(`rcon packet size out of range: ${size}`);
-  }
-  const body = await readExact(socket, size);
-  const requestId = body.readInt32LE(0);
-  const type = body.readInt32LE(4);
-  let payloadEnd = body.length;
-  while (payloadEnd > 8 && body[payloadEnd - 1] === 0) {
-    payloadEnd -= 1;
-  }
-  const payload = body.subarray(8, payloadEnd).toString('utf8');
-  return { requestId, type, payload };
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
 }
 
-function readExact(socket: net.Socket, length: number): Promise<Buffer> {
-  const buffered = (socket as net.Socket & { _rconBuf?: Buffer })._rconBuf ?? Buffer.alloc(0);
+interface RconPacket {
+  requestId: number;
+  type: number;
+  payload: string;
+}
 
-  return new Promise((resolve, reject) => {
-    let acc = buffered;
+class PacketReader {
+  private buffer = Buffer.alloc(0);
+  private closed = false;
+  private waiters: Array<{
+    resolve: (packet: RconPacket) => void;
+    reject: (err: Error) => void;
+  }> = [];
 
-    const tryResolve = () => {
-      if (acc.length >= length) {
-        const out = acc.subarray(0, length);
-        (socket as net.Socket & { _rconBuf?: Buffer })._rconBuf = acc.subarray(length);
-        cleanup();
-        resolve(Buffer.from(out));
-        return true;
-      }
-      return false;
-    };
+  constructor(private readonly socket: net.Socket) {
+    this.socket.on('data', this.onData);
+    this.socket.on('error', this.onError);
+    this.socket.on('end', this.onEnd);
+    this.socket.on('close', this.onEnd);
+  }
 
-    const onData = (chunk: Buffer) => {
-      acc = Buffer.concat([acc, chunk]);
-      tryResolve();
-    };
-    const onError = (err: Error) => {
-      cleanup();
-      reject(err);
-    };
-    const onEnd = () => {
-      cleanup();
-      reject(new Error('rcon connection closed before packet completed'));
-    };
-    const onTimeout = () => {
-      cleanup();
-      reject(new Error('rcon read timed out'));
-    };
-    const cleanup = () => {
-      socket.off('data', onData);
-      socket.off('error', onError);
-      socket.off('end', onEnd);
-      socket.off('timeout', onTimeout);
-    };
-
-    if (tryResolve()) {
-      return;
+  public read(): Promise<RconPacket> {
+    if (this.closed) {
+      return Promise.reject(new Error('rcon connection closed'));
     }
+    const packet = this.tryParse();
+    if (packet) {
+      return Promise.resolve(packet);
+    }
+    return new Promise<RconPacket>((resolve, reject) => {
+      this.waiters.push({ resolve, reject });
+    });
+  }
 
-    socket.on('data', onData);
-    socket.on('error', onError);
-    socket.on('end', onEnd);
-    socket.on('timeout', onTimeout);
-  });
+  public close(): void {
+    this.socket.off('data', this.onData);
+    this.socket.off('error', this.onError);
+    this.socket.off('end', this.onEnd);
+    this.socket.off('close', this.onEnd);
+  }
+
+  private readonly onData = (chunk: Buffer) => {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    this.flushWaiters();
+  };
+
+  private readonly onError = (err: Error) => {
+    this.failWaiters(err);
+  };
+
+  private readonly onEnd = () => {
+    this.closed = true;
+    this.failWaiters(new Error('rcon connection closed before packet completed'));
+  };
+
+  private flushWaiters(): void {
+    while (this.waiters.length > 0) {
+      const packet = this.tryParse();
+      if (!packet) {
+        return;
+      }
+      const waiter = this.waiters.shift();
+      waiter?.resolve(packet);
+    }
+  }
+
+  private failWaiters(err: Error): void {
+    const pending = this.waiters.splice(0, this.waiters.length);
+    for (const waiter of pending) {
+      waiter.reject(err);
+    }
+  }
+
+  private tryParse(): RconPacket | null {
+    if (this.buffer.length < 4) {
+      return null;
+    }
+    const size = this.buffer.readInt32LE(0);
+    if (size < MIN_PACKET_BODY || size > MAX_PACKET_BODY) {
+      throw new Error(`rcon packet size out of range: ${size}`);
+    }
+    if (this.buffer.length < 4 + size) {
+      return null;
+    }
+    const body = this.buffer.subarray(4, 4 + size);
+    this.buffer = this.buffer.subarray(4 + size);
+    const requestId = body.readInt32LE(0);
+    const type = body.readInt32LE(4);
+    let payloadEnd = body.length;
+    while (payloadEnd > 8 && body[payloadEnd - 1] === 0) {
+      payloadEnd -= 1;
+    }
+    return {
+      requestId,
+      type,
+      payload: body.subarray(8, payloadEnd).toString('utf8')
+    };
+  }
 }
