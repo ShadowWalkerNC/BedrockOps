@@ -123,19 +123,39 @@ export interface GamertagResolution {
   resolvedAt: Date;
 }
 
+export type FriendInviteStatus = 'PENDING' | 'ACCEPTED' | 'FAILED' | 'REVOKED';
+
+export interface FriendInviteRecord {
+  id: string;
+  gamertag: string;
+  xuid: string;
+  botGamertag: string;
+  status: FriendInviteStatus;
+  stub: boolean;
+  dispatchedAt: Date;
+  updatedAt: Date;
+}
+
 /**
- * R4.1 / R5.2 — Xbox identity resolution.
+ * R4.1 / R5.2 — Xbox identity resolution + Friend Bot invites.
  * Without an OpenXBL/Xbox API key this uses a deterministic stub XUID
  * (same algorithm as the E2E MockXboxService) and marks `stub: true`.
  */
 export class XboxIdentityService {
   private customMappings = new Map<string, string>();
   private reverseMappings = new Map<string, string>();
+  private inviteHistory: FriendInviteRecord[] = [];
 
-  constructor(private readonly apiKey?: string) {}
+  constructor(
+    private readonly apiKey?: string,
+    private readonly botGamertag = 'BedrockOps Onboarding Bot'
+  ) {}
 
   public static fromEnv(env: NodeJS.ProcessEnv = process.env): XboxIdentityService {
-    return new XboxIdentityService(env.XBOX_API_KEY || env.OPENXBL_API_KEY);
+    return new XboxIdentityService(
+      env.XBOX_API_KEY || env.OPENXBL_API_KEY,
+      env.XBOX_FRIEND_BOT_GAMERTAG || 'BedrockOps Onboarding Bot'
+    );
   }
 
   public registerMapping(gamertag: string, xuid: string): void {
@@ -193,6 +213,56 @@ export class XboxIdentityService {
       stub: !this.apiKey,
       resolvedAt: new Date()
     };
+  }
+
+  /** R5.2 — Dispatch Xbox Friend Bot invitation (honest stub without live API). */
+  public async dispatchFriendInvite(gamertag: string): Promise<FriendInviteRecord> {
+    const resolution = await this.resolveGamertag(gamertag);
+    const now = new Date();
+    const record: FriendInviteRecord = {
+      id: `invite_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      gamertag: resolution.gamertag,
+      xuid: resolution.xuid,
+      botGamertag: this.botGamertag,
+      status: resolution.success ? 'PENDING' : 'FAILED',
+      stub: !this.apiKey,
+      dispatchedAt: now,
+      updatedAt: now
+    };
+    this.inviteHistory.push(record);
+    return record;
+  }
+
+  public acceptFriendInvite(inviteIdOrGamertag: string): FriendInviteRecord | undefined {
+    const record = this.inviteHistory.find(
+      (r) =>
+        r.id === inviteIdOrGamertag ||
+        r.gamertag.toLowerCase() === inviteIdOrGamertag.toLowerCase()
+    );
+    if (record) {
+      record.status = 'ACCEPTED';
+      record.updatedAt = new Date();
+    }
+    return record;
+  }
+
+  public getInviteHistory(filter?: {
+    gamertag?: string;
+    status?: FriendInviteStatus;
+  }): FriendInviteRecord[] {
+    return this.inviteHistory.filter((record) => {
+      if (filter?.gamertag && record.gamertag.toLowerCase() !== filter.gamertag.toLowerCase()) {
+        return false;
+      }
+      if (filter?.status && record.status !== filter.status) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  public clearInviteHistory(): void {
+    this.inviteHistory = [];
   }
 }
 
