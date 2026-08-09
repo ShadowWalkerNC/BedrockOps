@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { db, ServerStatus, UserRole, HostProviderType, BedrockServer } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
+import { NotificationDispatcher } from '@mc-admin/notifications';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
+import { rateLimitDestructive } from '../middleware/rate-limit.middleware';
+
+const CRASH_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export const serverRouter: Router = Router();
 
@@ -158,7 +162,7 @@ const powerSchema = z.object({
   action: z.enum(['START', 'STOP', 'RESTART', 'KILL'])
 });
 
-serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
+serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), rateLimitDestructive('server_power'), async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const parse = powerSchema.safeParse(req.body);
   if (!parse.success) {
@@ -208,6 +212,17 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), async (req: Aut
   return res.json({ success: true, action, server: toPublicServer(server) });
 });
 
+// GET /api/v1/servers/:id/status - live host metrics from the agent (zeros when offline)
+serverRouter.get('/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
+  if (!server) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+  const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
+  const metrics = await provider.getStatus(server);
+  return res.json({ serverId: server.id, status: server.status, metrics });
+});
+
 // POST /api/v1/servers/:id/rcon - Execute RCON command
 const rconSchema = z.object({
   command: z.string().min(1)
@@ -238,4 +253,60 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
   });
 
   return res.json({ success: true, output: result });
+});
+
+// POST /api/v1/servers/:id/crash - record a crash event (from agent/health monitor)
+const crashSchema = z.object({ reason: z.string().optional() });
+
+serverRouter.post('/:id/crash', requireRole(UserRole.MODERATOR), async (req: AuthenticatedRequest, res: Response) => {
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
+  if (!server) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+  const parse = crashSchema.safeParse(req.body ?? {});
+  if (!parse.success) {
+    return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
+  }
+
+  const now = new Date();
+  // Roll the 24h crash counter.
+  if (server.lastCrashAt && now.getTime() - new Date(server.lastCrashAt).getTime() > CRASH_WINDOW_MS) {
+    server.crashCount24h = 0;
+  }
+  server.crashCount24h = (server.crashCount24h ?? 0) + 1;
+  server.lastCrashAt = now;
+  server.status = ServerStatus.ERROR;
+  server.updatedAt = now;
+
+  AuditLogger.record({
+    actorId: req.user!.userId,
+    actorName: req.user!.username,
+    action: 'SERVER_CRASH_DETECTED',
+    entityType: 'BedrockServer',
+    entityId: server.id,
+    metadata: { reason: parse.data.reason, crashCount24h: server.crashCount24h }
+  });
+
+  // Best-effort Discord crash alert (real delivery when DISCORD_WEBHOOK_URL is set).
+  try {
+    await NotificationDispatcher.sendWebhook(process.env.DISCORD_WEBHOOK_URL || '', {
+      username: 'Minecraft Ops Alert',
+      embeds: [
+        {
+          title: `⚠ Crash Detected: ${server.name}`,
+          description: `Server **${server.name}** crashed${parse.data.reason ? `: ${parse.data.reason}` : '.'}`,
+          color: 0xef4444,
+          fields: [
+            { name: 'Crashes (24h)', value: String(server.crashCount24h), inline: true },
+            { name: 'Status', value: 'ERROR', inline: true }
+          ],
+          timestamp: now.toISOString()
+        }
+      ]
+    });
+  } catch {
+    // Alerting is best-effort and must not fail the crash-report request.
+  }
+
+  return res.json({ success: true, server: toPublicServer(server), crashCount24h: server.crashCount24h });
 });

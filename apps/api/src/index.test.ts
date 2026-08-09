@@ -5,6 +5,7 @@ import { db } from '@mc-admin/db';
 import { NotificationDispatcher } from '@mc-admin/notifications';
 import { signJwt } from '@mc-admin/auth';
 import { UserRole } from '@mc-admin/db';
+import { resetRateLimits } from './middleware/rate-limit.middleware';
 
 describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
   let authToken: string;
@@ -17,6 +18,7 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     db.agentNodes = [];
     NotificationDispatcher.sentMessages = [];
     db.seedDefaults();
+    resetRateLimits();
 
     authToken = signJwt(
       { userId: 'usr_admin_1', username: 'admin', role: UserRole.OWNER },
@@ -227,6 +229,78 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     const alert = NotificationDispatcher.sentMessages.find((m) => m.payload.username === 'Minecraft Backup Service');
     expect(alert).toBeDefined();
     expect(alert!.payload.embeds?.[0].description).toContain('failed');
+  });
+
+  it('returns operational analytics on GET /api/v1/analytics/overview', async () => {
+    const res = await request(app)
+      .get('/api/v1/analytics/overview')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.overview.servers.total).toBeGreaterThanOrEqual(1);
+    expect(res.body.overview.agents.total).toBeGreaterThanOrEqual(1);
+    expect(res.body.overview.backups.successRatePct).toBeGreaterThanOrEqual(0);
+    expect(typeof res.body.overview.generatedAt).toBe('string');
+  });
+
+  it('rate-limits repeated destructive power actions with a 429', async () => {
+    let got429 = false;
+    for (let i = 0; i < 40; i++) {
+      const res = await request(app)
+        .post('/api/v1/servers/srv_bedrock_1/power')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ action: 'RESTART' });
+      if (res.status === 429) {
+        got429 = true;
+        expect(res.body.error).toBe('RATE_LIMITED');
+        break;
+      }
+    }
+    expect(got429).toBe(true);
+  });
+
+  it('returns the BDS version catalog on GET /api/v1/versions', async () => {
+    const res = await request(app).get('/api/v1/versions').set('Authorization', `Bearer ${authToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.versions)).toBe(true);
+    expect(res.body.latest).toBeTruthy();
+  });
+
+  it('pins a BDS version with a pre-update backup and records an audit log', async () => {
+    const res = await request(app)
+      .post('/api/v1/versions/servers/srv_bedrock_1/pin')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ version: '1.20.80', backupBefore: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.version).toBe('1.20.80');
+    expect(res.body.backup).toBeTruthy();
+    expect(db.auditLogs.some((a) => a.action === 'BDS_VERSION_PIN')).toBe(true);
+  });
+
+  it('records a crash, sets ERROR status, and queues a crash alert', async () => {
+    const res = await request(app)
+      .post('/api/v1/servers/srv_bedrock_1/crash')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ reason: 'segfault' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.server.status).toBe('ERROR');
+    expect(res.body.crashCount24h).toBe(1);
+    expect(db.auditLogs.some((a) => a.action === 'SERVER_CRASH_DETECTED')).toBe(true);
+    const alert = NotificationDispatcher.sentMessages.find((m) => m.payload.embeds?.[0].title.includes('Crash Detected'));
+    expect(alert).toBeDefined();
+  });
+
+  it('returns live host metrics on GET /api/v1/servers/:id/status', async () => {
+    const res = await request(app)
+      .get('/api/v1/servers/srv_bedrock_1/status')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.serverId).toBe('srv_bedrock_1');
+    expect(res.body.metrics).toHaveProperty('cpuPercent');
+    expect(res.body.metrics).toHaveProperty('activePlayers');
   });
 
   it('lists audit logs on GET /api/v1/audit', async () => {
