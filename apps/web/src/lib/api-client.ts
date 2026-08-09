@@ -15,6 +15,13 @@ function canDevAutoLogin(): boolean {
   return process.env.NEXT_PUBLIC_DEV_AUTO_LOGIN === 'true';
 }
 
+function redirectToLogin(): void {
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname === '/login') return;
+  const next = encodeURIComponent(window.location.pathname + window.location.search);
+  window.location.assign(`/login?next=${next}`);
+}
+
 export async function login(email: string, password: string): Promise<string> {
   const res = await fetch('/api/v1/auth/login', {
     method: 'POST',
@@ -60,10 +67,8 @@ export async function ensureAuthenticated(): Promise<string> {
     return login('admin@minecraft-admin.local', 'admin');
   }
 
-  throw new ApiError(
-    'Not authenticated. Sign in via /api/v1/auth/login or set NEXT_PUBLIC_DEV_AUTO_LOGIN=true for local dev.',
-    401
-  );
+  redirectToLogin();
+  throw new ApiError('Not authenticated. Sign in via /login.', 401);
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -78,6 +83,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   });
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined' && !canDevAutoLogin()) {
+      logout();
+      redirectToLogin();
+    }
     const body = await res.json().catch(() => undefined);
     throw new ApiError(
       typeof body === 'object' && body && 'message' in body

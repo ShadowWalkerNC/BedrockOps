@@ -45,6 +45,20 @@ BedrockOps (internal package scope: `@mc-admin/*`) is a pnpm + Turborepo monorep
 
 ## Quick start
 
+### Production-shaped local (recommended)
+
+```bash
+pnpm install
+cp .env.example .env   # if you don't have one yet
+./scripts/start-local.sh
+# → http://localhost:3000/login  (admin@minecraft-admin.local / admin)
+```
+
+This starts Postgres, applies Prisma migrations, mints strong JWT/pairing secrets,
+disables silent auto-login, and launches API + web + Go agent (+ worker).
+
+### Manual / memory-mode quick path
+
 ```bash
 # Install dependencies
 pnpm install

@@ -41,12 +41,24 @@ deployment, set these (see `.env.example`, `packages/config/src/env.ts`,
 
 ## Pre-ship checklist
 
-- [ ] `pnpm install && pnpm --filter @mc-admin/db db:generate`
-- [ ] `pnpm lint && pnpm test && pnpm build` all green
-- [ ] Provision production secrets above; run DB migrations
+- [x] `pnpm install && pnpm --filter @mc-admin/db db:generate`
+- [x] `pnpm lint && pnpm test && pnpm build` all green (CI on `main`)
+- [x] Local production-shaped path: `DB_ADAPTER=prisma` + Postgres via `docker compose` + `/login` UI (`./scripts/start-local.sh`)
+- [ ] Provision production secrets above (R2 / Discord / Cloudflare / Xbox); rotate JWT + agent tokens out of seed defaults
 - [ ] Pair at least one Go agent to a real BDS host (`-bds-bin`) and verify power + backup + restore round-trip
 - [ ] Confirm Discord webhook receives a test alert
-- [ ] Restrict `CORS_ORIGIN`; disable `NEXT_PUBLIC_DEV_AUTO_LOGIN`
+- [x] Restrict `CORS_ORIGIN`; disable `NEXT_PUBLIC_DEV_AUTO_LOGIN` (login page at `/login`)
+
+### Local production-shaped play
+
+```bash
+docker compose up -d postgres
+./scripts/start-local.sh
+# open http://localhost:3000/login
+# admin@minecraft-admin.local / admin
+```
+
+Without R2/Discord/DNS/Xbox secrets, those adapters remain honest stubs (expected).
 
 ## Deferred: Wave D (content platform & optional partners)
 

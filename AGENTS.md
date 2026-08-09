@@ -63,6 +63,7 @@ This monorepo houses a Bedrock-first Minecraft server operations platform. All c
 The startup update script already runs `pnpm install` and `pnpm --filter @mc-admin/db db:generate`, so dependencies and the Prisma client are ready when a session begins. Do not re-run install steps unless something is broken.
 
 ### Services & how to run them
+- **Production-shaped local play:** `./scripts/start-local.sh` (Postgres + Prisma + API:4000 + web:3000 + Go agent + worker). Login at `/login` with seed `admin@minecraft-admin.local` / `admin`.
 - **Core end-to-end = `apps/api` (port 4000) + `apps/web` (port 3000).** Standard commands live in `README.md` / `package.json`; run the whole stack with `pnpm dev`, or start just the core with `pnpm --filter @mc-admin/api dev` and `pnpm --filter @mc-admin/web dev`.
 - The web dashboard proxies `/api/v1/*` to `API_URL` (default `http://localhost:4000`), so start the API before (or alongside) the web app.
 - Optional services (`worker`, `discord`, and the Go `agent`) are not needed to exercise the dashboard's core flow.
