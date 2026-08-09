@@ -86,11 +86,41 @@ describe('PortPool & DNS allocation (R5.1)', () => {
     expect(pool.remaining()).toBe(2);
   });
 
-  it('provisions deterministic subdomain A + SRV records', () => {
+  it('provisions deterministic subdomain A + SRV records', async () => {
     const allocator = new SubdomainAllocator(new PortPool(), new DnsProvider('play.example.com'));
-    const alloc = allocator.allocate({ serverId: 'srv_x', nodeIp: '198.51.100.5', subdomain: 'abc123' });
+    const alloc = await allocator.allocate({ serverId: 'srv_x', nodeIp: '198.51.100.5', subdomain: 'abc123' });
     expect(alloc.fqdn).toBe('abc123.play.example.com');
     expect(alloc.dns.srvRecord.content).toContain(`${alloc.port}`);
+    expect(alloc.dns.stub).toBe(true);
+    expect(alloc.dns.liveError).toContain('CLOUDFLARE_API_TOKEN');
     expect(generateSubdomain('srv_x')).toMatch(/^[a-f0-9]{6}$/);
+  });
+
+  it('posts live Cloudflare DNS records when token + zone are set', async () => {
+    const calls: string[] = [];
+    const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push(`${init?.method || 'GET'} ${String(url)}`);
+      return new Response(JSON.stringify({ success: true, result: { id: `cf_${calls.length}` } }), {
+        status: 200
+      });
+    };
+    const dns = new DnsProvider('play.example.com', 'cf-token', 'zone-1', fetchImpl as typeof fetch);
+    const result = await dns.provisionSubdomainLive('live1', '203.0.113.50', 19140);
+    expect(result.stub).toBe(false);
+    expect(result.aRecord.id).toBe('cf_1');
+    expect(result.srvRecord.id).toBe('cf_2');
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toContain('/zones/zone-1/dns_records');
+  });
+
+  it('keeps an honest stub when Cloudflare API fails', async () => {
+    const fetchImpl = async () =>
+      new Response(JSON.stringify({ success: false, errors: [{ message: 'Invalid zone' }] }), {
+        status: 400
+      });
+    const dns = new DnsProvider('play.example.com', 'cf-token', 'zone-1', fetchImpl as typeof fetch);
+    const result = await dns.provisionSubdomainLive('bad', '203.0.113.50', 19141);
+    expect(result.stub).toBe(true);
+    expect(result.liveError).toContain('Invalid zone');
   });
 });

@@ -44,7 +44,7 @@ export class PipelineEngine {
     let network: NetworkAllocation | undefined;
 
     if (params.allocateNetwork) {
-      network = this.allocator.allocate({
+      network = await this.allocator.allocate({
         serverId,
         nodeIp: params.nodeIp || '127.0.0.1',
         subdomain: params.subdomain,
@@ -54,7 +54,9 @@ export class PipelineEngine {
       port = network.port;
       logs.push(
         `[Step 1/4] Allocated network ${network.fqdn}:${network.port}` +
-          (network.dns.stub ? ' (DNS stub — Cloudflare token unset)' : '')
+          (network.dns.stub
+            ? ` (DNS stub${network.dns.liveError ? ` — ${network.dns.liveError}` : ''})`
+            : ' (Cloudflare live)')
       );
     }
 
