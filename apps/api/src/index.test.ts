@@ -193,6 +193,39 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(got429).toBe(true);
   });
 
+  it('returns the BDS version catalog on GET /api/v1/versions', async () => {
+    const res = await request(app).get('/api/v1/versions').set('Authorization', `Bearer ${authToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.versions)).toBe(true);
+    expect(res.body.latest).toBeTruthy();
+  });
+
+  it('pins a BDS version with a pre-update backup and records an audit log', async () => {
+    const res = await request(app)
+      .post('/api/v1/versions/servers/srv_bedrock_1/pin')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ version: '1.20.80', backupBefore: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.version).toBe('1.20.80');
+    expect(res.body.backup).toBeTruthy();
+    expect(db.auditLogs.some((a) => a.action === 'BDS_VERSION_PIN')).toBe(true);
+  });
+
+  it('records a crash, sets ERROR status, and queues a crash alert', async () => {
+    const res = await request(app)
+      .post('/api/v1/servers/srv_bedrock_1/crash')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ reason: 'segfault' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.server.status).toBe('ERROR');
+    expect(res.body.crashCount24h).toBe(1);
+    expect(db.auditLogs.some((a) => a.action === 'SERVER_CRASH_DETECTED')).toBe(true);
+    const alert = NotificationDispatcher.sentMessages.find((m) => m.payload.embeds?.[0].title.includes('Crash Detected'));
+    expect(alert).toBeDefined();
+  });
+
   it('returns live host metrics on GET /api/v1/servers/:id/status', async () => {
     const res = await request(app)
       .get('/api/v1/servers/srv_bedrock_1/status')
