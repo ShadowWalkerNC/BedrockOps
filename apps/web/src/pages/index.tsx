@@ -1,587 +1,371 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { 
-  Shield, 
-  Server, 
-  HardDrive, 
-  UserX, 
-  MessageSquare, 
-  Layers, 
-  Gift, 
-  Play, 
-  Square, 
-  RotateCcw, 
-  Plus, 
-  Search, 
-  CheckCircle, 
-  X,
-  RefreshCw
-} from 'lucide-react';
-import { UI_THEME, Badge, ConfirmModal } from '@mc-admin/ui';
+import { THEME } from '@mc-admin/ui';
+import { AppShell } from '../components/AppShell';
 import { apiFetch } from '../lib/api-client';
-import {
-  DashboardBackup,
-  DashboardModeration,
-  DashboardServer,
-  toPowerAction
-} from '../lib/types';
+import { DashboardBackup, DashboardModeration, DashboardServer, toPowerAction } from '../lib/types';
 
-type Tab = 'servers' | 'backups' | 'moderation' | 'discord' | 'templates' | 'referrals' | 'audit';
+const c = THEME.colors;
 
-export default function BedrockAdminDashboard() {
-  const [activeTab, setActiveTab] = useState<Tab>('servers');
+export default function Dashboard() {
   const [notification, setNotification] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  // Data states connected to backend API
   const [servers, setServers] = useState<DashboardServer[]>([]);
   const [backups, setBackups] = useState<DashboardBackup[]>([]);
   const [moderations, setModerations] = useState<DashboardModeration[]>([]);
 
-  // Modal states
-  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [pendingConfirmAction, setPendingConfirmAction] = useState<{ title: string; desc: string; onConfirm: () => void } | null>(null);
+  const [isRegisterOpen, setRegisterOpen] = useState(false);
+  const [confirm, setConfirm] = useState<{ title: string; desc: string; onConfirm: () => void } | null>(null);
 
-  // Register Server Form state
   const [regName, setRegName] = useState('');
-  const [regHost, setRegHost] = useState('127.0.0.1');
-  const [regPort, setRegPort] = useState('19132');
-  const [regRconPort, setRegRconPort] = useState('19133');
-  const [regMaxPlayers, setRegMaxPlayers] = useState('10');
   const [regGameMode, setRegGameMode] = useState('survival');
   const [regDifficulty, setRegDifficulty] = useState('hard');
 
-  // Moderation Form state
-  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
+  const [playerQuery, setPlayerQuery] = useState('');
   const [modGamertag, setModGamertag] = useState('');
   const [modReason, setModReason] = useState('');
   const [modAction, setModAction] = useState('WARN');
 
-  // Discord State
-  const [webhookUrl, setWebhookUrl] = useState('');
-
-  const showNotify = (msg: string) => {
+  const notify = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Fetch live state from API
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const [resServers, resBackups, resMod] = await Promise.all([
+      const [s, b, m] = await Promise.all([
         apiFetch<{ servers: DashboardServer[] }>('/servers'),
         apiFetch<{ backups: DashboardBackup[] }>('/backups'),
         apiFetch<{ moderationActions: DashboardModeration[] }>('/moderation')
       ]);
-
-      setServers(resServers.servers);
-      setBackups(resBackups.backups);
-      setModerations(resMod.moderationActions);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Failed to load dashboard data';
-      console.error('Failed to load dashboard data:', e);
-      showNotify(message);
+      setServers(s.servers);
+      setBackups(b.backups);
+      setModerations(m.moderationActions);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Server Register Handler
-  const handleRegisterServer = async (e: React.FormEvent) => {
+  const stats = useMemo(() => {
+    const online = servers.filter((s) => s.status === 'ONLINE').length;
+    const finished = backups.filter((b) => b.status === 'COMPLETED' || b.status === 'FAILED').length;
+    const completed = backups.filter((b) => b.status === 'COMPLETED').length;
+    const successRate = finished === 0 ? 100 : Math.round((completed / finished) * 100);
+    return { online, total: servers.length, backupCount: backups.length, successRate, modCount: moderations.length };
+  }, [servers, backups, moderations]);
+
+  const registerServer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regName) return;
-
     try {
       const data = await apiFetch<{ server: DashboardServer }>('/servers', {
         method: 'POST',
-        body: JSON.stringify({
-          name: regName,
-          host: regHost,
-          port: Number(regPort),
-          rconPort: Number(regRconPort),
-          maxPlayers: Number(regMaxPlayers),
-          gameMode: regGameMode,
-          difficulty: regDifficulty
-        })
+        body: JSON.stringify({ name: regName, gameMode: regGameMode, difficulty: regDifficulty })
       });
-      showNotify(`Server "${data.server.name}" registered. Backup queued (pending agent integration).`);
-      setIsRegisterModalOpen(false);
+      notify(`Server "${data.server.name}" registered.`);
+      setRegisterOpen(false);
       setRegName('');
-      fetchDashboardData();
-    } catch (err: unknown) {
-      showNotify(`Error registering server: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      fetchData();
+    } catch (err) {
+      notify(`Register failed: ${err instanceof Error ? err.message : 'unknown error'}`);
     }
   };
 
-  // Server Control Handler
-  const handleServerControl = async (id: string, action: 'start' | 'stop' | 'restart') => {
-    const targetServer = servers.find(s => s.id === id);
-
-    const executeCall = async () => {
+  const serverControl = async (id: string, action: 'start' | 'stop' | 'restart') => {
+    const target = servers.find((s) => s.id === id);
+    const run = async () => {
       try {
-        const data = await apiFetch<{ success: boolean; server: DashboardServer; action: string }>(
-          `/servers/${id}/power`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ action: toPowerAction(action) })
-          }
-        );
-        if (data.success) {
-          showNotify(`Server ${data.server.name}: ${data.action} command accepted.`);
-          fetchDashboardData();
-        } else {
-          showNotify(`Power action failed — agent integration may be pending.`);
-        }
-      } catch (err: unknown) {
-        showNotify(`Control action failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        const data = await apiFetch<{ success: boolean; server: DashboardServer; action: string }>(`/servers/${id}/power`, {
+          method: 'POST',
+          body: JSON.stringify({ action: toPowerAction(action) })
+        });
+        notify(data.success ? `${data.server.name}: ${data.action} accepted.` : 'Power action failed — agent may be offline.');
+        fetchData();
+      } catch (err) {
+        notify(`Control failed: ${err instanceof Error ? err.message : 'unknown error'}`);
       }
     };
-
     if (action === 'stop') {
-      setPendingConfirmAction({
-        title: `Stop Bedrock Server: ${targetServer?.name || id}`,
-        desc: 'Are you sure you want to stop this server process? Active players will be disconnected immediately.',
+      setConfirm({
+        title: `Stop ${target?.name || id}?`,
+        desc: 'Active players will be disconnected immediately.',
         onConfirm: () => {
-          setIsConfirmModalOpen(false);
-          executeCall();
+          setConfirm(null);
+          run();
         }
       });
-      setIsConfirmModalOpen(true);
     } else {
-      executeCall();
+      run();
     }
   };
 
-  // Run Manual Backup Handler
-  const handleTriggerBackup = async (serverId: string) => {
+  const triggerBackup = async (serverId: string) => {
     try {
       const data = await apiFetch<{ backup: DashboardBackup }>('/backups', {
         method: 'POST',
         body: JSON.stringify({ serverId, isManual: true })
       });
-      showNotify(
-        data.backup.status === 'PENDING'
-          ? `Backup queued (${data.backup.filename}) — pending agent integration.`
-          : `Snapshot created (${data.backup.filename})`
-      );
-      fetchDashboardData();
-    } catch (err: unknown) {
-      showNotify(`Backup failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      notify(`Backup ${data.backup.status === 'PENDING' ? 'queued' : 'created'} (${data.backup.filename}).`);
+      fetchData();
+    } catch (err) {
+      notify(`Backup failed: ${err instanceof Error ? err.message : 'unknown error'}`);
     }
   };
 
-  const handleRestoreBackup = async (backupId: string, filename: string) => {
+  const restoreBackup = async (backupId: string, filename: string) => {
     try {
       await apiFetch(`/backups/${backupId}/restore`, { method: 'POST' });
-      showNotify(`Restored snapshot ${filename}.`);
-    } catch (err: unknown) {
-      showNotify(
-        err instanceof Error && (err.message.includes('RESTORE_UNAVAILABLE') || err.message.includes('NOT_IMPLEMENTED'))
-          ? `Restore unavailable for ${filename} (agent/R2 required).`
-          : `Restore failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-      );
+      notify(`Restored ${filename}.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown error';
+      notify(msg.includes('UNAVAILABLE') || msg.includes('NOT_IMPLEMENTED') ? `Restore unavailable for ${filename} (agent/R2 required).` : `Restore failed: ${msg}`);
     }
   };
 
-  // Record Moderation Handler
-  const handleAddModeration = async (e: React.FormEvent) => {
+  const addModeration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modGamertag || !modReason) return;
-
-    const executeCall = async () => {
+    const run = async () => {
       try {
         await apiFetch('/moderation', {
           method: 'POST',
-          body: JSON.stringify({
-            gamertag: modGamertag,
-            actionType: modAction,
-            reason: modReason
-          })
+          body: JSON.stringify({ gamertag: modGamertag, actionType: modAction, reason: modReason })
         });
-        showNotify(`Recorded ${modAction} infraction for player "${modGamertag}".`);
+        notify(`Recorded ${modAction} for "${modGamertag}".`);
         setModGamertag('');
         setModReason('');
-        fetchDashboardData();
-      } catch (err: unknown) {
-        showNotify(`Failed to record moderation: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        fetchData();
+      } catch (err) {
+        notify(`Moderation failed: ${err instanceof Error ? err.message : 'unknown error'}`);
       }
     };
-
     if (modAction === 'BAN') {
-      setPendingConfirmAction({
-        title: `Ban Player: ${modGamertag}`,
-        desc: `Are you sure you want to issue a permanent BAN to ${modGamertag}? Reason: "${modReason}".`,
+      setConfirm({
+        title: `Ban ${modGamertag}?`,
+        desc: `Issue a permanent BAN to ${modGamertag}. Reason: "${modReason}".`,
         onConfirm: () => {
-          setIsConfirmModalOpen(false);
-          executeCall();
+          setConfirm(null);
+          run();
         }
       });
-      setIsConfirmModalOpen(true);
     } else {
-      executeCall();
+      run();
     }
   };
 
+  const refreshPill = (
+    <button onClick={fetchData} style={{ background: c.surfaceContainer, color: c.onSurfaceVariant, border: `2px solid ${c.outline}`, borderRadius: THEME.radius.md, padding: '6px 12px', fontFamily: THEME.fonts.mono, fontSize: 12, cursor: 'pointer' }}>
+      {loading ? '⟳ Syncing…' : '⟳ Sync'}
+    </button>
+  );
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: UI_THEME.colors.bgDark, color: UI_THEME.colors.textMain, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {/* Header Bar */}
-      <header style={{ borderBottom: '1px solid #1f2937', padding: '16px 24px', backgroundColor: '#0d1322', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ backgroundColor: '#1d4ed8', padding: '8px', borderRadius: '8px' }}>
-            <Shield size={22} color="#fff" />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>BedrockOps Platform</h1>
-              <span style={{ backgroundColor: '#1e3a8a', color: '#60a5fa', fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px' }}>Live Engine</span>
-            </div>
-            <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#9ca3af' }}>Bedrock Dedicated Server Administration & Operational Safety Engine</p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/console" style={{ color: '#60a5fa', fontSize: '13px', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <MessageSquare size={14} /> Live Console →
-          </Link>
-          <button onClick={fetchDashboardData} style={{ backgroundColor: '#1f2937', color: '#9ca3af', border: '1px solid #374151', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
-            <RefreshCw size={14} className={loading ? 'spin' : ''} /> Sync Engine
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#111827', border: '1px solid #1f2937', padding: '6px 12px', borderRadius: '6px', fontSize: '13px' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
-            <span>Agent Daemon: <strong style={{ color: '#22c55e' }}>ONLINE (Port 5050)</strong></span>
-          </div>
-        </div>
-      </header>
-
-      {/* Global Notification Banner */}
+    <AppShell active="dashboard" topRight={refreshPill}>
       {notification && (
-        <div style={{ backgroundColor: '#14532d', borderBottom: '1px solid #166534', color: '#4ade80', padding: '10px 24px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <CheckCircle size={16} />
-          {notification}
+        <div style={{ background: c.primaryContainer, color: c.onPrimary, border: `2px solid ${c.primary}`, borderRadius: THEME.radius.md, padding: '10px 14px', fontFamily: THEME.fonts.mono, fontSize: 13 }}>
+          ✓ {notification}
         </div>
       )}
 
-      {/* Main Layout Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', minHeight: 'calc(100vh - 65px)' }}>
-        {/* Navigation Sidebar */}
-        <nav style={{ borderRight: '1px solid #1f2937', backgroundColor: '#0b101d', padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <button onClick={() => setActiveTab('servers')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 12px', borderRadius: '6px', border: 'none', backgroundColor: activeTab === 'servers' ? '#1d4ed8' : 'transparent', color: activeTab === 'servers' ? '#fff' : '#9ca3af', cursor: 'pointer', textAlign: 'left', fontWeight: 500, fontSize: '14px' }}>
-            <Server size={18} /> Server Nodes ({servers.length})
-          </button>
-          <button onClick={() => setActiveTab('backups')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 12px', borderRadius: '6px', border: 'none', backgroundColor: activeTab === 'backups' ? '#1d4ed8' : 'transparent', color: activeTab === 'backups' ? '#fff' : '#9ca3af', cursor: 'pointer', textAlign: 'left', fontWeight: 500, fontSize: '14px' }}>
-            <HardDrive size={18} /> Backups & Safety ({backups.length})
-          </button>
-          <button onClick={() => setActiveTab('moderation')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 12px', borderRadius: '6px', border: 'none', backgroundColor: activeTab === 'moderation' ? '#1d4ed8' : 'transparent', color: activeTab === 'moderation' ? '#fff' : '#9ca3af', cursor: 'pointer', textAlign: 'left', fontWeight: 500, fontSize: '14px' }}>
-            <UserX size={18} /> Moderation & Staff ({moderations.length})
-          </button>
-          <button onClick={() => setActiveTab('discord')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 12px', borderRadius: '6px', border: 'none', backgroundColor: activeTab === 'discord' ? '#1d4ed8' : 'transparent', color: activeTab === 'discord' ? '#fff' : '#9ca3af', cursor: 'pointer', textAlign: 'left', fontWeight: 500, fontSize: '14px' }}>
-            <MessageSquare size={18} /> Discord Relay
-          </button>
-          <button onClick={() => setActiveTab('templates')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 12px', borderRadius: '6px', border: 'none', backgroundColor: activeTab === 'templates' ? '#1d4ed8' : 'transparent', color: activeTab === 'templates' ? '#fff' : '#9ca3af', cursor: 'pointer', textAlign: 'left', fontWeight: 500, fontSize: '14px' }}>
-            <Layers size={18} /> Templates & Presets
-          </button>
-          <button onClick={() => setActiveTab('referrals')} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 12px', borderRadius: '6px', border: 'none', backgroundColor: activeTab === 'referrals' ? '#1d4ed8' : 'transparent', color: activeTab === 'referrals' ? '#fff' : '#9ca3af', cursor: 'pointer', textAlign: 'left', fontWeight: 500, fontSize: '14px' }}>
-            <Gift size={18} /> Referral Program
-          </button>
-        </nav>
-
-        {/* Dynamic Workspace */}
-        <main style={{ padding: '24px', backgroundColor: '#090d16', overflowY: 'auto' }}>
-          {/* SERVER NODES TAB */}
-          {activeTab === 'servers' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                  <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Bedrock Server Nodes</h2>
-                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#9ca3af' }}>Manage process state, properties, ports, and safety controls</p>
-                </div>
-                <button onClick={() => setIsRegisterModalOpen(true)} style={{ backgroundColor: '#1d4ed8', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                  <Plus size={16} /> Register New Server Node
-                </button>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '16px' }}>
-                {servers.map((server) => (
-                  <div key={server.id} style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '8px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>{server.name}</h3>
-                          <Badge status={server.status} />
-                        </div>
-                        <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#9ca3af' }}>
-                          Host: {server.host}:{server.port} | RCON Port: {server.rconPort}
-                        </p>
-                      </div>
-                      <span style={{ fontSize: '12px', color: '#6b7280', fontFamily: 'monospace' }}>BDS v{server.version}</span>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '10px', borderRadius: '6px', textAlign: 'center' }}>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#9ca3af', display: 'block' }}>Slots</span>
-                        <strong style={{ fontSize: '14px', color: '#3b82f6' }}>{server.maxPlayers} Max</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#9ca3af', display: 'block' }}>Game Mode</span>
-                        <strong style={{ fontSize: '14px', textTransform: 'capitalize' }}>{server.gameMode}</strong>
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: '#9ca3af', display: 'block' }}>Difficulty</span>
-                        <strong style={{ fontSize: '14px', textTransform: 'capitalize' }}>{server.difficulty}</strong>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button 
-                        onClick={() => handleServerControl(server.id, server.status === 'ONLINE' ? 'stop' : 'start')}
-                        style={{ flex: 1, backgroundColor: server.status === 'ONLINE' ? '#7f1d1d' : '#14532d', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
-                      >
-                        {server.status === 'ONLINE' ? <Square size={14} /> : <Play size={14} />}
-                        {server.status === 'ONLINE' ? 'Stop Process' : 'Start Process'}
-                      </button>
-
-                      <button 
-                        onClick={() => handleServerControl(server.id, 'restart')}
-                        style={{ backgroundColor: '#1f2937', color: '#f9fafb', border: '1px solid #374151', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}
-                      >
-                        <RotateCcw size={14} /> Restart
-                      </button>
-
-                      <button 
-                        onClick={() => handleTriggerBackup(server.id)}
-                        style={{ backgroundColor: '#1d4ed8', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600 }}
-                      >
-                        <HardDrive size={14} /> Snapshot
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* BACKUPS TAB */}
-          {activeTab === 'backups' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                  <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Safety Snapshots & Backup History</h2>
-                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#9ca3af' }}>Create manual snapshots or validate archive restore integrity</p>
-                </div>
-                <button onClick={() => handleTriggerBackup(servers[0]?.id || 'srv_main_1')} style={{ backgroundColor: '#1d4ed8', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}>
-                  <HardDrive size={16} /> Trigger Safety Snapshot Now
-                </button>
-              </div>
-
-              <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '8px', padding: '16px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #1f2937', color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '10px' }}>Archive Filename</th>
-                      <th style={{ padding: '10px' }}>Server Target</th>
-                      <th style={{ padding: '10px' }}>Size</th>
-                      <th style={{ padding: '10px' }}>Type</th>
-                      <th style={{ padding: '10px' }}>Status</th>
-                      <th style={{ padding: '10px' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {backups.map(b => (
-                      <tr key={b.id} style={{ borderBottom: '1px solid #1f2937' }}>
-                        <td style={{ padding: '10px', fontFamily: 'monospace', color: '#60a5fa' }}>{b.filename}</td>
-                        <td style={{ padding: '10px' }}>{b.serverId}</td>
-                        <td style={{ padding: '10px' }}>{(b.fileSizeBytes ? (b.fileSizeBytes / (1024 * 1024)).toFixed(1) : '0.0')} MB</td>
-                        <td style={{ padding: '10px' }}>{b.isManual ? 'Manual' : 'Scheduled'}</td>
-                        <td style={{ padding: '10px' }}>
-                          <Badge status={b.status} />
-                        </td>
-                        <td style={{ padding: '10px' }}>
-                          <button onClick={() => handleRestoreBackup(b.id, b.filename)} style={{ backgroundColor: '#1f2937', border: '1px solid #374151', color: '#fff', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                            Validate & Restore
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* MODERATION TAB */}
-          {activeTab === 'moderation' && (
-            <div>
-              <div style={{ marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: 600, margin: 0 }}>Player Moderation & Staff Logs</h2>
-                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#9ca3af' }}>Search player history and record warnings, mutes, kicks, and bans</p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px' }}>
-                <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '8px', padding: '16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', backgroundColor: '#090d16', border: '1px solid #1f2937', borderRadius: '6px', padding: '8px 12px' }}>
-                    <Search size={16} color="#9ca3af" />
-                    <input 
-                      type="text" 
-                      placeholder="Filter player gamertags..." 
-                      value={playerSearchQuery} 
-                      onChange={(e) => setPlayerSearchQuery(e.target.value)} 
-                      style={{ backgroundColor: 'transparent', border: 'none', color: '#fff', width: '100%', outline: 'none', fontSize: '14px' }} 
-                    />
-                  </div>
-
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #1f2937', color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase' }}>
-                        <th style={{ padding: '10px' }}>Gamertag</th>
-                        <th style={{ padding: '10px' }}>Action</th>
-                        <th style={{ padding: '10px' }}>Reason</th>
-                        <th style={{ padding: '10px' }}>Issuer</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {moderations
-                        .filter(m => m.gamertag.toLowerCase().includes(playerSearchQuery.toLowerCase()))
-                        .map(m => (
-                          <tr key={m.id} style={{ borderBottom: '1px solid #1f2937' }}>
-                            <td style={{ padding: '10px', fontWeight: 600 }}>{m.gamertag}</td>
-                            <td style={{ padding: '10px' }}>
-                              <span style={{ 
-                                backgroundColor: m.actionType === 'BAN' ? '#7f1d1d' : m.actionType === 'MUTE' ? '#78350f' : '#1e3a8a', 
-                                color: m.actionType === 'BAN' ? '#f87171' : m.actionType === 'MUTE' ? '#fde047' : '#60a5fa', 
-                                padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' 
-                              }}>
-                                {m.actionType}
-                              </span>
-                            </td>
-                            <td style={{ padding: '10px', color: '#d1d5db' }}>{m.reason}</td>
-                            <td style={{ padding: '10px', color: '#9ca3af' }}>{m.issuerName || 'admin'}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Submit Infraction Form */}
-                <form onSubmit={handleAddModeration} style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '8px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Record Staff Action</h3>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Player Gamertag</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="e.g. GriefMaster99" 
-                      value={modGamertag}
-                      onChange={(e) => setModGamertag(e.target.value)}
-                      style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Action Type</label>
-                    <select 
-                      value={modAction} 
-                      onChange={(e) => setModAction(e.target.value)}
-                      style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
-                    >
-                      <option value="WARN">WARN</option>
-                      <option value="MUTE">MUTE</option>
-                      <option value="KICK">KICK</option>
-                      <option value="BAN">BAN</option>
-                      <option value="NOTE">NOTE</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Reason & Evidence</label>
-                    <textarea 
-                      required
-                      rows={3}
-                      placeholder="Reason for audit log..." 
-                      value={modReason}
-                      onChange={(e) => setModReason(e.target.value)}
-                      style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }}
-                    />
-                  </div>
-
-                  <button type="submit" style={{ backgroundColor: '#1d4ed8', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>
-                    Submit Moderation Record
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-        </main>
+      <div>
+        <h1 style={{ fontFamily: THEME.fonts.heading, fontSize: 32, fontWeight: 700, margin: 0 }}>
+          Operations Overview
+        </h1>
+        <p style={{ color: c.onSurfaceVariant, margin: '4px 0 0' }}>
+          {stats.online} of {stats.total} realms online · {stats.successRate}% backup success
+        </p>
       </div>
 
-      {/* MODAL 1: REGISTER NEW SERVER NODE */}
-      {isRegisterModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: '8px', padding: '24px', width: '480px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Register New Bedrock Server Node</h3>
-              <button onClick={() => setIsRegisterModalOpen(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}><X size={18} /></button>
+      {/* Stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: THEME.space.sm }}>
+        <StatCard label="SERVERS" value={`${stats.total}`} sub={`${stats.online} online`} accent={c.primary} />
+        <StatCard label="BACKUPS" value={`${stats.successRate}%`} sub={`${stats.backupCount} snapshots`} accent={c.tertiary} />
+        <StatCard label="MODERATION" value={`${stats.modCount}`} sub="active records" accent={c.warning} />
+        <StatCard label="CONSOLE" value="LIVE" sub="open live terminal →" accent={c.primary} href="/console" />
+      </div>
+
+      {/* Active Realms */}
+      <Panel title="🖧 Active Realms" action={<button onClick={() => setRegisterOpen(true)} style={primaryBtn()}>+ Register Server</button>}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: THEME.fonts.mono, fontSize: 13 }}>
+          <thead>
+            <tr style={{ color: c.onSurfaceVariant, textAlign: 'left', borderBottom: `2px solid ${c.outline}` }}>
+              <th style={th}>Realm</th><th style={th}>Status</th><th style={th}>Slots</th><th style={th}>Version</th><th style={th}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {servers.map((s) => (
+              <tr key={s.id} style={{ borderBottom: `1px solid ${c.outline}` }}>
+                <td style={td}>{s.name}<div style={{ color: c.onSurfaceVariant, fontSize: 11 }}>{s.host}:{s.port}</div></td>
+                <td style={td}><StatusDot status={s.status} /></td>
+                <td style={td}>{s.maxPlayers}</td>
+                <td style={td}>{s.version}</td>
+                <td style={td}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => serverControl(s.id, s.status === 'ONLINE' ? 'stop' : 'start')} style={s.status === 'ONLINE' ? ghostBtn(c.error) : ghostBtn(c.primary)}>
+                      {s.status === 'ONLINE' ? '■ Stop' : '▶ Start'}
+                    </button>
+                    <button onClick={() => serverControl(s.id, 'restart')} style={ghostBtn(c.tertiary)}>⟳</button>
+                    <button onClick={() => triggerBackup(s.id)} style={ghostBtn(c.secondary)}>⛃ Backup</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {servers.length === 0 && (
+              <tr><td style={{ ...td, color: c.onSurfaceVariant }} colSpan={5}>No realms yet — register one to get started.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </Panel>
+
+      {/* Backups + Moderation two-up */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: THEME.space.md }}>
+        <Panel title="⛃ Safety Snapshots">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: THEME.fonts.mono, fontSize: 12 }}>
+            <thead>
+              <tr style={{ color: c.onSurfaceVariant, textAlign: 'left', borderBottom: `2px solid ${c.outline}` }}>
+                <th style={th}>Archive</th><th style={th}>Status</th><th style={th}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {backups.map((b) => (
+                <tr key={b.id} style={{ borderBottom: `1px solid ${c.outline}` }}>
+                  <td style={{ ...td, color: c.tertiary }}>{b.filename}</td>
+                  <td style={td}><StatusDot status={b.status} /></td>
+                  <td style={td}><button onClick={() => restoreBackup(b.id, b.filename)} style={ghostBtn(c.secondary)}>Restore</button></td>
+                </tr>
+              ))}
+              {backups.length === 0 && <tr><td style={{ ...td, color: c.onSurfaceVariant }} colSpan={3}>No snapshots yet.</td></tr>}
+            </tbody>
+          </table>
+        </Panel>
+
+        <Panel title="⚔ Player Moderation">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <input value={playerQuery} onChange={(e) => setPlayerQuery(e.target.value)} placeholder="Filter gamertags…" style={inputStyle()} />
+            <div style={{ maxHeight: 120, overflowY: 'auto' }}>
+              {moderations.filter((m) => m.gamertag.toLowerCase().includes(playerQuery.toLowerCase())).map((m) => (
+                <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${c.outline}`, fontFamily: THEME.fonts.mono, fontSize: 12 }}>
+                  <span style={{ fontWeight: 700 }}>{m.gamertag}</span>
+                  <StatusDot status={m.actionType} />
+                  <span style={{ color: c.onSurfaceVariant, flex: 1, textAlign: 'right' }}>{m.reason}</span>
+                </div>
+              ))}
+              {moderations.length === 0 && <div style={{ color: c.onSurfaceVariant, fontSize: 12, padding: '6px 0' }}>No moderation records.</div>}
             </div>
-
-            <form onSubmit={handleRegisterServer} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Server Display Name</label>
-                <input required type="text" placeholder="e.g. Faction Realm 1" value={regName} onChange={e => setRegName(e.target.value)} style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
+            <form onSubmit={addModeration} style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: `2px solid ${c.outline}`, paddingTop: 10 }}>
+              <input required value={modGamertag} onChange={(e) => setModGamertag(e.target.value)} placeholder="Gamertag" style={inputStyle()} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={modAction} onChange={(e) => setModAction(e.target.value)} style={{ ...inputStyle(), flex: '0 0 120px' }}>
+                  {['WARN', 'MUTE', 'KICK', 'BAN', 'NOTE'].map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <input required value={modReason} onChange={(e) => setModReason(e.target.value)} placeholder="Reason" style={{ ...inputStyle(), flex: 1 }} />
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Port (UDP)</label>
-                  <input required type="number" value={regPort} onChange={e => setRegPort(e.target.value)} style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>RCON Port</label>
-                  <input required type="number" value={regRconPort} onChange={e => setRegRconPort(e.target.value)} style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }} />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Game Mode</label>
-                  <select value={regGameMode} onChange={e => setRegGameMode(e.target.value)} style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px' }}>
-                    <option value="survival">Survival</option>
-                    <option value="creative">Creative</option>
-                    <option value="adventure">Adventure</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#9ca3af', display: 'block', marginBottom: '4px' }}>Difficulty</label>
-                  <select value={regDifficulty} onChange={e => setRegDifficulty(e.target.value)} style={{ width: '100%', backgroundColor: '#090d16', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: '6px', color: '#fff', fontSize: '13px' }}>
-                    <option value="peaceful">Peaceful</option>
-                    <option value="easy">Easy</option>
-                    <option value="normal">Normal</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                <button type="button" onClick={() => setIsRegisterModalOpen(false)} style={{ backgroundColor: '#1f2937', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
-                <button type="submit" style={{ backgroundColor: '#1d4ed8', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', fontSize: '13px' }}>Save & Initialize Server Node</button>
-              </div>
+              <button type="submit" style={primaryBtn()}>Record Action</button>
             </form>
           </div>
-        </div>
+        </Panel>
+      </div>
+
+      {/* Register modal */}
+      {isRegisterOpen && (
+        <ModalShell title="Register New Realm" onClose={() => setRegisterOpen(false)}>
+          <form onSubmit={registerServer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input required value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="Realm display name" style={inputStyle()} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select value={regGameMode} onChange={(e) => setRegGameMode(e.target.value)} style={{ ...inputStyle(), flex: 1 }}>
+                {['survival', 'creative', 'adventure'].map((g) => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <select value={regDifficulty} onChange={(e) => setRegDifficulty(e.target.value)} style={{ ...inputStyle(), flex: 1 }}>
+                {['peaceful', 'easy', 'normal', 'hard'].map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => setRegisterOpen(false)} style={ghostBtn(c.onSurfaceVariant)}>Cancel</button>
+              <button type="submit" style={primaryBtn()}>Create Realm</button>
+            </div>
+          </form>
+        </ModalShell>
       )}
 
-      <ConfirmModal
-        isOpen={isConfirmModalOpen && !!pendingConfirmAction}
-        title={pendingConfirmAction?.title ?? ''}
-        description={pendingConfirmAction?.desc ?? ''}
-        onConfirm={() => pendingConfirmAction?.onConfirm()}
-        onCancel={() => setIsConfirmModalOpen(false)}
-      />
+      {/* Confirm modal */}
+      {confirm && (
+        <ModalShell title={confirm.title} onClose={() => setConfirm(null)} danger>
+          <p style={{ color: c.onSurfaceVariant, margin: 0 }}>{confirm.desc}</p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <button onClick={() => setConfirm(null)} style={ghostBtn(c.onSurfaceVariant)}>Cancel</button>
+            <button onClick={confirm.onConfirm} style={{ ...primaryBtn(), background: c.errorContainer, color: c.error, border: `2px solid ${c.error}` }}>Confirm</button>
+          </div>
+        </ModalShell>
+      )}
+    </AppShell>
+  );
+}
+
+const th: React.CSSProperties = { padding: '8px 10px', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' };
+const td: React.CSSProperties = { padding: '10px' };
+
+function StatCard({ label, value, sub, accent, href }: { label: string; value: string; sub: string; accent: string; href?: string }) {
+  const body = (
+    <div style={{ background: c.surfaceContainer, border: `2px solid ${c.outline}`, borderRadius: THEME.radius.md, padding: THEME.space.sm, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontFamily: THEME.fonts.mono, fontSize: 11, fontWeight: 700, color: c.onSurfaceVariant, letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ fontFamily: THEME.fonts.heading, fontSize: 30, fontWeight: 700, color: accent }}>{value}</span>
+      <span style={{ fontFamily: THEME.fonts.mono, fontSize: 12, color: c.onSurfaceVariant }}>{sub}</span>
     </div>
   );
+  return href ? <Link href={href} style={{ textDecoration: 'none' }}>{body}</Link> : body;
+}
+
+function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div style={{ background: c.surface, border: `2px solid ${c.outline}`, borderRadius: THEME.radius.md, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: c.dirt, padding: '10px 14px' }}>
+        <span style={{ fontFamily: THEME.fonts.heading, fontWeight: 600, fontSize: 15 }}>{title}</span>
+        {action}
+      </div>
+      <div style={{ padding: THEME.space.sm }}>{children}</div>
+    </div>
+  );
+}
+
+function StatusDot({ status }: { status: string }) {
+  const s = status.toUpperCase();
+  const good = ['ONLINE', 'COMPLETED', 'SUCCESS'].includes(s);
+  const bad = ['OFFLINE', 'FAILED', 'BAN', 'KICK', 'ERROR'].includes(s);
+  const color = good ? c.primary : bad ? c.error : c.warning;
+  return (
+    <span style={{ fontFamily: THEME.fonts.mono, fontSize: 11, fontWeight: 700, color }}>
+      ● {status}
+    </span>
+  );
+}
+
+function ModalShell({ title, danger, onClose, children }: { title: string; danger?: boolean; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'grid', placeItems: 'center', zIndex: 100 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: c.surfaceContainer, border: `4px solid ${danger ? c.error : c.outline}`, borderRadius: THEME.radius.lg, padding: THEME.space.md, width: 460, maxWidth: '90vw' }}>
+        <h3 style={{ fontFamily: THEME.fonts.heading, margin: '0 0 12px', fontSize: 18, color: danger ? c.error : c.onSurface }}>{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function inputStyle(): React.CSSProperties {
+  return { background: c.surfaceContainerLowest, color: c.onSurface, border: `2px solid ${c.outline}`, borderRadius: THEME.radius.md, padding: '8px 10px', fontFamily: THEME.fonts.mono, fontSize: 13, outline: 'none', boxSizing: 'border-box', width: '100%' };
+}
+
+function primaryBtn(): React.CSSProperties {
+  return { background: c.primary, color: c.onPrimary, border: 'none', borderRadius: THEME.radius.md, padding: '8px 14px', fontFamily: THEME.fonts.mono, fontWeight: 700, fontSize: 13, cursor: 'pointer' };
+}
+
+function ghostBtn(accent: string): React.CSSProperties {
+  return { background: 'transparent', color: accent, border: `2px solid ${accent}`, borderRadius: THEME.radius.sm, padding: '6px 10px', fontFamily: THEME.fonts.mono, fontWeight: 700, fontSize: 12, cursor: 'pointer' };
 }
