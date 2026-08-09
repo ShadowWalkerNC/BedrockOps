@@ -94,10 +94,18 @@ If the dashboard crashes with `Cannot find module './chunks/vendor-chunks/next@â
 
 ```powershell
 # from repo root (Windows PowerShell)
+# Stop the running web/dev server first (Ctrl+C in that terminal).
 pnpm --filter @mc-admin/web clean
 pnpm --filter @mc-admin/web dev
 # or one-shot:
 pnpm --filter @mc-admin/web dev:clean
+```
+
+If you still see PowerShell parse errors, delete the cache manually:
+
+```powershell
+Remove-Item -Recurse -Force apps\web\.next -ErrorAction SilentlyContinue
+pnpm --filter @mc-admin/web dev
 ```
 
 Prefer cloning outside OneDrive/iCloud sync folders when possible.
