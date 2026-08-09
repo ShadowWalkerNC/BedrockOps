@@ -1,7 +1,9 @@
 package lifecycle
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +30,13 @@ const (
 	ModeLive Mode = "live"
 )
 
+// LogHandler receives each stdout/stderr line from a live BDS process.
+type LogHandler func(serverID, line string)
+
+// ExitHandler is invoked when a live BDS process exits.
+// unexpected is true when the process died without an intentional Stop/Kill.
+type ExitHandler func(serverID string, unexpected bool, waitErr error)
+
 // Instance tracks one managed Bedrock server on this node.
 type Instance struct {
 	ServerID   string
@@ -35,6 +44,9 @@ type Instance struct {
 	State      State
 	StartedAt  time.Time
 	cmd        *exec.Cmd
+	// generation increments on each Start so Wait callbacks can tell
+	// intentional stops apart from a later restart of the same serverId.
+	generation int
 }
 
 // Manager owns local BDS process lifecycle for the agent node.
@@ -43,6 +55,10 @@ type Manager struct {
 	mode    Mode
 	bdsBin  string
 	servers map[string]*Instance
+	// intentionalStop maps serverID → generation that is expected to exit.
+	intentionalStop map[string]int
+	onLog           LogHandler
+	onExit          ExitHandler
 }
 
 // NewManager creates a lifecycle manager.
@@ -56,10 +72,19 @@ func NewManager(bdsBin string) *Manager {
 		}
 	}
 	return &Manager{
-		mode:    mode,
-		bdsBin:  bdsBin,
-		servers: make(map[string]*Instance),
+		mode:            mode,
+		bdsBin:          bdsBin,
+		servers:         make(map[string]*Instance),
+		intentionalStop: make(map[string]int),
 	}
+}
+
+// SetHandlers registers optional callbacks for live process log lines and exits.
+func (m *Manager) SetHandlers(onLog LogHandler, onExit ExitHandler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onLog = onLog
+	m.onExit = onExit
 }
 
 // Mode returns the current operating mode.
@@ -119,6 +144,8 @@ func (m *Manager) Start(serverID, serverPath string) (State, Mode, error) {
 	}
 
 	inst.State = StateStarting
+	inst.generation++
+	gen := inst.generation
 
 	if m.mode == ModeLive {
 		bin := m.bdsBin
@@ -133,27 +160,71 @@ func (m *Manager) Start(serverID, serverPath string) (State, Mode, error) {
 		}
 		cmd := exec.Command(bin)
 		cmd.Dir = workDir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			inst.State = StateError
+			return inst.State, m.mode, fmt.Errorf("stdout pipe: %w", err)
+		}
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			inst.State = StateError
+			return inst.State, m.mode, fmt.Errorf("stderr pipe: %w", err)
+		}
+
 		if err := cmd.Start(); err != nil {
 			inst.State = StateError
 			return inst.State, m.mode, fmt.Errorf("start BDS process: %w", err)
 		}
 		inst.cmd = cmd
-		go func() {
-			_ = cmd.Wait()
+
+		go m.pumpLines(serverID, stdout)
+		go m.pumpLines(serverID, stderr)
+
+		go func(cmd *exec.Cmd, serverID string, gen int) {
+			waitErr := cmd.Wait()
 			m.mu.Lock()
-			defer m.mu.Unlock()
-			if current := m.servers[serverID]; current != nil && current.cmd == cmd {
-				current.State = StateOffline
-				current.cmd = nil
+			intentional := m.intentionalStop[serverID] == gen
+			if intentional {
+				delete(m.intentionalStop, serverID)
 			}
-		}()
+			onExit := m.onExit
+			if current := m.servers[serverID]; current != nil && current.cmd == cmd {
+				if intentional {
+					current.State = StateOffline
+				} else {
+					current.State = StateError
+				}
+				current.cmd = nil
+				current.StartedAt = time.Time{}
+			}
+			m.mu.Unlock()
+
+			if onExit != nil {
+				onExit(serverID, !intentional, waitErr)
+			}
+		}(cmd, serverID, gen)
 	}
 
 	inst.State = StateOnline
 	inst.StartedAt = time.Now()
 	return inst.State, m.mode, nil
+}
+
+func (m *Manager) pumpLines(serverID string, r io.Reader) {
+	scanner := bufio.NewScanner(r)
+	// BDS lines can be long; raise the default token size.
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		m.mu.RLock()
+		onLog := m.onLog
+		m.mu.RUnlock()
+		if onLog != nil {
+			onLog(serverID, line)
+		}
+	}
 }
 
 // Stop stops a server. force=true sends Kill; otherwise graceful Interrupt/Signal.
@@ -171,6 +242,7 @@ func (m *Manager) Stop(serverID string, force bool) (State, Mode, error) {
 	}
 
 	inst.State = StateStopping
+	m.intentionalStop[serverID] = inst.generation
 
 	if m.mode == ModeLive && inst.cmd != nil && inst.cmd.Process != nil {
 		var err error
@@ -183,7 +255,11 @@ func (m *Manager) Stop(serverID string, force bool) (State, Mode, error) {
 			inst.State = StateError
 			return inst.State, m.mode, err
 		}
-		inst.cmd = nil
+		// Leave cmd set so Wait goroutine can clear it; state will settle there.
+		// For API responsiveness, mark offline now when intentional.
+		inst.State = StateOffline
+		inst.StartedAt = time.Time{}
+		return inst.State, m.mode, nil
 	}
 
 	inst.State = StateOffline

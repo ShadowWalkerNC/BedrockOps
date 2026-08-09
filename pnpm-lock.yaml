@@ -186,6 +186,9 @@ importers:
       '@mc-admin/backups':
         specifier: workspace:*
         version: link:../../packages/backups
+      '@mc-admin/bedrock':
+        specifier: workspace:*
+        version: link:../../packages/bedrock
       '@mc-admin/config':
         specifier: workspace:*
         version: link:../../packages/config

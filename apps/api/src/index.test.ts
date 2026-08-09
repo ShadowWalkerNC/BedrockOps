@@ -6,6 +6,7 @@ import { NotificationDispatcher } from '@mc-admin/notifications';
 import { signJwt } from '@mc-admin/auth';
 import { UserRole } from '@mc-admin/db';
 import { resetRateLimits } from './middleware/rate-limit.middleware';
+import { resetJoinFloodMonitor } from './joinFlood';
 
 describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
   let authToken: string;
@@ -19,6 +20,7 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     NotificationDispatcher.sentMessages = [];
     db.seedDefaults();
     resetRateLimits();
+    resetJoinFloodMonitor();
 
     authToken = signJwt(
       { userId: 'usr_admin_1', username: 'admin', role: UserRole.OWNER },
@@ -126,6 +128,30 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
 
     expect(searchRes.status).toBe(200);
     expect(searchRes.body.tracked.some((p: { gamertag: string }) => p.gamertag === 'JoinTester')).toBe(true);
+  });
+
+  it('detects a join flood and queues a Discord alert', async () => {
+    process.env.JOIN_FLOOD_THRESHOLD = '3';
+    process.env.JOIN_FLOOD_WINDOW_MS = '60000';
+    resetJoinFloodMonitor();
+
+    for (let i = 0; i < 3; i++) {
+      const res = await request(app)
+        .post('/api/v1/moderation/players/join')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ gamertag: `FloodBot${i}`, xuid: '2535400000000001', serverId: 'srv_bedrock_1' });
+      expect(res.status).toBe(201);
+    }
+
+    expect(db.auditLogs.some((a) => a.action === 'JOIN_FLOOD_DETECTED')).toBe(true);
+    const alert = NotificationDispatcher.sentMessages.find((m) =>
+      m.payload.embeds?.[0].title.includes('Join Flood')
+    );
+    expect(alert).toBeDefined();
+
+    delete process.env.JOIN_FLOOD_THRESHOLD;
+    delete process.env.JOIN_FLOOD_WINDOW_MS;
+    resetJoinFloodMonitor();
   });
 
   it('GDPR-anonymizes a player and records an audit log', async () => {

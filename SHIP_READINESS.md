@@ -12,10 +12,11 @@ production, and what is intentionally deferred.
 | B | Player join tracking, GDPR-compliant moderation ledger, `allowlist.json` atomic sync (agent writer) | ✅ Implemented (M4) |
 | B | Subdomain + UDP port allocation, console/FriendConnect onboarding adapters, setup pipelines | ✅ Implemented (M5) |
 | B | Discord webhook delivery + alerts for bans/backups/crashes | ✅ Implemented |
-| C | Live console / interactive RCON streaming to the dashboard | ✅ Implemented |
-| C | Operational analytics + destructive-action rate limiting + join-flood detection | ✅ Implemented |
+| C | Live console / interactive RCON streaming to the dashboard | ✅ Implemented (agent pipes BDS stdout/stderr as `LOG_LINE`) |
+| C | Operational analytics + destructive-action rate limiting + join-flood detection | ✅ Implemented (flood wired on join ingest + agent logs) |
 | C | BDS version matrix (pin, mismatch warnings, backup-before-update) | ✅ Implemented |
-| C | Crash detection → crash Discord alert | ✅ Implemented |
+| C | Crash detection → crash Discord alert | ✅ Implemented (agent auto-reports unexpected process exit) |
+| — | Worker scheduled backup + retention loop | ✅ Implemented (honest stub when agent/R2 offline) |
 | — | Unified "command center" UI design system across pages | ✅ Implemented |
 
 ## Required production configuration
