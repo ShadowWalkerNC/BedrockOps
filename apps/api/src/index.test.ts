@@ -194,6 +194,41 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(db.auditLogs.some((a) => a.action === 'CONSOLE_ONBOARDING')).toBe(true);
   });
 
+  it('queues a Discord alert when a BAN is issued', async () => {
+    const res = await request(app)
+      .post('/api/v1/moderation')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ gamertag: 'AlertBanned', actionType: 'BAN', reason: 'Cheating', serverId: 'srv_bedrock_1' });
+
+    expect(res.status).toBe(201);
+    const alert = NotificationDispatcher.sentMessages.find(
+      (m) => m.payload.embeds?.[0].title.includes('BAN') && m.payload.embeds?.[0].title.includes('AlertBanned')
+    );
+    expect(alert).toBeDefined();
+    expect(alert!.payload.username).toBe('Minecraft Ops Alert');
+  });
+
+  it('does not queue a Discord alert for a WARN', async () => {
+    await request(app)
+      .post('/api/v1/moderation')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ gamertag: 'JustWarned', actionType: 'WARN', reason: 'Minor spam' });
+
+    expect(NotificationDispatcher.sentMessages.length).toBe(0);
+  });
+
+  it('queues a backup failure Discord alert when the agent is offline', async () => {
+    const res = await request(app)
+      .post('/api/v1/backups')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', isManual: true });
+
+    expect(res.status).toBe(503);
+    const alert = NotificationDispatcher.sentMessages.find((m) => m.payload.username === 'Minecraft Backup Service');
+    expect(alert).toBeDefined();
+    expect(alert!.payload.embeds?.[0].description).toContain('failed');
+  });
+
   it('lists audit logs on GET /api/v1/audit', async () => {
     const res = await request(app)
       .get('/api/v1/audit')
