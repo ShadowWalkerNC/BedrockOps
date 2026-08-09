@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Shield, 
   Server, 
@@ -245,6 +246,9 @@ export default function BedrockAdminDashboard() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <Link href="/console" style={{ color: '#60a5fa', fontSize: '13px', textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <MessageSquare size={14} /> Live Console →
+          </Link>
           <button onClick={fetchDashboardData} style={{ backgroundColor: '#1f2937', color: '#9ca3af', border: '1px solid #374151', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
             <RefreshCw size={14} className={loading ? 'spin' : ''} /> Sync Engine
           </button>
