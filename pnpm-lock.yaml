@@ -425,6 +425,9 @@ importers:
       '@mc-admin/db':
         specifier: workspace:*
         version: link:../db
+      '@mc-admin/moderation':
+        specifier: workspace:*
+        version: link:../moderation
       '@mc-admin/notifications':
         specifier: workspace:*
         version: link:../notifications

@@ -14,7 +14,8 @@
     "@mc-admin/audit": "workspace:*",
     "@mc-admin/notifications": "workspace:*",
     "@mc-admin/backups": "workspace:*",
-    "@mc-admin/templates": "workspace:*"
+    "@mc-admin/templates": "workspace:*",
+    "@mc-admin/moderation": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

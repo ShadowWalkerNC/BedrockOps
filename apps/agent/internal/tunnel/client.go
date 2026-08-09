@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/allowlist"
 	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
@@ -212,6 +213,8 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleRestore(frame, serverID, payload)
 	case protocol.CmdGetStatus:
 		c.handleStatus(frame, serverID)
+	case protocol.CmdAllowlistSync:
+		c.handleAllowlistSync(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
@@ -310,6 +313,39 @@ func (c *Client) handleStatus(frame protocol.Frame, serverID string) {
 		UptimeSeconds: m.UptimeSeconds,
 		ActivePlayers: m.ActiveConnections,
 	})
+}
+
+func (c *Client) handleAllowlistSync(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	// Determine the file contents: prefer the control-plane-serialized contents,
+	// otherwise serialize the provided entries locally.
+	entries, err := allowlist.SanitizeEntries(payload.Entries)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: fmt.Sprintf("invalid allowlist entries: %v", err)})
+		return
+	}
+
+	contents := payload.Contents
+	if contents == "" {
+		serialized, serr := allowlist.Serialize(entries)
+		if serr != nil {
+			c.respond(frame, protocol.CmdRespPayload{Success: false, Error: fmt.Sprintf("serialize allowlist: %v", serr)})
+			return
+		}
+		contents = serialized
+	}
+
+	if err := allowlist.AtomicWrite(payload.TargetPath, payload.TempPath, contents); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("allowlist sync failed: %v", err))
+		return
+	}
+
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("allowlist synced: wrote %d entries -> %s", len(entries), payload.TargetPath),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("allowlist synced (%d entries) -> %s", len(entries), payload.TargetPath))
 }
 
 func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
