@@ -12,23 +12,37 @@ export interface ParsedDisconnectEvent {
 
 /**
  * R4.1 — Parse Bedrock Dedicated Server stdout join/leave lines.
+ * Offline-mode BDS often emits an empty xuid; we synthesize a stable offline id
+ * so join-flood / player tracking still work for local bot harnesses.
  */
 export class PlayerLogParser {
+  public static offlineXuid(gamertag: string): string {
+    const digest = createHash('sha256').update(`offline:${gamertag}`).digest('hex').slice(0, 16);
+    // Keep it digit-shaped for callers that assume XUID-like tokens.
+    return `9${BigInt(`0x${digest}`).toString().padStart(18, '0').slice(0, 18)}`;
+  }
+
   public static parseJoinLog(line: string): ParsedJoinEvent | null {
-    const match = line.match(/Player connected:\s*(?<gamertag>.+?),\s*xuid:\s*(?<xuid>\d+)/i);
+    const match = line.match(/Player connected:\s*(?<gamertag>.+?),\s*xuid:\s*(?<xuid>\d*)/i);
     if (!match?.groups) return null;
+    const gamertag = match.groups.gamertag.trim();
+    const rawXuid = match.groups.xuid.trim();
     return {
-      gamertag: match.groups.gamertag.trim(),
-      xuid: match.groups.xuid.trim()
+      gamertag,
+      xuid: rawXuid || PlayerLogParser.offlineXuid(gamertag)
     };
   }
 
   public static parseDisconnectLog(line: string): ParsedDisconnectEvent | null {
-    const match = line.match(/Player disconnected:\s*(?<gamertag>.+?),\s*xuid:\s*(?<xuid>\d+)/i);
+    const match = line.match(
+      /Player disconnected:\s*(?<gamertag>.+?),\s*xuid:\s*(?<xuid>\d*)(?:,\s*pfid:)?/i
+    );
     if (!match?.groups) return null;
+    const gamertag = match.groups.gamertag.trim();
+    const rawXuid = match.groups.xuid.trim();
     return {
-      gamertag: match.groups.gamertag.trim(),
-      xuid: match.groups.xuid.trim()
+      gamertag,
+      xuid: rawXuid || PlayerLogParser.offlineXuid(gamertag)
     };
   }
 }
