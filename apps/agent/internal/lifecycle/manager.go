@@ -160,6 +160,10 @@ func (m *Manager) Start(serverID, serverPath string) (State, Mode, error) {
 		}
 		cmd := exec.Command(bin)
 		cmd.Dir = workDir
+		// Official Linux BDS ships libc++ / libCrypto next to the binary and
+		// expects LD_LIBRARY_PATH to include that directory.
+		libDir := filepath.Dir(bin)
+		cmd.Env = append(os.Environ(), "LD_LIBRARY_PATH="+libDir+libPathSuffix(os.Getenv("LD_LIBRARY_PATH")))
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -294,4 +298,11 @@ func WorldDir(serverPath string) string {
 		return ""
 	}
 	return filepath.Join(serverPath, "worlds")
+}
+
+func libPathSuffix(existing string) string {
+	if existing == "" {
+		return ""
+	}
+	return ":" + existing
 }

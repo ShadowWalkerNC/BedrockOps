@@ -62,7 +62,6 @@ pnpm --filter @mc-admin/db db:migrate
 echo "[start-local] building Go agent…"
 pnpm --filter @mc-admin/agent agent:build
 
-mkdir -p /tmp/bedrockops-world/worlds
 mkdir -p /tmp/bedrockops-logs
 
 echo "[start-local] launching API (4000), web (3000), agent…"
@@ -87,11 +86,22 @@ NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 \
   pnpm --filter @mc-admin/web dev > /tmp/bedrockops-logs/web.log 2>&1 &
 echo $! > /tmp/bedrockops-logs/web.pid
 
-./apps/agent/bin/bedrock-agent \
-  -control-plane http://127.0.0.1:4000 \
-  -node-id node_docker_agent_1 \
-  -token "${BEDROCK_AGENT_TOKEN:-dev_agent_token_change_me}" \
-  -server-path /tmp/bedrockops-world \
+AGENT_SERVER_PATH="${BDS_HOME:-/tmp/bedrockops-world}"
+AGENT_ARGS=(
+  -control-plane http://127.0.0.1:4000
+  -node-id node_docker_agent_1
+  -token "${BEDROCK_AGENT_TOKEN:-dev_agent_token_change_me}"
+  -server-path "$AGENT_SERVER_PATH"
+)
+if [[ -n "${BDS_BIN:-}" && -x "${BDS_BIN}" ]]; then
+  AGENT_ARGS+=(-bds-bin "$BDS_BIN")
+  echo "[start-local] agent mode: live BDS ($BDS_BIN)"
+else
+  echo "[start-local] agent mode: simulated (set BDS_BIN for real BDS)"
+  mkdir -p /tmp/bedrockops-world/worlds
+fi
+
+./apps/agent/bin/bedrock-agent "${AGENT_ARGS[@]}" \
   > /tmp/bedrockops-logs/agent.log 2>&1 &
 echo $! > /tmp/bedrockops-logs/agent.pid
 

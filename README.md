@@ -229,7 +229,18 @@ pnpm --filter @mc-admin/agent agent:build
 | Mode | How |
 |------|-----|
 | Simulated lifecycle | Omit `-bds-bin` — perfect for UI demos |
-| Live BDS | Add `-bds-bin /path/to/bedrock_server` |
+| Live BDS | `./scripts/bds/download-bds.sh && ./scripts/start-local-bds.sh` |
+
+**Real BDS + fake players (Linux x86_64):**
+
+```bash
+./scripts/bds/download-bds.sh --bot-compat && ./scripts/bds/configure-bds.sh
+./scripts/bds/ensure-raknet-native.sh
+./scripts/bds/run-bds.sh   # or ./scripts/start-local-bds.sh for the full stack
+pnpm --filter @mc-admin/bds-bots bot:flood -- --count 8
+```
+
+Full guide: [`docs/local-bds-testing.md`](docs/local-bds-testing.md).
 
 Seed token above matches the default Memory/Prisma seed hash. Rotate it for anything real.
 

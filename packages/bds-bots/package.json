@@ -1,0 +1,29 @@
+{
+  "name": "@mc-admin/bds-bots",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Offline Bedrock fake-player harness for local BDS integration testing",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "bot": "tsx src/cli.ts",
+    "bot:join": "tsx src/cli.ts join",
+    "bot:chat": "tsx src/cli.ts chat",
+    "bot:flood": "tsx src/cli.ts flood",
+    "bot:churn": "tsx src/cli.ts churn",
+    "bot:ping": "tsx src/cli.ts ping"
+  },
+  "dependencies": {
+    "bedrock-protocol": "^3.58.0",
+    "jsp-raknet": "^2.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0"
+  }
+}
