@@ -397,6 +397,28 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.status).toBe(200);
     expect(res.body.packs.some((p: { id: string }) => p.id === 'pack_sample_bp')).toBe(true);
     expect(res.body.packs.some((p: { id: string }) => p.id === 'pack_sample_rp')).toBe(true);
+    expect(res.body.facets?.categories).toContain('gameplay');
+    expect(res.body.marketplace?.publisher).toBe('BedrockOps');
+  });
+
+  it('filters marketplace packs by category', async () => {
+    const res = await request(app)
+      .get('/api/v1/packs?category=gameplay')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.packs.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.packs.every((p: { category: string }) => p.category === 'gameplay')).toBe(true);
+  });
+
+  it('refuses Script API marketplace packs honestly', async () => {
+    const res = await request(app)
+      .post('/api/v1/packs/apply')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', packId: 'pack_utility_clearlag_stub' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('SCRIPT_API_UNSUPPORTED');
   });
 
   it('applies a sample pack via POST /packs/apply (honest stub without agent)', async () => {

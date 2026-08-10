@@ -12,14 +12,27 @@ interface CatalogPack {
   name: string;
   description: string;
   kind: string;
+  category: string;
+  tags: string[];
+  publisher: string;
+  vetted: boolean;
   version: number[];
   scriptApi: boolean;
   fileCount: number;
+  applyBlockedReason?: string;
 }
 
 export default function PluginsPage() {
   const [templates, setTemplates] = useState<RealmTemplate[]>([]);
   const [packs, setPacks] = useState<CatalogPack[]>([]);
+  const [facets, setFacets] = useState<{ categories: string[]; kinds: string[]; tags: string[] }>({
+    categories: [],
+    kinds: [],
+    tags: []
+  });
+  const [category, setCategory] = useState('');
+  const [kind, setKind] = useState('');
+  const [query, setQuery] = useState('');
   const [servers, setServers] = useState<Array<{ id: string; name: string }>>([]);
   const [serverId, setServerId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -27,20 +40,35 @@ export default function PluginsPage() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
+  const loadPacks = async (opts?: { category?: string; kind?: string; q?: string }) => {
+    const params = new URLSearchParams();
+    const cat = opts?.category ?? category;
+    const k = opts?.kind ?? kind;
+    const q = opts?.q ?? query;
+    if (cat) params.set('category', cat);
+    if (k) params.set('kind', k);
+    if (q.trim()) params.set('q', q.trim());
+    const packRes = await apiFetch<{
+      packs: CatalogPack[];
+      facets: { categories: string[]; kinds: string[]; tags: string[] };
+    }>(`/packs${params.toString() ? `?${params}` : ''}`);
+    setPacks(packRes.packs);
+    setFacets(packRes.facets);
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const [tmpl, srv, packRes] = await Promise.all([
+        const [tmpl, srv] = await Promise.all([
           apiFetch<{ templates: RealmTemplate[] }>('/templates'),
-          apiFetch<{ servers: Array<{ id: string; name: string }> }>('/servers'),
-          apiFetch<{ packs: CatalogPack[] }>('/packs')
+          apiFetch<{ servers: Array<{ id: string; name: string }> }>('/servers')
         ]);
         setTemplates(tmpl.templates);
         setServers(srv.servers);
-        setPacks(packRes.packs);
         if (srv.servers[0]) setServerId(srv.servers[0].id);
+        await loadPacks({ category: '', kind: '', q: '' });
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load templates');
       } finally {
@@ -48,6 +76,7 @@ export default function PluginsPage() {
       }
     };
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const applyProperties = async (templateId: string, name: string) => {
@@ -142,7 +171,7 @@ export default function PluginsPage() {
       <header>
         <h1 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 28 }}>Plugins & packs</h1>
         <p style={{ margin: '6px 0 0', color: c.onSurfaceVariant }}>
-          Mode presets + Wave D1 pack engine (vetted sample BP/RP). Marketplace catalog is D4.
+          First-party marketplace (D4) + mode templates. One-click apply fails honestly if the agent is offline.
         </p>
       </header>
 
@@ -213,10 +242,78 @@ export default function PluginsPage() {
           gap: 12
         }}
       >
-        <h2 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 18 }}>Vetted packs (D1)</h2>
+        <h2 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 18 }}>Marketplace (D4)</h2>
+        <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
+          BedrockOps-vetted catalog only — not the Mojang store.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search packs"
+            style={{
+              flex: '1 1 160px',
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          />
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            style={{
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          >
+            <option value="">All categories</option>
+            {facets.categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            style={{
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          >
+            <option value="">All kinds</option>
+            {facets.kinds.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            style={btnSecondary}
+            disabled={busy || loading}
+            onClick={() => void loadPacks()}
+          >
+            Filter
+          </button>
+        </div>
         {loading ? <p style={{ color: c.onSurfaceVariant }}>Loading…</p> : null}
         {!loading && packs.length === 0 ? (
-          <p style={{ margin: 0, color: c.onSurfaceVariant }}>No packs in catalog.</p>
+          <p style={{ margin: 0, color: c.onSurfaceVariant }}>No packs match filters.</p>
         ) : null}
         <div style={{ display: 'grid', gap: 12 }}>
           {packs.map((p) => (
@@ -237,25 +334,30 @@ export default function PluginsPage() {
                   <div style={{ color: c.onSurfaceVariant, fontSize: 13, marginTop: 4 }}>{p.description}</div>
                 </div>
                 <span style={{ fontFamily: THEME.fonts.mono, fontSize: 12, color: c.tertiary }}>
-                  {p.kind} · v{p.version.join('.')}
+                  {p.category} · {p.kind} · v{p.version.join('.')}
+                  {p.vetted ? ' · vetted' : ''}
                 </span>
+              </div>
+              <div style={{ fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
+                {p.publisher} · tags: {(p.tags || []).join(', ') || '—'}
+                {p.applyBlockedReason ? ` · blocked: ${p.applyBlockedReason}` : ''}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   style={btnPrimary}
-                  disabled={busy || !serverId}
+                  disabled={busy || !serverId || !!p.applyBlockedReason || p.scriptApi}
                   onClick={() => installPack(p.id, p.name, false)}
                 >
-                  Install pack
+                  One-click apply
                 </button>
                 <button
                   type="button"
                   style={btnSecondary}
-                  disabled={busy || !serverId}
+                  disabled={busy || !serverId || !!p.applyBlockedReason || p.scriptApi}
                   onClick={() => installPack(p.id, p.name, true)}
                 >
-                  Install + restart
+                  Apply + restart
                 </button>
               </div>
             </article>
@@ -345,9 +447,9 @@ export default function PluginsPage() {
       >
         <strong style={{ color: c.onSurface }}>Still Wave D</strong>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>D4 Marketplace catalog beyond first-party samples</li>
-          <li>D3 Skins / cosmetics</li>
+          <li>D3 Skins / cosmetics pipelines</li>
           <li>Script API pack compatibility matrix per BDS build</li>
+          <li>Third-party / Mojang Marketplace federation (out of scope)</li>
         </ul>
       </section>
     </AppShell>

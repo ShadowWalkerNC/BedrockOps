@@ -3,27 +3,63 @@ import { z } from 'zod';
 import { db, UserRole, HostProviderType } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
-import { PackEngine } from '@mc-admin/templates';
+import { PackEngine, type PackCategory, type PackKind } from '@mc-admin/templates';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const packsRouter: Router = Router();
 
 packsRouter.use(authenticateJwt);
 
-/** GET /api/v1/packs — first-party vetted pack catalog (Wave D1; not marketplace). */
-packsRouter.get('/', (_req: AuthenticatedRequest, res: Response) => {
-  const packs = PackEngine.listCatalog().map((p) => ({
+function toPublicPack(p: ReturnType<typeof PackEngine.listCatalog>[number]) {
+  return {
     id: p.id,
     name: p.name,
     description: p.description,
     kind: p.kind,
+    category: p.category,
+    tags: p.tags,
+    publisher: p.publisher,
+    vetted: p.vetted,
     uuid: p.uuid,
     version: p.version,
     minEngineVersion: p.minEngineVersion,
     scriptApi: p.scriptApi,
-    fileCount: Object.keys(p.files).length
-  }));
-  return res.json({ packs });
+    fileCount: Object.keys(p.files).length,
+    applyBlockedReason: p.scriptApi
+      ? 'Script API packs require additional BDS Script module checks'
+      : undefined
+  };
+}
+
+/** GET /api/v1/packs — first-party marketplace catalog (Wave D4). */
+packsRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
+  const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+  const kind = typeof req.query.kind === 'string' ? (req.query.kind as PackKind) : undefined;
+  const category =
+    typeof req.query.category === 'string' ? (req.query.category as PackCategory) : undefined;
+  const tag = typeof req.query.tag === 'string' ? req.query.tag : undefined;
+  const vettedOnly =
+    req.query.vettedOnly === '1' ||
+    req.query.vettedOnly === 'true' ||
+    req.query.vettedOnly === undefined;
+
+  if (kind && kind !== 'behavior' && kind !== 'resource') {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: 'kind must be behavior|resource' });
+  }
+  const allowedCategories = ['starter', 'gameplay', 'cosmetic', 'utility'];
+  if (category && !allowedCategories.includes(category)) {
+    return res.status(400).json({ error: 'INVALID_INPUT', message: 'invalid category' });
+  }
+
+  const packs = PackEngine.listCatalog({ q, kind, category, tag, vettedOnly }).map(toPublicPack);
+  return res.json({
+    packs,
+    facets: PackEngine.listFacets(),
+    marketplace: {
+      publisher: 'BedrockOps',
+      note: 'First-party vetted catalog only — not the Mojang Marketplace.'
+    }
+  });
 });
 
 const applySchema = z.object({
@@ -35,7 +71,7 @@ const applySchema = z.object({
 });
 
 /**
- * POST /api/v1/packs/apply — install + enable a vetted pack on a Realm.
+ * POST /api/v1/packs/apply — one-click apply a vetted catalog pack to a Realm.
  * Fails honestly when the agent is offline (never fakes success).
  */
 packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
@@ -59,6 +95,13 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
     });
   }
 
+  if (!pack.vetted) {
+    return res.status(403).json({
+      error: 'PACK_NOT_VETTED',
+      message: `Pack ${pack.id} is not vetted for one-click apply`
+    });
+  }
+
   if (!PackEngine.isBdsCompatible(server.version, pack.minEngineVersion)) {
     return res.status(409).json({
       error: 'BDS_INCOMPATIBLE',
@@ -67,10 +110,9 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
   }
 
   if (pack.scriptApi) {
-    // Awareness only for D1 sample packs (none are Script API yet).
     return res.status(409).json({
       error: 'SCRIPT_API_UNSUPPORTED',
-      message: 'Script API packs require additional BDS Script module checks (Wave D1 follow-on).'
+      message: 'Script API packs require additional BDS Script module checks (Wave D follow-on).'
     });
   }
 
@@ -90,6 +132,7 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
     metadata: {
       packId: pack.id,
       kind: pack.kind,
+      category: pack.category,
       levelName: plan.levelName,
       success: write.success,
       stub: write.stub,
@@ -102,7 +145,7 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
     return res.status(503).json({
       error: 'PACK_APPLY_DEFERRED',
       message: write.error || 'Agent offline — pack not written on host',
-      pack: { id: pack.id, name: pack.name, kind: pack.kind },
+      pack: toPublicPack(pack),
       plan: { levelName: plan.levelName, fileCount: plan.files.length },
       write
     });
@@ -126,7 +169,7 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
 
   return res.status(201).json({
     success: true,
-    pack: { id: pack.id, name: pack.name, kind: pack.kind },
+    pack: toPublicPack(pack),
     plan: { levelName: plan.levelName, fileCount: plan.files.length },
     write,
     restart

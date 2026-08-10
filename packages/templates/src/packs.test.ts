@@ -3,8 +3,16 @@ import { PackEngine, PACK_CATALOG } from './packs';
 
 describe('PackEngine (Wave D1)', () => {
   it('lists the first-party sample catalog', () => {
-    expect(PACK_CATALOG.length).toBeGreaterThanOrEqual(2);
+    expect(PACK_CATALOG.length).toBeGreaterThanOrEqual(3);
     expect(PackEngine.listCatalog().some((p) => p.id === 'pack_sample_bp')).toBe(true);
+  });
+
+  it('filters marketplace catalog by category and query', () => {
+    const gameplay = PackEngine.listCatalog({ category: 'gameplay' });
+    expect(gameplay.every((p) => p.category === 'gameplay')).toBe(true);
+    const smp = PackEngine.listCatalog({ q: 'smp' });
+    expect(smp.some((p) => p.id === 'pack_smp_welcome_bp')).toBe(true);
+    expect(PackEngine.listFacets().categories).toContain('utility');
   });
 
   it('builds a behavior pack apply plan under worlds/<level>/behavior_packs', () => {
