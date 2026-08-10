@@ -14,6 +14,14 @@ export interface DashboardServer {
   serverPath?: string;
   agentId?: string;
   hostProvider?: string;
+  pterodactylServerId?: string;
+}
+
+export interface HostProviderReadiness {
+  type: string;
+  configured: boolean;
+  summary: string;
+  capabilities: Record<string, { state: string; detail?: string }>;
 }
 
 export interface DashboardNode {
@@ -49,7 +57,10 @@ export interface SystemStatus {
     discordSlash: boolean;
     cloudflareDns: boolean;
     xbox: boolean;
+    pterodactyl?: boolean;
+    directSsh?: boolean;
   };
+  hostProviders?: HostProviderReadiness[];
 }
 
 export interface RealmTemplate {

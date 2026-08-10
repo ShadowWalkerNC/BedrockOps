@@ -60,14 +60,15 @@ docker compose up -d postgres
 
 Without R2/Discord/DNS/Xbox secrets, those adapters remain honest stubs (expected).
 
-## Deferred: Wave D5–D6 (partners & rounds)
+## Deferred: Wave D5 live panel APIs & D6 rounds
 
-Per `PROJECT_PLAN.md`, Wave **D1–D4** (packs, templates, cosmetics as world RPs, Script matrix,
-first-party marketplace, level.dat experiments) are implemented with honest agent stubs when offline.
+Per `PROJECT_PLAN.md`, Wave **D1–D4** are implemented. Wave **D5 readiness** (partner env,
+`getReadiness`, Settings pills, realm hostProvider assignment) is also in place.
 
 Still deferred (and must not be faked):
 
-- Host-partner providers (Pterodactyl, etc.) — interfaces exist and fail honestly until wired (D5)
+- Live Pterodactyl panel power / files / console HTTP (credentials may be set; ops stay stubbed)
+- Live Direct SSH process lifecycle / SFTP world writes (RCON path is already real)
 - Round-based / seasonal game modes (D6)
 - Mojang Marketplace federation / Xbox Persona force-apply
 

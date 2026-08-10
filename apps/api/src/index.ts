@@ -20,6 +20,8 @@ export { app };
 
 // Wire Docker agent HostProvider to the live WebSocket tunnel gateway.
 HostProviderFactory.bindAgentTunnel(agentGateway);
+// Wave D5 — optional partner host credentials (fail closed if partially set).
+HostProviderFactory.bindPartnerHosts(process.env);
 
 export class ApiServer {
   public static async getServers() {

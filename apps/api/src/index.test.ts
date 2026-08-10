@@ -471,8 +471,42 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
       r2: expect.any(Boolean),
       discordWebhook: expect.any(Boolean),
       cloudflareDns: expect.any(Boolean),
-      xbox: expect.any(Boolean)
+      xbox: expect.any(Boolean),
+      pterodactyl: expect.any(Boolean),
+      directSsh: expect.any(Boolean)
     });
+    expect(res.body.hostProviders?.some((h: { type: string }) => h.type === 'DOCKER_AGENT')).toBe(true);
+    expect(res.body.hostProviders?.some((h: { type: string }) => h.type === 'PTERODACTYL')).toBe(true);
+  });
+
+  it('requires pterodactylServerId when creating a PTERODACTYL realm', async () => {
+    const bad = await request(app)
+      .post('/api/v1/servers')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ name: 'Ptero Missing Id', hostProvider: 'PTERODACTYL' });
+    expect(bad.status).toBe(400);
+
+    const ok = await request(app)
+      .post('/api/v1/servers')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'Ptero Partner',
+        hostProvider: 'PTERODACTYL',
+        pterodactylServerId: 'pt_srv_1'
+      });
+    expect(ok.status).toBe(201);
+    expect(ok.body.server.pterodactylServerId).toBe('pt_srv_1');
+    expect(ok.body.hostReadiness?.type).toBe('PTERODACTYL');
+  });
+
+  it('returns host readiness on GET /servers/:id/host', async () => {
+    const serverId = db.servers[0].id;
+    const res = await request(app)
+      .get(`/api/v1/servers/${serverId}/host`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.readiness?.capabilities?.power).toBeDefined();
   });
 
   it('rejects mass-assignment of status/ownerId on PATCH', async () => {

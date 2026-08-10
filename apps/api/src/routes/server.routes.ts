@@ -43,6 +43,24 @@ serverRouter.get('/:id', (req: AuthenticatedRequest, res: Response) => {
   return res.json({ server: toPublicServer(server) });
 });
 
+// GET /api/v1/servers/:id/host — Wave D5 partner host readiness for this realm
+serverRouter.get('/:id/host', (req: AuthenticatedRequest, res: Response) => {
+  const server = db.servers.find((s) => s.id === req.params.id && !s.deletedAt);
+  if (!server) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+  const readiness = HostProviderFactory.getProvider(
+    server.hostProvider || HostProviderType.DOCKER_AGENT
+  ).getReadiness();
+  return res.json({
+    serverId: server.id,
+    hostProvider: server.hostProvider,
+    pterodactylServerId: server.pterodactylServerId ?? null,
+    agentId: server.agentId ?? null,
+    readiness
+  });
+});
+
 // POST /api/v1/servers - Create server
 const createServerSchema = z.object({
   name: z.string().min(1),
@@ -54,6 +72,7 @@ const createServerSchema = z.object({
   version: z.string().default('1.20.80'),
   hostProvider: z.enum(['DOCKER_AGENT', 'PTERODACTYL', 'DIRECT_RCON_SSH']).default('DOCKER_AGENT'),
   agentId: z.string().optional(),
+  pterodactylServerId: z.string().min(1).optional(),
   serverPath: z.string().min(1).optional(),
   maxPlayers: z.number().optional().default(10),
   gameMode: z.string().optional().default('survival'),
@@ -67,6 +86,13 @@ serverRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, 
   }
 
   const data = parse.data;
+  if (data.hostProvider === 'PTERODACTYL' && !data.pterodactylServerId) {
+    return res.status(400).json({
+      error: 'INVALID_INPUT',
+      message: 'pterodactylServerId is required when hostProvider is PTERODACTYL'
+    });
+  }
+
   const serverId = `srv_${Date.now()}`;
   const onlineAgent =
     db.agentNodes.find((n) => n.status === 'ONLINE') ||
@@ -88,6 +114,7 @@ serverRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, 
     difficulty: data.difficulty,
     ownerId: req.user!.userId,
     agentId: data.agentId || onlineAgent?.id || DEFAULT_DOCKER_AGENT_ID,
+    pterodactylServerId: data.pterodactylServerId,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -100,10 +127,19 @@ serverRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, 
     action: 'SERVER_CREATE',
     entityType: 'BedrockServer',
     entityId: server.id,
-    metadata: { name: server.name, hostProvider: server.hostProvider }
+    metadata: {
+      name: server.name,
+      hostProvider: server.hostProvider,
+      pterodactylServerId: server.pterodactylServerId
+    }
   });
 
-  return res.status(201).json({ server: toPublicServer(server) });
+  return res.status(201).json({
+    server: toPublicServer(server),
+    hostReadiness: HostProviderFactory.getProvider(
+      server.hostProvider || HostProviderType.DOCKER_AGENT
+    ).getReadiness()
+  });
 });
 
 const patchServerSchema = z
@@ -118,7 +154,9 @@ const patchServerSchema = z
     gameMode: z.string().min(1).optional(),
     difficulty: z.string().min(1).optional(),
     agentId: z.string().min(1).optional(),
-    serverPath: z.string().min(1).optional()
+    serverPath: z.string().min(1).optional(),
+    hostProvider: z.enum(['DOCKER_AGENT', 'PTERODACTYL', 'DIRECT_RCON_SSH']).optional(),
+    pterodactylServerId: z.string().min(1).nullable().optional()
   })
   .strict();
 
@@ -134,17 +172,47 @@ serverRouter.patch('/:id', requireRole(UserRole.ADMIN), (req: AuthenticatedReque
     return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
   }
 
-  Object.assign(server, parse.data, { updatedAt: new Date() });
+  const nextProvider = parse.data.hostProvider ?? server.hostProvider;
+  const nextPteroId =
+    parse.data.pterodactylServerId === null
+      ? undefined
+      : parse.data.pterodactylServerId !== undefined
+        ? parse.data.pterodactylServerId
+        : server.pterodactylServerId;
+
+  if (nextProvider === 'PTERODACTYL' && !nextPteroId) {
+    return res.status(400).json({
+      error: 'INVALID_INPUT',
+      message: 'pterodactylServerId is required when hostProvider is PTERODACTYL'
+    });
+  }
+
+  const { pterodactylServerId: pteroPatch, ...rest } = parse.data;
+  Object.assign(server, rest, { updatedAt: new Date() });
+  if (pteroPatch === null) {
+    server.pterodactylServerId = undefined;
+  } else if (pteroPatch !== undefined) {
+    server.pterodactylServerId = pteroPatch;
+  }
 
   AuditLogger.record({
     actorId: req.user!.userId,
     actorName: req.user!.username,
     action: 'SERVER_UPDATE',
     entityType: 'BedrockServer',
-    entityId: server.id
+    entityId: server.id,
+    metadata: {
+      hostProvider: server.hostProvider,
+      pterodactylServerId: server.pterodactylServerId
+    }
   });
 
-  return res.json({ server: toPublicServer(server) });
+  return res.json({
+    server: toPublicServer(server),
+    hostReadiness: HostProviderFactory.getProvider(
+      server.hostProvider || HostProviderType.DOCKER_AGENT
+    ).getReadiness()
+  });
 });
 
 // DELETE /api/v1/servers/:id - Soft delete server

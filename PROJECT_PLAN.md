@@ -170,6 +170,8 @@ Do not hard-depend on a single public DNS redirect. Product UX: invite link → 
 
 **Script API matrix:** `SCRIPT_API_MATRIX` in `@mc-admin/templates` + `GET /versions` / `/versions/script-matrix`. Fail-closed for unknown BDS pins.
 | **D5 Host partners** | Optional capacity via friends/hosts (Purpify, Verixen, etc.) through `HostProvider` — white-label or reseller, not required to operate |
+
+**D5 progress:** Partner host readiness surface (`getReadiness` / `GET /system/status` hostProviders), both-or-neither env for Pterodactyl + Direct SSH, Settings pills + realm hostProvider editor, `GET /servers/:id/host`. Panel/SSH lifecycle stays honest stub when credentials are set — never fake power/backup success. `DOCKER_AGENT` remains the primary path.
 | **D6 Rounds** | Round-based / seasonal mode product surfaces (explicitly post–Realms-stable) |
 
 **Ship gate:** Operator applies a vetted add-on pack from the catalog; Realm restarts cleanly on the pinned BDS version.

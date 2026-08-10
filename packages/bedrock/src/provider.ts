@@ -1,5 +1,16 @@
 import { BedrockServer, HostProviderType } from '@mc-admin/db';
 import { RconClient } from './rcon';
+import {
+  type HostProviderReadiness,
+  type PterodactylPartnerConfig,
+  type DirectSshPartnerConfig,
+  parsePterodactylPartnerConfig,
+  parseDirectSshPartnerConfig,
+  isPterodactylConfigured,
+  dockerAgentReadiness,
+  pterodactylReadiness,
+  directRconSshReadiness
+} from './partnerHosts';
 
 export interface ServerMetrics {
   cpuPercent: number;
@@ -95,6 +106,8 @@ export interface HostProvider {
     server: BedrockServer,
     plan: { relativePath: string; contentsBase64: string; backup?: boolean }
   ): Promise<WorldFileResult>;
+  /** Wave D5 — honest capability / readiness surface for partner hosts. */
+  getReadiness(): HostProviderReadiness;
 }
 
 /** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
@@ -110,6 +123,10 @@ export class DockerAgentHostProvider implements HostProvider {
 
   public setTunnelGateway(gateway: AgentTunnelGatewayLike): void {
     this.tunnelGateway = gateway;
+  }
+
+  public getReadiness(): HostProviderReadiness {
+    return dockerAgentReadiness(Boolean(this.tunnelGateway));
   }
 
   private async power(server: BedrockServer, action: 'START' | 'STOP' | 'KILL' | 'RESTART'): Promise<boolean> {
@@ -445,22 +462,39 @@ export class DockerAgentHostProvider implements HostProvider {
 export class PterodactylHostProvider implements HostProvider {
   public readonly type = HostProviderType.PTERODACTYL;
 
-  constructor(private apiBaseUrl?: string, private apiKey?: string) {}
+  constructor(private config: PterodactylPartnerConfig = {}) {}
 
-  private notImplemented(action: string, server: BedrockServer): never | false {
+  public setConfig(config: PterodactylPartnerConfig): void {
+    this.config = config;
+  }
+
+  public getReadiness(): HostProviderReadiness {
+    return pterodactylReadiness(this.config);
+  }
+
+  private notImplemented(action: string, server: BedrockServer): false {
+    const id = server.pterodactylServerId || server.id;
+    if (!isPterodactylConfigured(this.config)) {
+      console.warn(
+        `[STUB] PterodactylHostProvider.${action} — panel credentials unset for ${id}`
+      );
+      return false;
+    }
+    if (!server.pterodactylServerId) {
+      console.warn(
+        `[STUB] PterodactylHostProvider.${action} — server ${server.id} has no pterodactylServerId`
+      );
+      return false;
+    }
     console.warn(
-      `[STUB] PterodactylHostProvider.${action} — panel API integration pending for ${server.pterodactylServerId || server.id}`
+      `[STUB] PterodactylHostProvider.${action} — panel API integration pending for ${server.pterodactylServerId}`
     );
+    void this.config.apiBaseUrl;
+    void this.config.apiKey;
     return false;
   }
 
   public async startServer(server: BedrockServer): Promise<boolean> {
-    if (!server.pterodactylServerId && !server.id) {
-      throw new Error(`Server ${server.id} has no pterodactylServerId specified`);
-    }
-    // TODO: Call Pterodactyl power API when apiBaseUrl + apiKey are configured.
-    void this.apiBaseUrl;
-    void this.apiKey;
     return this.notImplemented('START', server);
   }
 
@@ -497,7 +531,9 @@ export class PterodactylHostProvider implements HostProvider {
       success: false,
       stub: true,
       backupId: options.backupId,
-      error: '[STUB] Pterodactyl backup API integration pending.'
+      error: isPterodactylConfigured(this.config)
+        ? '[STUB] Pterodactyl backup API integration pending.'
+        : '[STUB] Pterodactyl credentials unset — backup not run.'
     };
   }
 
@@ -507,7 +543,9 @@ export class PterodactylHostProvider implements HostProvider {
       success: false,
       stub: true,
       backupId: options.backupId,
-      error: '[STUB] Pterodactyl restore API integration pending.'
+      error: isPterodactylConfigured(this.config)
+        ? '[STUB] Pterodactyl restore API integration pending.'
+        : '[STUB] Pterodactyl credentials unset — restore not run.'
     };
   }
 
@@ -565,10 +603,21 @@ export class PterodactylHostProvider implements HostProvider {
 export class DirectRconSshHostProvider implements HostProvider {
   public readonly type = HostProviderType.DIRECT_RCON_SSH;
 
+  constructor(private config: DirectSshPartnerConfig = {}) {}
+
+  public setConfig(config: DirectSshPartnerConfig): void {
+    this.config = config;
+  }
+
+  public getReadiness(): HostProviderReadiness {
+    return directRconSshReadiness(this.config);
+  }
+
   private notImplemented(action: string, server: BedrockServer): false {
     console.warn(
       `[STUB] DirectRconSshHostProvider.${action} — SSH/RCON lifecycle integration pending for ${server.host}`
     );
+    void this.config;
     return false;
   }
 
@@ -699,6 +748,49 @@ export class HostProviderFactory {
     const provider = new DockerAgentHostProvider(gateway);
     this.providers.set(HostProviderType.DOCKER_AGENT, provider);
     return provider;
+  }
+
+  /**
+   * Wave D5 — bind optional partner host credentials from env.
+   * Throws if partner env is partially set (both-or-neither).
+   */
+  public static bindPartnerHosts(
+    env: Record<string, string | undefined> = process.env
+  ): {
+    pterodactyl: PterodactylHostProvider;
+    directRconSsh: DirectRconSshHostProvider;
+  } {
+    const pteroCfg = parsePterodactylPartnerConfig(env);
+    const sshCfg = parseDirectSshPartnerConfig(env);
+
+    let ptero = this.providers.get(HostProviderType.PTERODACTYL);
+    if (ptero instanceof PterodactylHostProvider) {
+      ptero.setConfig(pteroCfg);
+    } else {
+      ptero = new PterodactylHostProvider(pteroCfg);
+      this.providers.set(HostProviderType.PTERODACTYL, ptero);
+    }
+
+    let direct = this.providers.get(HostProviderType.DIRECT_RCON_SSH);
+    if (direct instanceof DirectRconSshHostProvider) {
+      direct.setConfig(sshCfg);
+    } else {
+      direct = new DirectRconSshHostProvider(sshCfg);
+      this.providers.set(HostProviderType.DIRECT_RCON_SSH, direct);
+    }
+
+    return {
+      pterodactyl: ptero as PterodactylHostProvider,
+      directRconSsh: direct as DirectRconSshHostProvider
+    };
+  }
+
+  public static listReadiness(): HostProviderReadiness[] {
+    return [
+      this.getProvider(HostProviderType.DOCKER_AGENT).getReadiness(),
+      this.getProvider(HostProviderType.PTERODACTYL).getReadiness(),
+      this.getProvider(HostProviderType.DIRECT_RCON_SSH).getReadiness()
+    ];
   }
 
   public static getProvider(type: HostProviderType | string): HostProvider {

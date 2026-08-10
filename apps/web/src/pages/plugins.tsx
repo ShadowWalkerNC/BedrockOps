@@ -452,7 +452,8 @@ export default function PluginsPage() {
         <ul style={{ margin: 0, paddingLeft: 18 }}>
           <li>Xbox Persona / .mcpersona uploads (BDS cannot force client Persona)</li>
           <li>Mojang Marketplace federation</li>
-          <li>Host partners (D5) and seasonal rounds (D6)</li>
+          <li>Live Pterodactyl / SSH lifecycle HTTP (D5 credentials + readiness exist; panel power still stubbed)</li>
+          <li>Seasonal rounds (D6)</li>
         </ul>
       </section>
     </AppShell>

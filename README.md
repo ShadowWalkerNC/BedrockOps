@@ -318,7 +318,8 @@ pnpm --filter @mc-admin/agent agent:build
 | **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped on `main` |
 | **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped on `main` |
 | **D1–D4** | Pack engine, mode templates + packs, cosmetics (world RP), Script API matrix, first-party marketplace, level.dat experiments | Shipped on this branch / merging to `main` |
-| **D5–D6** | Host partners (Pterodactyl/etc.), seasonal rounds | Later — **come help** |
+| **D5** | Partner host readiness (Pterodactyl / Direct SSH env + honest stubs); live panel/SSH lifecycle still pending | In progress — **come help** |
+| **D6** | Seasonal rounds | Later — **come help** |
 
 Still out of scope on purpose: Mojang Marketplace federation, Xbox Persona force-apply, player Discord↔in-game chat relay.
 

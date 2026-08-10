@@ -47,7 +47,10 @@ export default function SettingsPage() {
     void load();
   }, []);
 
-  const saveRealm = async (server: DashboardServer, patch: Partial<DashboardServer>) => {
+  const saveRealm = async (
+    server: DashboardServer,
+    patch: Partial<DashboardServer> & { pterodactylServerId?: string | null }
+  ) => {
     setSavingId(server.id);
     setNote(null);
     try {
@@ -107,7 +110,42 @@ export default function SettingsPage() {
               <StatusPill label="Discord slash" ok={status.integrations.discordSlash} />
               <StatusPill label="Cloudflare DNS" ok={status.integrations.cloudflareDns} />
               <StatusPill label="Xbox / OpenXBL" ok={status.integrations.xbox} />
+              <StatusPill label="Pterodactyl" ok={Boolean(status.integrations.pterodactyl)} />
+              <StatusPill label="Direct SSH" ok={Boolean(status.integrations.directSsh)} />
             </div>
+          </Section>
+
+          <Section title="Host providers (D5)">
+            <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
+              DOCKER_AGENT is the primary path. Partner hosts stay honest stubs until their APIs are
+              wired — configured credentials never fake power/backup success.
+            </p>
+            {(status.hostProviders || []).map((hp) => (
+              <div
+                key={hp.type}
+                style={{
+                  border: `1px solid ${c.outline}`,
+                  borderRadius: THEME.radius.md,
+                  padding: 12,
+                  background: c.surface,
+                  display: 'grid',
+                  gap: 6
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                  <strong style={{ fontFamily: THEME.fonts.mono }}>{hp.type}</strong>
+                  <span style={{ color: hp.configured ? c.primary : c.warning, fontFamily: THEME.fonts.mono, fontSize: 12 }}>
+                    {hp.configured ? 'configured' : 'needs config / unbound'}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: c.onSurfaceVariant }}>{hp.summary}</div>
+                <div style={{ fontSize: 11, fontFamily: THEME.fonts.mono, color: c.onSurfaceVariant }}>
+                  {Object.entries(hp.capabilities || {})
+                    .map(([k, v]) => `${k}:${v.state}`)
+                    .join(' · ')}
+                </div>
+              </div>
+            ))}
           </Section>
 
           <Section title="Agent nodes">
@@ -177,13 +215,15 @@ function RealmEditor({
 }: {
   server: DashboardServer;
   busy: boolean;
-  onSave: (patch: Partial<DashboardServer>) => void;
+  onSave: (patch: Partial<DashboardServer> & { pterodactylServerId?: string | null }) => void;
 }) {
   const [name, setName] = useState(server.name);
   const [gameMode, setGameMode] = useState(server.gameMode);
   const [difficulty, setDifficulty] = useState(server.difficulty);
   const [maxPlayers, setMaxPlayers] = useState(String(server.maxPlayers));
   const [serverPath, setServerPath] = useState(server.serverPath || '');
+  const [hostProvider, setHostProvider] = useState(server.hostProvider || 'DOCKER_AGENT');
+  const [pterodactylServerId, setPterodactylServerId] = useState(server.pterodactylServerId || '');
 
   useEffect(() => {
     setName(server.name);
@@ -191,6 +231,8 @@ function RealmEditor({
     setDifficulty(server.difficulty);
     setMaxPlayers(String(server.maxPlayers));
     setServerPath(server.serverPath || '');
+    setHostProvider(server.hostProvider || 'DOCKER_AGENT');
+    setPterodactylServerId(server.pterodactylServerId || '');
   }, [server]);
 
   return (
@@ -207,11 +249,36 @@ function RealmEditor({
         <Field label="Difficulty" value={difficulty} onChange={setDifficulty} />
         <Field label="Max players" value={maxPlayers} onChange={setMaxPlayers} />
       </div>
+      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, color: c.onSurfaceVariant }}>
+          Host provider
+          <select
+            value={hostProvider}
+            onChange={(e) => setHostProvider(e.target.value)}
+            style={{
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontSize: 14
+            }}
+          >
+            <option value="DOCKER_AGENT">DOCKER_AGENT</option>
+            <option value="PTERODACTYL">PTERODACTYL</option>
+            <option value="DIRECT_RCON_SSH">DIRECT_RCON_SSH</option>
+          </select>
+        </label>
+        {hostProvider === 'PTERODACTYL' ? (
+          <Field label="Pterodactyl server id" value={pterodactylServerId} onChange={setPterodactylServerId} />
+        ) : null}
+      </div>
       <div style={{ marginTop: 10 }}>
         <Field label="Server path" value={serverPath} onChange={setServerPath} />
       </div>
       <div style={{ marginTop: 10, fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
-        {server.host}:{server.port} · {server.version} · agent {server.agentId || '—'}
+        {server.host}:{server.port} · {server.version} · agent {server.agentId || '—'} · {hostProvider}
+        {hostProvider !== 'DOCKER_AGENT' ? ' (partner path — stubs until wired)' : ''}
       </div>
       <button
         type="button"
@@ -222,8 +289,13 @@ function RealmEditor({
             gameMode: gameMode.trim(),
             difficulty: difficulty.trim(),
             maxPlayers: Math.max(1, Number(maxPlayers) || server.maxPlayers),
-            serverPath: serverPath.trim() || undefined
-          })
+            serverPath: serverPath.trim() || undefined,
+            hostProvider,
+            pterodactylServerId:
+              hostProvider === 'PTERODACTYL'
+                ? pterodactylServerId.trim() || undefined
+                : (null as unknown as undefined)
+          } as Partial<DashboardServer> & { pterodactylServerId?: string | null })
         }
         style={{ ...btnPrimary, marginTop: 12, opacity: busy ? 0.7 : 1 }}
       >
