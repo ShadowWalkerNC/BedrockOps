@@ -87,6 +87,27 @@ describe('HostProvider Strategy Pattern', () => {
     expect(status.activePlayers).toBe(2);
   });
 
+  it('writes server.properties through WRITE_PROPERTIES when agent is connected', async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const gateway: AgentTunnelGatewayLike = {
+      isNodeConnected: () => true,
+      sendCommand: async (_nodeId, _serverId, command, payload) => {
+        calls.push({ command, payload });
+        return { success: true, output: `wrote ${payload.targetPath}` };
+      }
+    };
+    const provider = HostProviderFactory.bindAgentTunnel(gateway);
+    const server = db.servers[0];
+    const result = await provider.writeServerProperties(server, {
+      targetPath: `${server.serverPath}/server.properties`,
+      tempPath: `${server.serverPath}/server.properties.tmp`,
+      contents: 'gamemode=survival\n'
+    });
+    expect(result.success).toBe(true);
+    expect(calls[0].command).toBe('WRITE_PROPERTIES');
+    expect(calls[0].payload.contents).toContain('gamemode=survival');
+  });
+
   it('returns false when bound tunnel reports agent disconnected', async () => {
     const gateway: AgentTunnelGatewayLike = {
       isNodeConnected: () => false,

@@ -40,7 +40,7 @@ export default function PluginsPage() {
       <header>
         <h1 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 28 }}>Plugins & packs</h1>
         <p style={{ margin: '6px 0 0', color: c.onSurfaceVariant }}>
-          Template catalog is live (read-only). Installing behavior packs / Script API add-ons is Wave D.
+          Mode catalog is live (Survival, Creative Sandbox, Skyblock-ready Flat, Classic SMP). Installing behavior packs / Script API add-ons is Wave D.
         </p>
       </header>
 

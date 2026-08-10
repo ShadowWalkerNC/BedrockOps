@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { db, UserRole } from '@mc-admin/db';
+import { db, UserRole, HostProviderType } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
+import { HostProviderFactory } from '@mc-admin/bedrock';
 import {
   PipelineEngine,
   DnsProvider,
@@ -122,7 +123,18 @@ provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: Authe
     actorName: req.user!.username
   });
 
-  return res.status(201).json(result);
+  let propertiesWrite: { success: boolean; stub?: boolean; path?: string; error?: string } | undefined;
+  if (result.propertiesPlan) {
+    const provider = HostProviderFactory.getProvider(result.server.hostProvider || HostProviderType.DOCKER_AGENT);
+    propertiesWrite = await provider.writeServerProperties(result.server, result.propertiesPlan);
+    result.run.logs.push(
+      propertiesWrite.success
+        ? `[Step 2b/4] Wrote server.properties via agent → ${propertiesWrite.path}`
+        : `[Step 2b/4] Properties write deferred: ${propertiesWrite.error || 'agent offline (honest stub)'}`
+    );
+  }
+
+  return res.status(201).json({ ...result, propertiesWrite });
 });
 
 // POST /api/v1/provisioning/onboarding/console — console player onboarding (R5.2)

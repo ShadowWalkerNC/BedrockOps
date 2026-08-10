@@ -41,6 +41,20 @@ describe('PipelineEngine Package', () => {
     expect(NotificationDispatcher.sentMessages.length).toBe(1);
   });
 
+  it('applies Creative Sandbox mode and prepares properties plan', async () => {
+    const result = await PipelineEngine.runServerSetupPipeline({
+      serverName: 'Sandbox Realm',
+      templateId: 'tmpl_creative_sandbox',
+      actorName: 'AdminUser'
+    });
+
+    expect(result.server.gameMode).toBe('creative');
+    expect(result.server.difficulty).toBe('peaceful');
+    expect(result.server.maxPlayers).toBe(20);
+    expect(result.propertiesPlan?.contents).toContain('gamemode=creative');
+    expect(result.propertiesPlan?.targetPath).toContain(result.server.id);
+  });
+
   it('allocates a play subdomain + UDP port during setup (R5.1/R5.3)', async () => {
     const result = await PipelineEngine.runServerSetupPipeline({
       serverName: 'Network Realm',

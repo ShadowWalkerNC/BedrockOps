@@ -11,7 +11,7 @@ import {
 import { AuditLogger } from '@mc-admin/audit';
 import { NotificationDispatcher } from '@mc-admin/notifications';
 import { BackupEngine } from '@mc-admin/backups';
-import { TemplateEngine } from '@mc-admin/templates';
+import { PropertiesWritePlan, TemplateEngine } from '@mc-admin/templates';
 import {
   DnsProvider,
   NetworkAllocation,
@@ -42,7 +42,12 @@ export class PipelineEngine {
     nodeIp?: string;
     subdomain?: string;
     preferredPort?: number;
-  }): Promise<{ server: BedrockServer; run: PipelineRun; network?: NetworkAllocation }> {
+  }): Promise<{
+    server: BedrockServer;
+    run: PipelineRun;
+    network?: NetworkAllocation;
+    propertiesPlan?: PropertiesWritePlan;
+  }> {
     const logs: string[] = [];
     logs.push(`[${new Date().toISOString()}] Initializing pipeline run for ${params.serverName}`);
 
@@ -97,10 +102,14 @@ export class PipelineEngine {
       `[Step 1/4] Server record created: ${server.id} (agent=${server.agentId}, path=${server.serverPath})`
     );
 
-    // Step 2: Apply Template
+    // Step 2: Apply Template (memory fields + properties write plan)
+    let propertiesPlan: PropertiesWritePlan | undefined;
     try {
       TemplateEngine.applyTemplateToServer(params.templateId, server);
-      logs.push(`[Step 2/4] Applied template ${params.templateId}`);
+      propertiesPlan = TemplateEngine.buildPropertiesWritePlan(params.templateId, server);
+      logs.push(
+        `[Step 2/4] Applied template ${params.templateId} (mode=${server.gameMode}, prepared ${propertiesPlan.targetPath})`
+      );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logs.push(`[Step 2/4 Warning] Template apply skipped or failed: ${message}`);
@@ -124,6 +133,7 @@ export class PipelineEngine {
       metadata: {
         templateId: params.templateId,
         backupId: backup.id,
+        propertiesPath: propertiesPlan?.targetPath,
         network: network
           ? { fqdn: network.fqdn, port: network.port, subdomain: network.subdomain }
           : undefined
@@ -153,7 +163,7 @@ export class PipelineEngine {
     };
     db.pipelineRuns.push(runRecord);
 
-    return { server, run: runRecord, network };
+    return { server, run: runRecord, network, propertiesPlan };
   }
 
   /** R5.2 helper used by API/onboarding flows. */

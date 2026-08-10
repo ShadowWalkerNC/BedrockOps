@@ -41,6 +41,14 @@ export interface RestoreResult {
   output?: string;
 }
 
+export interface PropertiesWriteResult {
+  success: boolean;
+  stub?: boolean;
+  path?: string;
+  error?: string;
+  output?: string;
+}
+
 export interface HostProvider {
   readonly type: HostProviderType;
 
@@ -52,6 +60,10 @@ export interface HostProvider {
   streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void;
   triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult>;
   restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult>;
+  writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult>;
 }
 
 /** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
@@ -226,6 +238,47 @@ export class DockerAgentHostProvider implements HostProvider {
       error: '[STUB] Agent tunnel not connected — restore not executed on host.'
     };
   }
+
+  public async writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        error: `Server ${server.id} has no assigned agentNode — properties not written.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        path: plan.targetPath,
+        error: '[STUB] Agent tunnel not connected — server.properties not written on host.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        path: plan.targetPath,
+        error: `[STUB] Agent ${server.agentId} not connected — server.properties not written on host.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'WRITE_PROPERTIES', {
+      targetPath: plan.targetPath,
+      tempPath: plan.tempPath,
+      contents: plan.contents
+    })) as { success?: boolean; stub?: boolean; error?: string; output?: string };
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      path: plan.targetPath,
+      output: result?.output,
+      error: result?.error
+    };
+  }
 }
 
 export class PterodactylHostProvider implements HostProvider {
@@ -296,6 +349,18 @@ export class PterodactylHostProvider implements HostProvider {
       error: '[STUB] Pterodactyl restore API integration pending.'
     };
   }
+
+  public async writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Pterodactyl properties write pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
 }
 
 export class DirectRconSshHostProvider implements HostProvider {
@@ -364,6 +429,18 @@ export class DirectRconSshHostProvider implements HostProvider {
       stub: true,
       backupId: options.backupId,
       error: '[STUB] Direct RCON/SSH restore integration pending.'
+    };
+  }
+
+  public async writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Direct RCON/SSH properties write pending for ${server.host}`
     };
   }
 }

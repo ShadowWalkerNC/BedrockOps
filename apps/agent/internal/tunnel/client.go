@@ -16,6 +16,7 @@ import (
 	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/properties"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/protocol"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/rcon"
 	"github.com/gorilla/websocket"
@@ -246,6 +247,8 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleStatus(frame, serverID)
 	case protocol.CmdAllowlistSync:
 		c.handleAllowlistSync(frame, serverID, payload)
+	case protocol.CmdWriteProperties:
+		c.handleWriteProperties(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
@@ -380,6 +383,24 @@ func (c *Client) handleAllowlistSync(frame protocol.Frame, serverID string, payl
 		Output:  fmt.Sprintf("allowlist synced: wrote %d entries -> %s", len(entries), payload.TargetPath),
 	})
 	_ = c.sendLog(serverID, fmt.Sprintf("allowlist synced (%d entries) -> %s", len(entries), payload.TargetPath))
+}
+
+func (c *Client) handleWriteProperties(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	if payload.Contents == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "contents required for WRITE_PROPERTIES"})
+		return
+	}
+	if err := properties.AtomicWrite(payload.TargetPath, payload.TempPath, payload.Contents); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("properties write failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("server.properties written -> %s", payload.TargetPath),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("server.properties written -> %s", payload.TargetPath))
 }
 
 func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {

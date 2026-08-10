@@ -105,20 +105,75 @@ export class MemoryDatabase {
       createdAt: new Date()
     });
 
-    this.templates.push({
-      id: 'tmpl_vanilla_survival',
-      name: 'Vanilla Hard Survival',
-      description: 'Standard vanilla survival Bedrock configuration template.',
-      bdsVersion: '1.20.80',
-      defaultProperties: {
-        'gamemode': 'survival',
-        'difficulty': 'hard',
-        'allow-cheats': 'false',
-        'max-players': '10'
+    this.templates.push(
+      {
+        id: 'tmpl_vanilla_survival',
+        name: 'Vanilla Hard Survival',
+        description: 'Classic hard survival — no cheats. Packs not included (Wave D).',
+        bdsVersion: '1.20.80',
+        defaultProperties: {
+          gamemode: 'survival',
+          difficulty: 'hard',
+          'allow-cheats': 'false',
+          'max-players': '10',
+          pvp: 'true',
+          'keep-inventory': 'false'
+        },
+        addonPacks: [],
+        createdAt: new Date()
       },
-      addonPacks: [],
-      createdAt: new Date()
-    });
+      {
+        id: 'tmpl_creative_sandbox',
+        name: 'Creative Sandbox',
+        description: 'Build freely — creative mode with cheats for operators.',
+        bdsVersion: '1.20.80',
+        defaultProperties: {
+          gamemode: 'creative',
+          difficulty: 'peaceful',
+          'allow-cheats': 'true',
+          'max-players': '20',
+          pvp: 'false',
+          'keep-inventory': 'true'
+        },
+        addonPacks: [],
+        createdAt: new Date()
+      },
+      {
+        id: 'tmpl_flat_skyblock',
+        name: 'Skyblock-ready Flat',
+        description:
+          'Flat world properties for a Skyblock-style start. Island packs/worlds are Wave D — not installed yet.',
+        bdsVersion: '1.20.80',
+        defaultProperties: {
+          gamemode: 'survival',
+          difficulty: 'normal',
+          'allow-cheats': 'false',
+          'max-players': '10',
+          'level-type': 'FLAT',
+          pvp: 'true',
+          'keep-inventory': 'false'
+        },
+        addonPacks: [],
+        createdAt: new Date()
+      },
+      {
+        id: 'tmpl_classic_smp',
+        name: 'Classic SMP',
+        description:
+          'Community survival multiplayer defaults (larger slots, PvP on). First-party preset — not a third-party SMP clone.',
+        bdsVersion: '1.20.80',
+        defaultProperties: {
+          gamemode: 'survival',
+          difficulty: 'normal',
+          'allow-cheats': 'false',
+          'max-players': '50',
+          pvp: 'true',
+          'keep-inventory': 'false'
+        },
+        addonPacks: [],
+        createdAt: new Date()
+      }
+    );
 
     this.bdsVersions.push(
       {
