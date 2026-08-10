@@ -148,7 +148,7 @@ If you improve it — **please open a pull request.** That’s how this grows.
 | `apps/discord` | Webhooks / slash-command relay |
 | `packages/*` | Shared domain libs (`@mc-admin/*`) |
 
-Deeper map: [PROJECT_PLAN.md](./PROJECT_PLAN.md) · contributor rules: [AGENTS.md](./AGENTS.md) · ship status: [SHIP_READINESS.md](./SHIP_READINESS.md)
+Deeper map: [PROJECT_PLAN.md](./PROJECT_PLAN.md) · contributor rules: [AGENTS.md](./AGENTS.md) · ship status: [SHIP_READINESS.md](./SHIP_READINESS.md) · deploy: [DEPLOY.md](./DEPLOY.md)
 
 ---
 
@@ -179,6 +179,20 @@ Open **http://localhost:3000/login**
 | Password | `admin` |
 
 That’s a local seed account for development. Change it before you expose anything to the internet.
+
+### Deploy to a VPS / staging
+
+See **[DEPLOY.md](./DEPLOY.md)**. Short version:
+
+```bash
+cp .env.example .env   # set NODE_ENV=production, strong secrets, DATABASE_URL, CORS_ORIGIN,
+                       # API_URL + NEXT_PUBLIC_API_URL to your public API origin
+docker compose up -d postgres
+./scripts/start-prod.sh
+# pair the Go agent on the game host (DEPLOY.md §4)
+```
+
+Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
 
 ### Windows
 
@@ -280,6 +294,8 @@ Copy `.env.example` → `.env`. Important knobs:
 | `JWT_SECRET` | Sign dashboard sessions (use a long random string) |
 | `NODE_PAIRING_SECRET` | Agent pairing hardness |
 | `CORS_ORIGIN` | Your dashboard origin (`http://localhost:3000` locally) |
+| `API_URL` | Server-side API origin for Next rewrites |
+| `NEXT_PUBLIC_API_URL` | Browser API origin for live console WebSockets |
 | `BEDROCK_AGENT_TOKEN` | Must match the agent node’s hashed token |
 | `R2_*` | Optional offsite backups |
 | `DISCORD_WEBHOOK_URL` | Optional live alerts |
@@ -288,7 +304,7 @@ Copy `.env.example` → `.env`. Important knobs:
 
 **Missing keys never fake success.** Backups, Discord, DNS, and Xbox paths return honest stubs / pending states until configured. That’s a feature.
 
-Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
+Deploy runbook: [DEPLOY.md](./DEPLOY.md) · Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
 
 ---
 
@@ -306,6 +322,11 @@ pnpm --filter @mc-admin/db db:generate
 pnpm --filter @mc-admin/db db:migrate
 pnpm --filter @mc-admin/web clean
 pnpm --filter @mc-admin/agent agent:build
+
+# Production-shaped process starts (after pnpm build / migrate):
+pnpm start:api
+pnpm start:web
+pnpm start:worker
 ```
 
 ---
@@ -314,16 +335,16 @@ pnpm --filter @mc-admin/agent agent:build
 
 | Wave | What | Status |
 |------|------|--------|
-| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Shipped on `main` |
-| **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped on `main` |
-| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped on `main` |
-| **D1–D4** | Pack engine, mode templates + packs, cosmetics (world RP), Script API matrix, first-party marketplace, level.dat experiments | Shipped on this branch / merging to `main` |
-| **D5** | Partner host readiness (Pterodactyl / Direct SSH env + honest stubs); live panel/SSH lifecycle still pending | In progress — **come help** |
-| **D6** | Seasonal rounds | Later — **come help** |
+| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Shipped |
+| **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped |
+| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped |
+| **D1–D4** | Pack engine, mode templates + packs, cosmetics, Script API matrix, marketplace, level.dat experiments | Shipped |
+| **D5** | Partner host readiness (env + Settings); live panel/SSH HTTP still a later add-on | Readiness shipped |
+| **D6+** | Seasonal rounds, Mojang store federation, Persona force-apply | Later add-ons — **come help** |
 
-Still out of scope on purpose: Mojang Marketplace federation, Xbox Persona force-apply, player Discord↔in-game chat relay.
+Core product is **deployable today** with `DOCKER_AGENT` — see [DEPLOY.md](./DEPLOY.md).
 
-If D5 host wiring or round-based modes excite you, open an issue or PR. We’ll take serious contributions over vaporware screenshots.
+If live Pterodactyl wiring or round-based modes excite you, open an issue or PR. We’ll take serious contributions over vaporware screenshots.
 
 ---
 

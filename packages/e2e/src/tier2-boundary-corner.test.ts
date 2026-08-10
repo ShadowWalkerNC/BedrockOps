@@ -156,8 +156,15 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
     });
 
     it('PterodactylHostProvider refuses start until panel API is wired', async () => {
-      const provider = new PterodactylHostProvider('https://panel.example.com', 'ptero_key_123');
-      const server = { ...db.servers[0], hostProvider: HostProviderType.PTERODACTYL };
+      const provider = new PterodactylHostProvider({
+        apiBaseUrl: 'https://panel.example.com',
+        apiKey: 'ptero_key_123'
+      });
+      const server = {
+        ...db.servers[0],
+        hostProvider: HostProviderType.PTERODACTYL,
+        pterodactylServerId: 'pt_srv_1'
+      };
 
       const started = await provider.startServer(server);
       expect(started).toBe(false);

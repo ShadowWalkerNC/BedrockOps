@@ -448,12 +448,12 @@ export default function PluginsPage() {
           gap: 8
         }}
       >
-        <strong style={{ color: c.onSurface }}>Still deferred</strong>
+        <strong style={{ color: c.onSurface }}>Later add-ons</strong>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
           <li>Xbox Persona / .mcpersona uploads (BDS cannot force client Persona)</li>
           <li>Mojang Marketplace federation</li>
-          <li>Live Pterodactyl / SSH lifecycle HTTP (D5 credentials + readiness exist; panel power still stubbed)</li>
-          <li>Seasonal rounds (D6)</li>
+          <li>Live Pterodactyl / SSH lifecycle HTTP (credentials + readiness exist; panel power still stubbed)</li>
+          <li>Seasonal rounds</li>
         </ul>
       </section>
     </AppShell>

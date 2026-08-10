@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.43
+      tsx:
+        specifier: ^4.7.0
+        version: 4.23.11
       turbo:
         specifier: ^2.0.0
         version: 2.10.8
@@ -118,6 +121,9 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.19.43)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.23.11
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -137,6 +143,9 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.19.43)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.23.11
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -205,6 +214,9 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.19.43)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.23.11
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

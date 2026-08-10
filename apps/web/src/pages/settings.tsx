@@ -110,15 +110,31 @@ export default function SettingsPage() {
               <StatusPill label="Discord slash" ok={status.integrations.discordSlash} />
               <StatusPill label="Cloudflare DNS" ok={status.integrations.cloudflareDns} />
               <StatusPill label="Xbox / OpenXBL" ok={status.integrations.xbox} />
-              <StatusPill label="Pterodactyl" ok={Boolean(status.integrations.pterodactyl)} />
-              <StatusPill label="Direct SSH" ok={Boolean(status.integrations.directSsh)} />
+              <StatusPill
+                label="Pterodactyl credentials"
+                ok={Boolean(status.integrations.pterodactyl)}
+                detail={
+                  status.integrations.pterodactyl
+                    ? 'set — panel power still stubbed'
+                    : 'unset'
+                }
+              />
+              <StatusPill
+                label="Direct SSH credentials"
+                ok={Boolean(status.integrations.directSsh)}
+                detail={
+                  status.integrations.directSsh
+                    ? 'set — SSH lifecycle still stubbed'
+                    : 'unset (RCON path still works)'
+                }
+              />
             </div>
           </Section>
 
-          <Section title="Host providers (D5)">
+          <Section title="Host providers">
             <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
-              DOCKER_AGENT is the primary path. Partner hosts stay honest stubs until their APIs are
-              wired — configured credentials never fake power/backup success.
+              Prefer DOCKER_AGENT for real ops. Partner providers can be assigned for inventory, but
+              power/backup/files stay stubbed until their APIs are wired as later add-ons.
             </p>
             {(status.hostProviders || []).map((hp) => (
               <div
@@ -332,7 +348,15 @@ function KV({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({ label, ok }: { label: string; ok: boolean }) {
+function StatusPill({
+  label,
+  ok,
+  detail
+}: {
+  label: string;
+  ok: boolean;
+  detail?: string;
+}) {
   return (
     <div
       style={{
@@ -345,7 +369,7 @@ function StatusPill({ label, ok }: { label: string; ok: boolean }) {
     >
       <div style={{ fontWeight: 600 }}>{label}</div>
       <div style={{ color: ok ? c.primary : c.warning, fontFamily: THEME.fonts.mono, marginTop: 4 }}>
-        {ok ? 'configured' : 'stub / unset'}
+        {detail || (ok ? 'configured' : 'stub / unset')}
       </div>
     </div>
   );

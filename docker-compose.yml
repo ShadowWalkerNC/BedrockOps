@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Local / self-host data plane. App processes (api/web/worker/agent) run via
+# pnpm scripts — see DEPLOY.md and ./scripts/start-prod.sh.
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,16 +16,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: mc_admin_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mcadmin -d minecraft_admin']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres_data:
-  redis_data:

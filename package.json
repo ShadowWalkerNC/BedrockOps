@@ -8,11 +8,16 @@
     "test": "turbo test",
     "clean": "turbo clean",
     "typecheck": "turbo typecheck",
+    "start:api": "pnpm --filter @mc-admin/api start",
+    "start:web": "pnpm --filter @mc-admin/web start",
+    "start:worker": "pnpm --filter @mc-admin/worker start",
+    "start:discord": "pnpm --filter @mc-admin/discord start",
     "bds:e2e": "./scripts/bds/run-bot-e2e.sh",
     "bds:e2e:api": "./scripts/bds/run-bot-e2e.sh --with-api"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
     "turbo": "^2.0.0",
     "typescript": "^5.4.0"
   },

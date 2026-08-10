@@ -229,7 +229,7 @@ export default function SetupWizardPage() {
       <div>
         <h1 style={{ fontFamily: THEME.fonts.heading, fontSize: 30, fontWeight: 700, margin: 0 }}>Realm Setup</h1>
         <p style={{ color: c.onSurfaceVariant, marginTop: 6, maxWidth: 560 }}>
-          Pick a game mode, create a realm, onboard a console player, and take a first backup. Packs/addons are Wave D.
+          Pick a game mode, create a realm, onboard a console player, and take a first backup. Mode presets can install vetted packs when the agent is online.
         </p>
       </div>
 

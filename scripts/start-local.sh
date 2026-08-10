@@ -50,6 +50,7 @@ text = set_kv(text, "DB_ADAPTER", "prisma")
 text = set_kv(text, "NEXT_PUBLIC_DEV_AUTO_LOGIN", "false")
 text = set_kv(text, "CORS_ORIGIN", "http://localhost:3000")
 text = set_kv(text, "API_URL", "http://localhost:4000")
+text = set_kv(text, "NEXT_PUBLIC_API_URL", "http://localhost:4000")
 path.write_text(text)
 print("[start-local] .env hardened for local prisma play")
 PY
@@ -93,7 +94,7 @@ echo $! > "$LOG_DIR/api.pid"
 # Wipe stale Next cache (corrupt vendor-chunks are common after branch switches / OneDrive sync).
 pnpm --filter @mc-admin/web clean >/dev/null 2>&1 || rm -rf apps/web/.next
 
-NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 \
+NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 NEXT_PUBLIC_API_URL=http://localhost:4000 \
   pnpm --filter @mc-admin/web dev > "$LOG_DIR/web.log" 2>&1 &
 echo $! > "$LOG_DIR/web.pid"
 

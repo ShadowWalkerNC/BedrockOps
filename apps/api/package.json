@@ -6,21 +6,22 @@
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
+    "start": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"
   },
   "dependencies": {
+    "@mc-admin/analytics": "workspace:*",
+    "@mc-admin/audit": "workspace:*",
+    "@mc-admin/auth": "workspace:*",
+    "@mc-admin/backups": "workspace:*",
+    "@mc-admin/bedrock": "workspace:*",
     "@mc-admin/config": "workspace:*",
     "@mc-admin/db": "workspace:*",
-    "@mc-admin/auth": "workspace:*",
-    "@mc-admin/audit": "workspace:*",
-    "@mc-admin/analytics": "workspace:*",
-    "@mc-admin/bedrock": "workspace:*",
-    "@mc-admin/backups": "workspace:*",
     "@mc-admin/moderation": "workspace:*",
     "@mc-admin/notifications": "workspace:*",
-    "@mc-admin/templates": "workspace:*",
     "@mc-admin/pipelines": "workspace:*",
+    "@mc-admin/templates": "workspace:*",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
@@ -37,6 +38,7 @@
     "@types/ws": "^8.5.10",
     "supertest": "^6.3.4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.5.0"
   }

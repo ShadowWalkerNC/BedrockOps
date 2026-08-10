@@ -8,7 +8,7 @@ This monorepo houses a Bedrock-first Minecraft server operations platform. All c
 ## Directory Boundaries & Responsibilities
 
 ### `apps/`
-- **`apps/web`**: Next.js (App Router) admin dashboard UI. Responsibilities: UI rendering, user interaction, form input, state display. Dependencies should import from `@mc-admin/ui`, `@mc-admin/auth`, and API contracts.
+- **`apps/web`**: Next.js (Pages Router) admin dashboard UI. Responsibilities: UI rendering, user interaction, form input, state display. Dependencies should import from `@mc-admin/ui`, `@mc-admin/auth`, and API contracts.
 - **`apps/api`**: REST/WebSocket backend server. Responsibilities: Request authentication/authorization, database operations via `@mc-admin/db`, domain package invocation, audit logging dispatch.
 - **`apps/worker`**: Async task processor. Responsibilities: Scheduled backups, background pipeline execution, retention policy sweeps.
 - **`apps/agent`**: Machine daemon. Responsibilities: Direct filesystem and process management for Bedrock Dedicated Server instances on host machine.
@@ -53,9 +53,9 @@ This monorepo houses a Bedrock-first Minecraft server operations platform. All c
 
 ## Change Management & Staged Execution
 - Respect delivery waves in `PROJECT_PLAN.md` (Wave A → B → C → D).
-- **Wave A scope is strictly enforced** for foundation work: agent tunnel, real RCON, Prisma wiring, Cloudflare R2 backup/restore, and security hardening.
-- Do **not** auto-implement later-wave items during Wave A tasks: host partner APIs, marketplace, referrals, official Mojang Realms, Java/Geyser primary path, round-based modes, white-label Shield SKU, or AI agents.
-- Prefer the single host path `DOCKER_AGENT` until Wave A ship gate passes; other `HostProvider` types must fail honestly when unwired.
+- **Shippable core is Waves A–C + D1–D4 (+ D5 readiness).** Prefer `DOCKER_AGENT` for real host ops.
+- Treat live Pterodactyl/SSH lifecycle, D6 rounds, Mojang Marketplace federation, referrals, Java/Geyser-primary, white-label Shield SKU, and AI agents as **later add-ons** — do not fake success for unwired integrations.
+- Other `HostProvider` types must fail honestly (or report `stub` / `needs_config` readiness) until wired.
 
 ---
 
@@ -71,7 +71,7 @@ The startup update script already runs `pnpm install` and `pnpm --filter @mc-adm
 - Optional services (`worker`, `discord`, and the Go `agent`) are not needed to exercise the dashboard's core flow.
 
 ### Non-obvious gotchas
-- **No database service is required for local dev.** `DB_ADAPTER` defaults to an in-memory, pre-seeded store (seeded admin user, one Bedrock server, one agent node). Postgres/Redis in `docker-compose.yml` are only needed when you explicitly set `DB_ADAPTER=prisma`.
+- **No database service is required for local memory-mode dev.** `DB_ADAPTER` defaults to an in-memory, pre-seeded store for unit tests. Postgres in `docker-compose.yml` is required when you set `DB_ADAPTER=prisma` (recommended for production-shaped local play and real deploys).
 - **`prisma generate` is mandatory before test/build/run.** `@mc-admin/db` instantiates `PrismaClient` at import time, so `api`, `worker`, and `e2e` fail to load if the client is missing. If you ever hit "@prisma/client did not initialize", run `pnpm --filter @mc-admin/db db:generate`.
 - **Root `.env` has `PORT=3000` (web).** Always start the API with an explicit override: `PORT=4000 pnpm --filter @mc-admin/api dev`. If the API inherits `PORT=3000` it collides with the dashboard.
 - **Web dev auto-login is env-gated and `next dev` does NOT read the repo-root `.env`.** Prefer `/login` (`NEXT_PUBLIC_DEV_AUTO_LOGIN=false`). Silent login only when `NEXT_PUBLIC_DEV_AUTO_LOGIN=true` is in the web app's environment — pass it inline or put it in `apps/web/.env.local`. Seed login: `admin@minecraft-admin.local` / `admin`.

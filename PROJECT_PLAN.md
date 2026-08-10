@@ -30,23 +30,16 @@ This is **not** a race on RAM pricing against hosts. Competing hosts (e.g. Purpi
 2. **Safe by default** — confirmation modals + structured audit logs for destructive actions.
 3. **Templates over blank slates** — instant Realms profiles with pinned BDS versions and pack bundles.
 4. **Honest stubs** — never pretend start/stop/backup/restore succeeded when host I/O is missing.
-5. **One host path first** — ship `DOCKER_AGENT` (outbound WSS agent on machines we control); defer Pterodactyl / partner APIs until Wave D.
+5. **One host path first** — ship `DOCKER_AGENT` (outbound WSS agent on machines we control); partner panel/SSH lifecycle is optional later and must fail honestly until wired.
 6. **Version-aware** — track BDS releases, pack/Script API compatibility; do not build client renderers (Vulkan/RenderDragon are client concerns).
 
 ---
 
-## Current State (as of Wave A completion branch)
+## Current State (shippable core)
 
-**`main`:** Phase-0 / M1 prototype baseline + Realms-first plan rewrite.
+**`main` target:** Waves **A–C** ops core + Wave **D1–D4** content (packs, modes, marketplace, Script matrix, level.dat experiments) + **D5 readiness** (partner host env/UI; panel HTTP still stubbed).
 
-**Wave A completion branch** (`cursor/wave-a-complete-1b80`): lands A1–A5 without Wave B (M4/M5) — Go agent WSS tunnel, Source RCON codec, R2 streaming backup/restore, Prisma hydrate/flush + migrations, agent auth / honest stubs / upload host allowlist.
-
-**Deferred Wave B draft branches** (do not merge ahead of Wave A ship gate):
-
-| Branch | Intent |
-|--------|--------|
-| `cursor/moderation-allowlist-m4-ab1c` | Player tracking, GDPR, allowlist sync (M4) |
-| `cursor/subdomain-onboarding-m5-ab1c` | Subdomain/ports + console onboarding (M5) |
+Primary host path remains **`DOCKER_AGENT`**. Live Pterodactyl/SSH lifecycle, D6 rounds, Mojang Marketplace federation, and Persona force-apply are **later add-ons** — see [DEPLOY.md](./DEPLOY.md) and [SHIP_READINESS.md](./SHIP_READINESS.md).
 
 ---
 
@@ -72,7 +65,8 @@ This is **not** a race on RAM pricing against hosts. Competing hosts (e.g. Purpi
 │   ├── notifications/ # Discord embed/payload formatters
 │   ├── templates/     # Realms templates + pack apply (files + manifests)
 │   └── pipelines/     # Setup / onboarding orchestration
-├── docker-compose.yml # Postgres 16 & Redis 7
+├── docker-compose.yml # Postgres 16
+├── DEPLOY.md          # Self-host / production runbook
 ├── PROJECT.md         # Feature inventory & milestone status
 ├── PROJECT_PLAN.md    # This document
 └── AGENTS.md          # Coding standards & package boundaries
@@ -254,11 +248,10 @@ export interface ConsoleJoinAdapter {
 
 ## Immediate next actions
 
-1. ~~Land Wave A candidates~~ — agent tunnel, real RCON, R2 backup/restore, Prisma hydrate/flush, and security hardening are on the Wave A completion branch.
-2. Merge Wave A to `main` after CI green; run live agent + R2 smoke against staging.
-3. Keep Wave B console adapters designed as plugins (FriendConnect/friend-session + allowlist).
-4. Do not start marketplace, host-partner APIs, or rounds until Wave A ship gate passes on `main`.
-5. Use hosting friendships as **business development after product-market fit**, not as engineering prerequisites.
+1. Deploy the shippable core with [DEPLOY.md](./DEPLOY.md) / `./scripts/start-prod.sh`.
+2. Pair a live Go agent + optional R2/Discord smoke on staging.
+3. Ship later add-ons independently: live Pterodactyl HTTP, SSH lifecycle, D6 rounds, Marketplace federation.
+4. Keep hosting partnerships as **business development**, not engineering prerequisites.
 
 ---
 
