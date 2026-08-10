@@ -351,7 +351,9 @@ rcon.port=19133
 
       expect(result.server).toBeDefined();
       expect(result.server.name).toBe('Factions Realm');
-      expect(result.server.status).toBe(ServerStatus.ONLINE);
+      expect(result.server.status).toBe(ServerStatus.OFFLINE);
+      expect(result.server.agentId).toBe('node_docker_agent_1');
+      expect(result.server.serverPath).not.toContain('/var/minecraft/');
 
       expect(result.run).toBeDefined();
       expect(result.run.status).toBe(PipelineStatus.SUCCESS);
