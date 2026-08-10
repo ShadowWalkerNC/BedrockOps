@@ -231,7 +231,7 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 	serverID := frame.ServerID
 	switch payload.Command {
 	case protocol.CmdPowerAction:
-		c.handlePower(frame, serverID, strings.ToUpper(payload.Action))
+		c.handlePower(frame, serverID, strings.ToUpper(payload.Action), payload.ServerPath)
 	case protocol.CmdRconCommand:
 		cmd := payload.RconCommand
 		if cmd == "" {
@@ -249,7 +249,7 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
-			c.handlePower(frame, serverID, strings.ToUpper(payload.Action))
+			c.handlePower(frame, serverID, strings.ToUpper(payload.Action), payload.ServerPath)
 			return
 		}
 		c.respond(frame, protocol.CmdRespPayload{
@@ -259,8 +259,11 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 	}
 }
 
-func (c *Client) handlePower(frame protocol.Frame, serverID, action string) {
-	path := c.cfg.ServerPathHint
+func (c *Client) handlePower(frame protocol.Frame, serverID, action, serverPath string) {
+	path := strings.TrimSpace(serverPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
 	var (
 		state lifecycle.State
 		mode  lifecycle.Mode
@@ -299,9 +302,9 @@ func (c *Client) handlePower(frame protocol.Frame, serverID, action string) {
 		Success: true,
 		Mode:    string(mode),
 		State:   string(state),
-		Output:  fmt.Sprintf("power action %s -> %s (mode=%s)", action, state, mode),
+		Output:  fmt.Sprintf("power action %s -> %s (mode=%s path=%s)", action, state, mode, path),
 	})
-	_ = c.sendLog(serverID, fmt.Sprintf("power %s -> %s", action, state))
+	_ = c.sendLog(serverID, fmt.Sprintf("power %s -> %s (path=%s)", action, state, path))
 }
 
 func (c *Client) handleRcon(frame protocol.Frame, serverID, command string) {

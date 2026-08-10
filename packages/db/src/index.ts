@@ -21,6 +21,7 @@ export * from './schema';
 export * from './client';
 export * from './adapter';
 export * from './persist';
+export * from './paths';
 
 /** Well-known bcrypt hash of password "admin" (cost 10) for local/test seeding only. */
 export const DEV_ADMIN_PASSWORD_HASH =

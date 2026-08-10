@@ -81,7 +81,10 @@ export class DockerAgentHostProvider implements HostProvider {
       console.warn(`[STUB] DockerAgentHostProvider.${action} — agent ${server.agentId} is not connected`);
       return false;
     }
-    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action }) as {
+    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', {
+      action,
+      serverPath: server.serverPath || undefined
+    }) as {
       success?: boolean;
     };
     return result?.success !== false;

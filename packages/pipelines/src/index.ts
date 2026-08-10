@@ -1,4 +1,13 @@
-import { db, BedrockServer, ServerStatus, PipelineRun, PipelineStatus } from '@mc-admin/db';
+import {
+  db,
+  BedrockServer,
+  ServerStatus,
+  PipelineRun,
+  PipelineStatus,
+  HostProviderType,
+  defaultServerPath,
+  DEFAULT_DOCKER_AGENT_ID
+} from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { NotificationDispatcher } from '@mc-admin/notifications';
 import { BackupEngine } from '@mc-admin/backups';
@@ -60,6 +69,11 @@ export class PipelineEngine {
       );
     }
 
+    const onlineAgent =
+      db.agentNodes.find((n) => n.status === 'ONLINE') ||
+      db.agentNodes.find((n) => n.id === DEFAULT_DOCKER_AGENT_ID);
+    const agentId = onlineAgent?.id || DEFAULT_DOCKER_AGENT_ID;
+
     const server: BedrockServer = {
       id: serverId,
       name: params.serverName,
@@ -68,8 +82,10 @@ export class PipelineEngine {
       port,
       rconPort: 19133,
       rconPassword: 'secret_rcon_pass',
-      serverPath: `/var/minecraft/${params.serverName.toLowerCase().replace(/\s+/g, '-')}`,
-      status: ServerStatus.ONLINE,
+      hostProvider: HostProviderType.DOCKER_AGENT,
+      agentId,
+      serverPath: defaultServerPath(serverId),
+      status: ServerStatus.OFFLINE,
       maxPlayers: 10,
       gameMode: 'survival',
       difficulty: 'hard',
@@ -77,7 +93,9 @@ export class PipelineEngine {
       updatedAt: new Date()
     };
     db.servers.push(server);
-    logs.push(`[Step 1/4] Server record created: ${server.id}`);
+    logs.push(
+      `[Step 1/4] Server record created: ${server.id} (agent=${server.agentId}, path=${server.serverPath})`
+    );
 
     // Step 2: Apply Template
     try {
