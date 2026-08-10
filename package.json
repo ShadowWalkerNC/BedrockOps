@@ -7,7 +7,9 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "clean": "turbo clean",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "bds:e2e": "./scripts/bds/run-bot-e2e.sh",
+    "bds:e2e:api": "./scripts/bds/run-bot-e2e.sh --with-api"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

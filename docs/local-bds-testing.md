@@ -11,6 +11,7 @@ This repo can drive a **real** Minecraft Bedrock Dedicated Server (BDS) and stre
 | `scripts/bds/run-bds.sh` | Run `bedrock_server` directly (no agent) |
 | `scripts/start-local-bds.sh` | Full stack (API/web/agent) with `-bds-bin` live mode |
 | `@mc-admin/bds-bots` | Offline bots: ping / join / chat / flood / churn |
+| `scripts/bds/run-bot-e2e.sh` | One-shot: ensure BDS + run all bot scenarios (`--with-api` asserts ingest/flood) |
 
 ## Requirements
 
@@ -46,19 +47,21 @@ Optional preview / exact pin:
 
 Install lands in `var/bds/bedrock-server-<version>/` (gitignored). `var/bds/active` points at the last download.
 
-## 2a. Smoke-test BDS + bots only
-
-Terminal A:
-
-```bash
-./scripts/bds/run-bds.sh
-```
-
-Wait until the console shows the server is ready, then Terminal B:
+## 2a. One-shot bot e2e (recommended)
 
 ```bash
 pnpm install
-./scripts/bds/ensure-raknet-native.sh   # if raknet-native failed to build during install
+./scripts/bds/run-bot-e2e.sh              # BDS + bots only
+./scripts/bds/run-bot-e2e.sh --with-api   # also assert player ingest + JOIN_FLOOD_DETECTED
+```
+
+This downloads/configures bot-compat BDS if needed, starts it when `:19132` is free, then runs ping/join/chat/flood/churn.
+
+Manual equivalent (two terminals):
+
+```bash
+./scripts/bds/run-bds.sh
+# other terminal:
 pnpm --filter @mc-admin/bds-bots bot:ping
 pnpm --filter @mc-admin/bds-bots bot:join
 pnpm --filter @mc-admin/bds-bots bot:chat -- --message "ops check"
@@ -66,7 +69,7 @@ pnpm --filter @mc-admin/bds-bots bot:flood -- --count 8
 pnpm --filter @mc-admin/bds-bots bot:churn -- --rounds 4
 ```
 
-You should see `Player connected: BotN, xuid: …` style lines in the BDS console (offline XUIDs are synthetic).
+You should see `Player connected: BotN, xuid: …` style lines in the BDS console (offline XUIDs may be empty; BedrockOps synthesizes stable offline ids on ingest).
 
 ## 2b. Full BedrockOps stack against live BDS
 

@@ -234,10 +234,9 @@ pnpm --filter @mc-admin/agent agent:build
 **Real BDS + fake players (Linux x86_64):**
 
 ```bash
-./scripts/bds/download-bds.sh --bot-compat && ./scripts/bds/configure-bds.sh
-./scripts/bds/ensure-raknet-native.sh
-./scripts/bds/run-bds.sh   # or ./scripts/start-local-bds.sh for the full stack
-pnpm --filter @mc-admin/bds-bots bot:flood -- --count 8
+./scripts/bds/run-bot-e2e.sh                 # download/start BDS + run all bot scenarios
+./scripts/bds/run-bot-e2e.sh --with-api      # also assert join ingest + JOIN_FLOOD_DETECTED
+# or full stack: ./scripts/start-local-bds.sh then Power → Start, then bots
 ```
 
 Full guide: [`docs/local-bds-testing.md`](docs/local-bds-testing.md).
