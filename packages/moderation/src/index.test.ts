@@ -117,6 +117,21 @@ describe('PlayerLogParser & PlayerTracker', () => {
     expect(PlayerLogParser.parseJoinLog('[INFO] Server started on port 19132')).toBeNull();
   });
 
+  it('synthesizes a stable offline xuid when BDS omits one', () => {
+    const join = PlayerLogParser.parseJoinLog(
+      '[2026-08-10 00:00:00:000 INFO] Player connected: FloodBot1, xuid:'
+    );
+    expect(join?.gamertag).toBe('FloodBot1');
+    expect(join?.xuid).toMatch(/^9\d+$/);
+    expect(join?.xuid).toBe(PlayerLogParser.offlineXuid('FloodBot1'));
+
+    const leave = PlayerLogParser.parseDisconnectLog(
+      '[2026-08-10 00:00:01:000 INFO] Player disconnected: FloodBot1, xuid: , pfid:'
+    );
+    expect(leave?.gamertag).toBe('FloodBot1');
+    expect(leave?.xuid).toBe(PlayerLogParser.offlineXuid('FloodBot1'));
+  });
+
   it('tracks join counts by XUID and updates last seen', () => {
     const tracker = new PlayerTracker();
     const first = tracker.recordJoin({ gamertag: 'Steve', xuid: '1', serverId: 'srv_1', at: new Date('2026-01-01') });
