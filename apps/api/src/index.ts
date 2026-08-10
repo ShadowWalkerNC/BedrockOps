@@ -60,10 +60,14 @@ export class ApiServer {
     return BackupEngine.triggerBackup({ serverId, isManual: true });
   }
 
-  public static async executeSetupPipeline(_pipelineId: string, _serverId?: string) {
+  public static async executeSetupPipeline(
+    _pipelineId: string,
+    _serverId?: string,
+    templateId = 'tmpl_vanilla_survival'
+  ) {
     return PipelineEngine.runServerSetupPipeline({
       serverName: 'Pipeline Server',
-      templateId: 'tmpl_vanilla_survival',
+      templateId,
       actorName: 'admin'
     });
   }

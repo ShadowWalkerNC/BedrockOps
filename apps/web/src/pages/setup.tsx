@@ -327,9 +327,27 @@ export default function SetupWizardPage() {
             lines={[
               `Realm ready: ${server.name}`,
               `${server.host}:${server.port}`,
-              backupNote || 'Backup step complete'
-            ]}
+              backupNote || 'Backup step complete',
+              propertiesNote ? `Properties: ${propertiesNote}` : ''
+            ].filter(Boolean)}
           />
+          {agentConnected === false ? (
+            <p
+              style={{
+                margin: '0 0 12px',
+                padding: '10px 12px',
+                borderRadius: THEME.radius.md,
+                border: `2px solid ${c.outline}`,
+                background: c.surfaceContainerHigh,
+                fontFamily: THEME.fonts.mono,
+                fontSize: 12,
+                color: c.onSurface
+              }}
+            >
+              Go agent is offline — Start/backup/properties stay honest stubs until you pair an agent.
+              Open Settings to confirm tunnel status, then Start from the dashboard.
+            </p>
+          ) : null}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Link href={`/servers/${server.id}`} style={{ ...primaryBtn(), textDecoration: 'none' }}>
               Open Ops Room →
@@ -337,6 +355,11 @@ export default function SetupWizardPage() {
             <Link href="/" style={{ ...ghostBtn(), textDecoration: 'none' }}>
               Dashboard (Start server)
             </Link>
+            {agentConnected === false ? (
+              <Link href="/settings" style={{ ...ghostBtn(), textDecoration: 'none' }}>
+                Pair agent (Settings)
+              </Link>
+            ) : null}
             <Link href="/console" style={{ ...ghostBtn(), textDecoration: 'none' }}>
               Live Console
             </Link>

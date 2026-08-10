@@ -365,6 +365,7 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(Array.isArray(res.body.templates)).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_vanilla_survival')).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_creative_sandbox')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_flat_skyblock')).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_classic_smp')).toBe(true);
   });
 
