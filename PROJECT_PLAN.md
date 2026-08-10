@@ -159,6 +159,8 @@ Do not hard-depend on a single public DNS redirect. Product UX: invite link → 
 
 **D1 progress (in progress):** First-party sample BP/RP catalog, `PackEngine` apply plans, agent `WRITE_PACK_FILES` (path-jailed under `worlds/**/(behavior|resource)_packs` + enable lists), `POST /api/v1/packs/apply`. Marketplace (D4) and Script API packs still deferred.
 | **D2 Templates** | Game-style presets (survival, creative, minigame stub) pinned to BDS + experiments |
+
+**D2 progress:** Mode templates declare `addonPacks` (wired to D1 catalog). Setup/apply-template can install those packs. Experiment IDs are listed for awareness (`experimentsApplied: false`) until level.dat NBT writing exists.
 | **D3 Skins / cosmetics** | Skin/persona pack apply within Bedrock constraints |
 | **D4 Marketplace** | First-party catalog of vetted packs; one-click apply to a Realm |
 | **D5 Host partners** | Optional capacity via friends/hosts (Purpify, Verixen, etc.) through `HostProvider` — white-label or reseller, not required to operate |

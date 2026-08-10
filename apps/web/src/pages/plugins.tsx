@@ -67,7 +67,16 @@ export default function PluginsPage() {
         body: JSON.stringify({ serverId, templateId })
       });
       if (res.propertiesWrite?.success || res.success) {
-        setNote(`Applied "${name}" properties → ${res.propertiesWrite?.path || 'server.properties'}`);
+        const packNote =
+          Array.isArray((res as { packWrites?: unknown[] }).packWrites) &&
+          (res as { packWrites: Array<{ packId: string; success: boolean }> }).packWrites.length
+            ? ` Packs: ${(res as { packWrites: Array<{ packId: string; success: boolean }> }).packWrites
+                .map((p) => `${p.packId}${p.success ? '✓' : '…'}`)
+                .join(', ')}.`
+            : '';
+        setNote(
+          `Applied "${name}" properties → ${res.propertiesWrite?.path || 'server.properties'}.${packNote}`
+        );
       } else {
         setNote(
           res.propertiesWrite?.error ||
@@ -299,6 +308,11 @@ export default function PluginsPage() {
                   .map(([k, v]) => `${k}=${v}`)
                   .join(' · ') || '—'}
               </div>
+              <div style={{ fontSize: 12, color: c.onSurfaceVariant }}>
+                Packs: {(t.addonPacks || []).length ? t.addonPacks.join(', ') : 'none'} · Experiments:{' '}
+                {(t.experiments || []).length ? t.experiments!.join(', ') : 'none'} (not written to
+                level.dat yet)
+              </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -306,7 +320,7 @@ export default function PluginsPage() {
                   disabled={busy || !serverId}
                   onClick={() => applyProperties(t.id, t.name)}
                 >
-                  Apply properties
+                  Apply properties + packs
                 </button>
                 <Link href="/setup" style={btnSecondary}>
                   Create via Setup

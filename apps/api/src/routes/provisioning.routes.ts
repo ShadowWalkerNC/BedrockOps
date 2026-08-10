@@ -110,7 +110,9 @@ const setupSchema = z.object({
   allocateNetwork: z.boolean().optional().default(false),
   nodeIp: z.string().optional(),
   subdomain: z.string().optional(),
-  preferredPort: z.number().int().optional()
+  preferredPort: z.number().int().optional(),
+  /** When true (default), also install template.addonPacks via the pack engine. */
+  applyPacks: z.boolean().optional().default(true)
 });
 
 provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
@@ -124,9 +126,10 @@ provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: Authe
     actorName: req.user!.username
   });
 
+  const provider = HostProviderFactory.getProvider(result.server.hostProvider || HostProviderType.DOCKER_AGENT);
+
   let propertiesWrite: { success: boolean; stub?: boolean; path?: string; error?: string } | undefined;
   if (result.propertiesPlan) {
-    const provider = HostProviderFactory.getProvider(result.server.hostProvider || HostProviderType.DOCKER_AGENT);
     propertiesWrite = await provider.writeServerProperties(result.server, result.propertiesPlan);
     result.run.logs.push(
       propertiesWrite.success
@@ -135,13 +138,24 @@ provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: Authe
     );
   }
 
-  return res.status(201).json({ ...result, propertiesWrite });
+  const packWrites = parse.data.applyPacks
+    ? await applyDeclaredPacks(result.server, parse.data.templateId, provider, result.run.logs)
+    : [];
+
+  return res.status(201).json({
+    ...result,
+    propertiesWrite,
+    packWrites,
+    experiments: TemplateEngine.getExperimentHints(parse.data.templateId),
+    experimentsApplied: false
+  });
 });
 
-// POST /api/v1/provisioning/apply-template — re-apply mode properties to disk (retry after agent pairs)
+// POST /api/v1/provisioning/apply-template — re-apply mode properties (+ optional packs)
 const applyTemplateSchema = z.object({
   serverId: z.string().min(1),
-  templateId: z.string().min(1)
+  templateId: z.string().min(1),
+  applyPacks: z.boolean().optional().default(true)
 });
 
 provisioningRouter.post(
@@ -169,6 +183,10 @@ provisioningRouter.post(
 
     const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
     const propertiesWrite = await provider.writeServerProperties(server, propertiesPlan);
+    const logs: string[] = [];
+    const packWrites = parse.data.applyPacks
+      ? await applyDeclaredPacks(server, parse.data.templateId, provider, logs)
+      : [];
 
     AuditLogger.record({
       actorId: req.user!.userId,
@@ -181,7 +199,13 @@ provisioningRouter.post(
         path: propertiesPlan.targetPath,
         success: propertiesWrite.success,
         stub: propertiesWrite.stub,
-        error: propertiesWrite.error
+        error: propertiesWrite.error,
+        packWrites: packWrites.map((p) => ({
+          packId: p.packId,
+          success: p.success,
+          stub: p.stub,
+          error: p.error
+        }))
       }
     });
 
@@ -191,7 +215,10 @@ provisioningRouter.post(
         message: propertiesWrite.error || 'Agent offline — server.properties not written',
         server: toPublicServerSafe(server),
         propertiesPlan: { targetPath: propertiesPlan.targetPath, templateId: propertiesPlan.templateId },
-        propertiesWrite
+        propertiesWrite,
+        packWrites,
+        experiments: TemplateEngine.getExperimentHints(parse.data.templateId),
+        experimentsApplied: false
       });
     }
 
@@ -199,10 +226,53 @@ provisioningRouter.post(
       success: true,
       server: toPublicServerSafe(server),
       propertiesPlan: { targetPath: propertiesPlan.targetPath, templateId: propertiesPlan.templateId },
-      propertiesWrite
+      propertiesWrite,
+      packWrites,
+      experiments: TemplateEngine.getExperimentHints(parse.data.templateId),
+      experimentsApplied: false
     });
   }
 );
+
+async function applyDeclaredPacks(
+  server: (typeof db.servers)[number],
+  templateId: string,
+  provider: ReturnType<typeof HostProviderFactory.getProvider>,
+  logs: string[]
+): Promise<
+  Array<{ packId: string; success: boolean; stub?: boolean; error?: string; filesWritten?: number }>
+> {
+  const planned = TemplateEngine.buildDeclaredPackPlans(templateId, server);
+  const out: Array<{
+    packId: string;
+    success: boolean;
+    stub?: boolean;
+    error?: string;
+    filesWritten?: number;
+  }> = [];
+
+  for (const item of planned) {
+    if (!item.plan) {
+      out.push({ packId: item.packId, success: false, error: item.error || 'pack plan failed' });
+      logs.push(`[Packs] ${item.packId}: ${item.error || 'plan failed'}`);
+      continue;
+    }
+    const write = await provider.writePackFiles(server, { files: item.plan.files });
+    out.push({
+      packId: item.packId,
+      success: !!write.success,
+      stub: write.stub,
+      error: write.error,
+      filesWritten: write.filesWritten
+    });
+    logs.push(
+      write.success
+        ? `[Packs] Installed ${item.packId} (${write.filesWritten ?? item.plan.files.length} files)`
+        : `[Packs] ${item.packId} deferred: ${write.error || 'agent offline'}`
+    );
+  }
+  return out;
+}
 
 function toPublicServerSafe(server: (typeof db.servers)[number]) {
   const { rconPassword: _omit, ...rest } = server;

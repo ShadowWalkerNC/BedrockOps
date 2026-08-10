@@ -19,7 +19,11 @@ describe('Templates Domain Package', () => {
         'tmpl_classic_smp'
       ])
     );
-    expect(db.templates.every((t) => t.addonPacks.length === 0)).toBe(true);
+    expect(db.templates.find((t) => t.id === 'tmpl_vanilla_survival')?.addonPacks).toEqual([]);
+    expect(db.templates.find((t) => t.id === 'tmpl_classic_smp')?.addonPacks).toEqual(
+      expect.arrayContaining(['pack_sample_bp', 'pack_sample_rp'])
+    );
+    expect(db.templates.find((t) => t.id === 'tmpl_flat_skyblock')?.bdsVersion).toBe('1.21.0');
   });
 
   it('creates and applies server template', () => {
@@ -56,5 +60,15 @@ describe('Templates Domain Package', () => {
     expect(server.gameMode).toBe('survival');
     expect(server.difficulty).toBe('normal');
     expect(server.maxPlayers).toBe(50);
+    expect(server.version).toBe('1.21.0');
+  });
+
+  it('builds declared pack plans for Classic SMP template', () => {
+    const server = db.servers[0];
+    TemplateEngine.applyTemplateToServer('tmpl_classic_smp', server);
+    const plans = TemplateEngine.buildDeclaredPackPlans('tmpl_classic_smp', server);
+    expect(plans.length).toBe(2);
+    expect(plans.every((p) => p.plan && !p.error)).toBe(true);
+    expect(TemplateEngine.getExperimentHints('tmpl_flat_skyblock').length).toBeGreaterThan(0);
   });
 });

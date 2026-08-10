@@ -1,4 +1,5 @@
-import { db, ServerTemplate, BedrockServer } from '@mc-admin/db';
+import { db, ServerTemplate, BedrockServer, MODE_EXPERIMENT_HINTS } from '@mc-admin/db';
+import { PackApplyPlan, PackEngine } from './packs';
 
 export * from './packs';
 
@@ -16,6 +17,12 @@ export interface PropertiesWritePlan {
   tempPath: string;
   contents: string;
   templateId: string;
+}
+
+export interface DeclaredPackPlanResult {
+  packId: string;
+  plan?: PackApplyPlan;
+  error?: string;
 }
 
 export class TemplateEngine {
@@ -40,6 +47,10 @@ export class TemplateEngine {
       throw new Error(`Template ID ${templateId} not found`);
     }
     return template;
+  }
+
+  public static getExperimentHints(templateId: string): string[] {
+    return [...(MODE_EXPERIMENT_HINTS[templateId] || [])];
   }
 
   /** Serialize template (+ server name/port/rcon) into server.properties body. */
@@ -76,6 +87,46 @@ export class TemplateEngine {
       contents: this.serializeProperties(template, server),
       templateId
     };
+  }
+
+  /**
+   * Build pack apply plans for every addonPacks entry that exists in the D1 catalog.
+   * Unknown IDs are returned with an error (never silently skipped as success).
+   */
+  public static buildDeclaredPackPlans(
+    templateId: string,
+    server: Pick<BedrockServer, 'serverPath' | 'version'>
+  ): DeclaredPackPlanResult[] {
+    const template = this.getTemplate(templateId);
+    return template.addonPacks.map((packId) => {
+      try {
+        const pack = PackEngine.getPack(packId);
+        if (!PackEngine.isBdsCompatible(server.version || template.bdsVersion, pack.minEngineVersion)) {
+          return {
+            packId,
+            error: `BDS ${server.version || template.bdsVersion} below pack min ${pack.minEngineVersion.join('.')}`
+          };
+        }
+        if (pack.scriptApi) {
+          return { packId, error: 'Script API packs not applied by D2 template flow yet' };
+        }
+        return {
+          packId,
+          plan: PackEngine.buildApplyPlan(packId, server as BedrockServer, {
+            levelName: PackEngine.resolveLevelName(
+              template.defaultProperties['level-name']
+                ? `level-name=${template.defaultProperties['level-name']}`
+                : undefined
+            )
+          })
+        };
+      } catch (err: unknown) {
+        return {
+          packId,
+          error: err instanceof Error ? err.message : String(err)
+        };
+      }
+    });
   }
 
   public static applyTemplateToServer(templateId: string, server: BedrockServer): BedrockServer {

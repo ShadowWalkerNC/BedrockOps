@@ -1,11 +1,11 @@
 import type { ServerTemplate } from './schema';
 
-/** First-party Realm mode presets (property-level; packs are Wave D). */
+/** First-party Realm mode presets (Wave D2: packs + BDS pin; experiments listed for awareness). */
 export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
   {
     id: 'tmpl_vanilla_survival',
     name: 'Vanilla Hard Survival',
-    description: 'Classic hard survival — no cheats. Packs not included (Wave D).',
+    description: 'Classic hard survival — no cheats. No add-on packs.',
     bdsVersion: '1.20.80',
     defaultProperties: {
       gamemode: 'survival',
@@ -20,7 +20,7 @@ export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
   {
     id: 'tmpl_creative_sandbox',
     name: 'Creative Sandbox',
-    description: 'Build freely — creative mode with cheats for operators.',
+    description: 'Build freely — creative mode with cheats. Includes sample resource pack.',
     bdsVersion: '1.20.80',
     defaultProperties: {
       gamemode: 'creative',
@@ -30,14 +30,14 @@ export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
       pvp: 'false',
       'keep-inventory': 'true'
     },
-    addonPacks: []
+    addonPacks: ['pack_sample_rp']
   },
   {
     id: 'tmpl_flat_skyblock',
     name: 'Skyblock-ready Flat',
     description:
-      'Flat world properties for a Skyblock-style start. Island packs/worlds are Wave D — not installed yet.',
-    bdsVersion: '1.20.80',
+      'Flat world + sample behavior pack scaffold. Full island Script packs are still a follow-on.',
+    bdsVersion: '1.21.0',
     defaultProperties: {
       gamemode: 'survival',
       difficulty: 'normal',
@@ -47,14 +47,14 @@ export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
       pvp: 'true',
       'keep-inventory': 'false'
     },
-    addonPacks: []
+    addonPacks: ['pack_sample_bp']
   },
   {
     id: 'tmpl_classic_smp',
     name: 'Classic SMP',
     description:
-      'Community survival multiplayer defaults (larger slots, PvP on). First-party preset — not a third-party SMP clone.',
-    bdsVersion: '1.20.80',
+      'Community survival multiplayer defaults with sample BP+RP starter kit. First-party preset — not a third-party SMP clone.',
+    bdsVersion: '1.21.0',
     defaultProperties: {
       gamemode: 'survival',
       difficulty: 'normal',
@@ -63,9 +63,20 @@ export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
       pvp: 'true',
       'keep-inventory': 'false'
     },
-    addonPacks: []
+    addonPacks: ['pack_sample_bp', 'pack_sample_rp']
   }
 ];
+
+/**
+ * Experiment IDs operators may want for a mode. Not written to level.dat yet —
+ * surfaced for awareness until a world NBT writer exists.
+ */
+export const MODE_EXPERIMENT_HINTS: Record<string, string[]> = {
+  tmpl_flat_skyblock: ['data_driven_items', 'gametest'],
+  tmpl_classic_smp: ['villager_trades_rebalance'],
+  tmpl_creative_sandbox: [],
+  tmpl_vanilla_survival: []
+};
 
 /**
  * Upsert the mode catalog into a memory DB (and later Prisma via flush).

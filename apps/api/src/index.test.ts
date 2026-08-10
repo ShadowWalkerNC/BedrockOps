@@ -367,6 +367,9 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_creative_sandbox')).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_flat_skyblock')).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_classic_smp')).toBe(true);
+    const smp = res.body.templates.find((t: { id: string }) => t.id === 'tmpl_classic_smp');
+    expect(smp.addonPacks).toEqual(expect.arrayContaining(['pack_sample_bp', 'pack_sample_rp']));
+    expect(smp.experimentsApplied).toBe(false);
   });
 
   it('applies Creative Sandbox properties via POST /provisioning/apply-template (honest stub without agent)', async () => {

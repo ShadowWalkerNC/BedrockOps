@@ -59,6 +59,9 @@ export interface RealmTemplate {
   bdsVersion: string;
   defaultProperties: Record<string, string>;
   addonPacks: string[];
+  experiments?: string[];
+  experimentsApplied?: boolean;
+  experimentsNote?: string;
   createdAt: string;
 }
 
