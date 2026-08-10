@@ -8,22 +8,35 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-NODE="$(node -p 'process.versions.modules')"
-PLATFORM="$(node -p 'process.platform')"
-ARCH="$(node -p 'process.arch')"
+resolve_pkg() {
+  node -e "console.log(require('path').dirname(require.resolve('raknet-native/package.json')))" 2>/dev/null \
+    || node -e "console.log(require('path').dirname(require.resolve('raknet-native/package.json',{paths:['$ROOT/packages/bds-bots']})))" 2>/dev/null \
+    || find "$ROOT/node_modules/.pnpm" -path '*/raknet-native@*/node_modules/raknet-native/package.json' 2>/dev/null | head -1 | xargs -r dirname
+}
 
-if node -e "require('raknet-native')" 2>/dev/null; then
+if node -e "require('raknet-native')" 2>/dev/null \
+  || node -e "require('raknet-native')" 2>/dev/null --input-type=commonjs 2>/dev/null; then
+  # Try from package context
+  if (cd "$ROOT/packages/bds-bots" && node -e "require('raknet-native')"); then
+    echo "[bds] raknet-native already loadable"
+    exit 0
+  fi
+fi
+
+if (cd "$ROOT/packages/bds-bots" && node -e "require('raknet-native')" 2>/dev/null); then
   echo "[bds] raknet-native already loadable"
   exit 0
 fi
 
-echo "[bds] building raknet-native (node ABI $NODE, $PLATFORM-$ARCH)…"
-# Prefer g++ — some environments ship a clang++ that cannot find libstdc++ headers.
+PKG_DIR="$(resolve_pkg)"
+if [[ -z "${PKG_DIR:-}" || ! -d "$PKG_DIR" ]]; then
+  echo "[bds] raknet-native package not found — run: pnpm --filter @mc-admin/bds-bots... install" >&2
+  exit 1
+fi
+
+echo "[bds] building raknet-native in $PKG_DIR…"
 export CC="${CC:-gcc}"
 export CXX="${CXX:-g++}"
 export FORCE_BUILD=1
-
-PKG_DIR="$(node -p "require('path').dirname(require.resolve('raknet-native/package.json'))")"
 (cd "$PKG_DIR" && npm run install)
-
-node -e "require('raknet-native'); console.log('[bds] raknet-native OK')"
+(cd "$ROOT/packages/bds-bots" && node -e "require('raknet-native'); console.log('[bds] raknet-native OK')")
