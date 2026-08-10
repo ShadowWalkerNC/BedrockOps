@@ -28,6 +28,7 @@ import {
 } from './schema';
 import { getDatabaseAdapterMode } from './adapter';
 import { prisma as defaultPrisma } from './client';
+import { ensureModeCatalogTemplates } from './modeCatalog';
 
 /** Minimal surface needed for hydrate/flush (avoids circular import with index.ts). */
 export interface PersistableDatabase {
@@ -669,11 +670,15 @@ export async function initializeDatabase(
 
   await hydrateMemoryFromPrisma(memory, client);
 
+  // Always upsert first-party mode catalog (Survival / Sandbox / Skyblock-ready / SMP).
+  ensureModeCatalogTemplates(memory);
+
   if (memory.users.length === 0) {
     memory.seedDefaults();
     await flushMemoryToPrisma(memory, client);
     return { mode: 'prisma', seeded: true };
   }
 
+  await flushMemoryToPrisma(memory, client);
   return { mode: 'prisma', seeded: false };
 }

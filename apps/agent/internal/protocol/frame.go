@@ -20,12 +20,13 @@ const (
 
 // Command names embedded in CMD_EXEC payloads by HostProvider.
 const (
-	CmdPowerAction    = "POWER_ACTION"
-	CmdRconCommand    = "RCON_COMMAND"
-	CmdTriggerBackup  = "TRIGGER_BACKUP"
-	CmdRestoreBackup  = "RESTORE_BACKUP"
-	CmdGetStatus      = "GET_STATUS"
-	CmdAllowlistSync  = "ALLOWLIST_SYNC"
+	CmdPowerAction       = "POWER_ACTION"
+	CmdRconCommand       = "RCON_COMMAND"
+	CmdTriggerBackup     = "TRIGGER_BACKUP"
+	CmdRestoreBackup     = "RESTORE_BACKUP"
+	CmdGetStatus         = "GET_STATUS"
+	CmdAllowlistSync     = "ALLOWLIST_SYNC"
+	CmdWriteProperties   = "WRITE_PROPERTIES"
 )
 
 // Frame is the bidirectional agent ↔ API tunnel envelope.
@@ -48,6 +49,8 @@ type CmdExecPayload struct {
 	PresignedDownloadURL string `json:"presignedDownloadUrl,omitempty"`
 	IsManual             bool   `json:"isManual,omitempty"`
 	IsHoldCheckpoint     bool   `json:"isHoldCheckpoint,omitempty"`
+	// Working directory for POWER_ACTION (falls back to agent -server-path hint).
+	ServerPath string `json:"serverPath,omitempty"`
 	// Allowlist sync (ALLOWLIST_SYNC) fields.
 	Entries       json.RawMessage `json:"entries,omitempty"`
 	TargetPath    string          `json:"targetPath,omitempty"`
@@ -129,7 +132,7 @@ func DecodeCmdExec(raw json.RawMessage) (CmdExecPayload, error) {
 		// the merged payload is { command: <rcon>, ... } overwriting POWER style.
 		// Detect: if command looks like RCON text (not a known cmd name) treat as RCON.
 		known := map[string]bool{
-			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdRestoreBackup: true, CmdGetStatus: true, CmdAllowlistSync: true,
+			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdRestoreBackup: true, CmdGetStatus: true, CmdAllowlistSync: true, CmdWriteProperties: true,
 		}
 		if !known[payload.Command] && payload.Action == "" && payload.BackupID == "" {
 			payload.RconCommand = payload.Command

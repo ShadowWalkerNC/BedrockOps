@@ -117,6 +117,8 @@ Waves replace the old “Phase 1 complete” fiction. Each wave has a **ship gat
 | **B5 Discord** | Real webhook HTTP delivery; then slash commands + channel mapping | Phase 2 Discord |
 | **B6 Onboarding wizard** | Sign up → pair agent → create Realm → template → first backup → optional Discord | Phase 2 wizard |
 
+**Discord chat decision (product):** Staff ops alerts stay on webhooks (`apps/discord` / `@mc-admin/notifications`). **Player Discord ↔ in-game Bedrock chat relay is deferred** — Bedrock has no DiscordSRV equivalent; a real bridge needs RCON/say + log ingest or a Script API pack (Wave D-adjacent), not a Sigil merge. Do not fake a chat bridge.
+
 #### Console / FriendConnect strategy
 
 Own the **allowlist + invite pipeline**. Discovery helpers are adapters:

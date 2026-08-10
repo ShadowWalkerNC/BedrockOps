@@ -57,7 +57,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
       expect(db.agentNodes.length).toBeGreaterThanOrEqual(1);
       expect(db.servers.length).toBeGreaterThanOrEqual(1);
       expect(db.connectionKeys.length).toBeGreaterThanOrEqual(1);
-      expect(db.templates.length).toBeGreaterThanOrEqual(1);
+      expect(db.templates.length).toBeGreaterThanOrEqual(4);
       expect(db.bdsVersions.length).toBeGreaterThanOrEqual(1);
 
       const user = db.users[0];
@@ -412,9 +412,10 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
         gamemode: t.defaultProperties['gamemode'],
       }));
 
-      expect(options.length).toBeGreaterThanOrEqual(1);
-      expect(options[0].label).toContain('Vanilla Hard Survival');
-      expect(options[0].value).toBe('tmpl_vanilla_survival');
+      expect(options.length).toBeGreaterThanOrEqual(4);
+      expect(options.some((o) => o.value === 'tmpl_vanilla_survival')).toBe(true);
+      expect(options.some((o) => o.value === 'tmpl_creative_sandbox')).toBe(true);
+      expect(options.some((o) => o.value === 'tmpl_classic_smp')).toBe(true);
     });
   });
 
@@ -1196,7 +1197,7 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
   // R5.3 Automated Setup Pipelines
   // ---------------------------------------------------------------------------
   describe('R5.3 Automated Setup Pipelines', () => {
-    it('executes server setup pipeline and creates server record in ONLINE status', async () => {
+    it('executes server setup pipeline and creates server record in OFFLINE status', async () => {
       const res = await PipelineEngine.runServerSetupPipeline({
         serverName: 'Pipeline Realm',
         templateId: 'tmpl_vanilla_survival',
@@ -1205,7 +1206,11 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
 
       expect(res.server).toBeDefined();
       expect(res.server.name).toBe('Pipeline Realm');
-      expect(res.server.status).toBe(ServerStatus.ONLINE);
+      // Honest default: provisioned but not started until agent power succeeds.
+      expect(res.server.status).toBe(ServerStatus.OFFLINE);
+      expect(res.server.agentId).toBe('node_docker_agent_1');
+      expect(res.server.hostProvider).toBe('DOCKER_AGENT');
+      expect(res.server.serverPath).not.toContain('/var/minecraft/');
     });
 
     it('applies server template during setup pipeline execution', async () => {
@@ -1217,6 +1222,19 @@ describe('Tier 1: Feature Coverage (R1.1 to R5.3)', () => {
 
       expect(res.server.gameMode).toBe('survival');
       expect(res.server.difficulty).toBe('hard');
+    });
+
+    it('applies Creative Sandbox mode and prepares properties write plan', async () => {
+      const res = await PipelineEngine.runServerSetupPipeline({
+        serverName: 'Sandbox Pipeline Realm',
+        templateId: 'tmpl_creative_sandbox',
+        actorName: 'DevAdmin',
+      });
+
+      expect(res.server.gameMode).toBe('creative');
+      expect(res.server.difficulty).toBe('peaceful');
+      expect(res.propertiesPlan?.contents).toContain('gamemode=creative');
+      expect(res.propertiesPlan?.targetPath).toMatch(/server\.properties$/);
     });
 
     it('triggers initial automated backup snapshot as safety checkpoint during pipeline run', async () => {

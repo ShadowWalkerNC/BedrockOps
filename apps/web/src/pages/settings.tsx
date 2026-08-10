@@ -119,21 +119,28 @@ export default function SettingsPage() {
                   <tr>
                     <th style={th}>Name</th>
                     <th style={th}>Status</th>
+                    <th style={th}>Tunnel</th>
                     <th style={th}>Version</th>
                     <th style={th}>Token</th>
                     <th style={th}>Last heartbeat</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {nodes.map((n) => (
-                    <tr key={n.id}>
-                      <td style={td}>{n.name}</td>
-                      <td style={td}>{n.status}</td>
-                      <td style={td}>{n.version}</td>
-                      <td style={td}>{n.hasToken ? 'set' : 'missing'}</td>
-                      <td style={td}>{n.lastHeartbeat ? new Date(n.lastHeartbeat).toLocaleString() : '—'}</td>
-                    </tr>
-                  ))}
+                  {nodes.map((n) => {
+                    const tunnelUp = Boolean(status?.agents?.connectedNodeIds?.includes(n.id));
+                    return (
+                      <tr key={n.id}>
+                        <td style={td}>{n.name}</td>
+                        <td style={td}>{n.status}</td>
+                        <td style={{ ...td, color: tunnelUp ? c.primary : c.warning }}>
+                          {tunnelUp ? 'connected' : 'offline'}
+                        </td>
+                        <td style={td}>{n.version}</td>
+                        <td style={td}>{n.hasToken ? 'set' : 'missing'}</td>
+                        <td style={td}>{n.lastHeartbeat ? new Date(n.lastHeartbeat).toLocaleString() : '—'}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -176,12 +183,14 @@ function RealmEditor({
   const [gameMode, setGameMode] = useState(server.gameMode);
   const [difficulty, setDifficulty] = useState(server.difficulty);
   const [maxPlayers, setMaxPlayers] = useState(String(server.maxPlayers));
+  const [serverPath, setServerPath] = useState(server.serverPath || '');
 
   useEffect(() => {
     setName(server.name);
     setGameMode(server.gameMode);
     setDifficulty(server.difficulty);
     setMaxPlayers(String(server.maxPlayers));
+    setServerPath(server.serverPath || '');
   }, [server]);
 
   return (
@@ -198,8 +207,11 @@ function RealmEditor({
         <Field label="Difficulty" value={difficulty} onChange={setDifficulty} />
         <Field label="Max players" value={maxPlayers} onChange={setMaxPlayers} />
       </div>
+      <div style={{ marginTop: 10 }}>
+        <Field label="Server path" value={serverPath} onChange={setServerPath} />
+      </div>
       <div style={{ marginTop: 10, fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
-        {server.host}:{server.port} · {server.version} · path {server.serverPath || '—'}
+        {server.host}:{server.port} · {server.version} · agent {server.agentId || '—'}
       </div>
       <button
         type="button"
@@ -209,7 +221,8 @@ function RealmEditor({
             name: name.trim(),
             gameMode: gameMode.trim(),
             difficulty: difficulty.trim(),
-            maxPlayers: Math.max(1, Number(maxPlayers) || server.maxPlayers)
+            maxPlayers: Math.max(1, Number(maxPlayers) || server.maxPlayers),
+            serverPath: serverPath.trim() || undefined
           })
         }
         style={{ ...btnPrimary, marginTop: 12, opacity: busy ? 0.7 : 1 }}

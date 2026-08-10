@@ -18,8 +18,10 @@ export default function Dashboard() {
   const [confirm, setConfirm] = useState<{ title: string; desc: string; onConfirm: () => void } | null>(null);
 
   const [regName, setRegName] = useState('');
-  const [regGameMode, setRegGameMode] = useState('survival');
-  const [regDifficulty, setRegDifficulty] = useState('hard');
+  const [regTemplateId, setRegTemplateId] = useState('tmpl_vanilla_survival');
+  const [regTemplates, setRegTemplates] = useState<Array<{ id: string; name: string; description: string }>>([]);
+  const [regAllocateNetwork, setRegAllocateNetwork] = useState(false);
+  const [agentConnected, setAgentConnected] = useState<boolean | null>(null);
 
   const [playerQuery, setPlayerQuery] = useState('');
   const [modGamertag, setModGamertag] = useState('');
@@ -34,14 +36,22 @@ export default function Dashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [s, b, m] = await Promise.all([
+      const [s, b, m, status, tmpl] = await Promise.all([
         apiFetch<{ servers: DashboardServer[] }>('/servers'),
         apiFetch<{ backups: DashboardBackup[] }>('/backups'),
-        apiFetch<{ moderationActions: DashboardModeration[] }>('/moderation')
+        apiFetch<{ moderationActions: DashboardModeration[] }>('/moderation'),
+        apiFetch<{ agents?: { connectedCount: number } }>('/system/status').catch(() => null),
+        apiFetch<{ templates: Array<{ id: string; name: string; description: string }> }>('/templates').catch(
+          () => ({ templates: [] })
+        )
       ]);
       setServers(s.servers);
       setBackups(b.backups);
       setModerations(m.moderationActions);
+      setRegTemplates(tmpl.templates);
+      if (status?.agents) {
+        setAgentConnected(status.agents.connectedCount > 0);
+      }
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Failed to load dashboard');
     } finally {
@@ -64,13 +74,30 @@ export default function Dashboard() {
 
   const registerServer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName) return;
+    if (!regName || !regTemplateId) return;
     try {
-      const data = await apiFetch<{ server: DashboardServer }>('/servers', {
+      const data = await apiFetch<{
+        server: DashboardServer;
+        propertiesWrite?: { success: boolean; stub?: boolean; error?: string };
+      }>('/provisioning/setup', {
         method: 'POST',
-        body: JSON.stringify({ name: regName, gameMode: regGameMode, difficulty: regDifficulty })
+        body: JSON.stringify({
+          serverName: regName,
+          templateId: regTemplateId,
+          allocateNetwork: regAllocateNetwork,
+          nodeIp: regAllocateNetwork ? '127.0.0.1' : undefined
+        })
       });
-      notify(`Server "${data.server.name}" registered.`);
+      const propsNote = data.propertiesWrite?.success
+        ? ' Properties written.'
+        : data.propertiesWrite?.stub || data.propertiesWrite?.error
+          ? ' Properties pending agent connection.'
+          : '';
+      notify(
+        `Realm "${data.server.name}" created (${regTemplateId}).` +
+          propsNote +
+          (agentConnected === false ? ' Agent offline — Start will stub until Go agent connects.' : ' Use Start when ready.')
+      );
       setRegisterOpen(false);
       setRegName('');
       fetchData();
@@ -87,7 +114,13 @@ export default function Dashboard() {
           method: 'POST',
           body: JSON.stringify({ action: toPowerAction(action) })
         });
-        notify(data.success ? `${data.server.name}: ${data.action} accepted.` : 'Power action failed — agent may be offline.');
+        notify(
+          data.success
+            ? `${data.server.name}: ${data.action} accepted.`
+            : agentConnected === false
+              ? 'Power not executed — Go agent tunnel is offline (honest stub).'
+              : 'Power action failed — agent may be offline or path unavailable.'
+        );
         fetchData();
       } catch (err) {
         notify(`Control failed: ${err instanceof Error ? err.message : 'unknown error'}`);
@@ -180,7 +213,10 @@ export default function Dashboard() {
           Operations Overview
         </h1>
         <p style={{ color: c.onSurfaceVariant, margin: '4px 0 0' }}>
-          {stats.online} of {stats.total} realms online · {stats.successRate}% backup success
+          {stats.online} of {stats.total} realms online · {stats.successRate}% backup success ·{' '}
+          <span style={{ color: agentConnected === true ? c.primary : agentConnected === false ? c.warning : c.onSurfaceVariant }}>
+            agent {agentConnected === true ? 'connected' : agentConnected === false ? 'offline' : 'status unknown'}
+          </span>
         </p>
       </div>
 
@@ -276,17 +312,47 @@ export default function Dashboard() {
 
       {/* Register modal */}
       {isRegisterOpen && (
-        <ModalShell title="Register New Realm" onClose={() => setRegisterOpen(false)}>
+        <ModalShell title="Create New Realm" onClose={() => setRegisterOpen(false)}>
           <form onSubmit={registerServer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input required value={regName} onChange={(e) => setRegName(e.target.value)} placeholder="Realm display name" style={inputStyle()} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select value={regGameMode} onChange={(e) => setRegGameMode(e.target.value)} style={{ ...inputStyle(), flex: 1 }}>
-                {['survival', 'creative', 'adventure'].map((g) => <option key={g} value={g}>{g}</option>)}
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={{ fontFamily: THEME.fonts.mono, fontSize: 11, color: c.onSurfaceVariant }}>Game mode</span>
+              <select
+                value={regTemplateId}
+                onChange={(e) => setRegTemplateId(e.target.value)}
+                style={inputStyle()}
+              >
+                {(regTemplates.length
+                  ? regTemplates
+                  : [{ id: 'tmpl_vanilla_survival', name: 'Vanilla Hard Survival', description: '' }]
+                ).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
               </select>
-              <select value={regDifficulty} onChange={(e) => setRegDifficulty(e.target.value)} style={{ ...inputStyle(), flex: 1 }}>
-                {['peaceful', 'easy', 'normal', 'hard'].map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
+            </label>
+            {regTemplates.find((t) => t.id === regTemplateId)?.description ? (
+              <p style={{ margin: 0, fontSize: 12, color: c.onSurfaceVariant }}>
+                {regTemplates.find((t) => t.id === regTemplateId)?.description}
+              </p>
+            ) : null}
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontFamily: THEME.fonts.mono, fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={regAllocateNetwork}
+                onChange={(e) => setRegAllocateNetwork(e.target.checked)}
+              />
+              Allocate play subdomain + UDP port
+            </label>
+            <p style={{ margin: 0, fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
+              Uses setup pipeline ·{' '}
+              {agentConnected === true ? 'agent connected' : agentConnected === false ? 'agent offline' : 'checking agent…'}
+              {' · '}
+              <Link href="/setup" style={{ color: c.primary }}>
+                full wizard
+              </Link>
+            </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setRegisterOpen(false)} style={ghostBtn(c.onSurfaceVariant)}>Cancel</button>
               <button type="submit" style={primaryBtn()}>Create Realm</button>

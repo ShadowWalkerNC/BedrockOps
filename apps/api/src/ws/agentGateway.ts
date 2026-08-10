@@ -177,6 +177,17 @@ export class AgentTunnelGateway {
     const session = this.sessions.get(nodeId);
     return !!session && session.ws.readyState === WebSocket.OPEN;
   }
+
+  /** Node ids with an open outbound tunnel session. */
+  public listConnectedNodeIds(): string[] {
+    const ids: string[] = [];
+    for (const [nodeId, session] of this.sessions) {
+      if (session.ws.readyState === WebSocket.OPEN) {
+        ids.push(nodeId);
+      }
+    }
+    return ids;
+  }
 }
 
 export const agentGateway = new AgentTunnelGateway();

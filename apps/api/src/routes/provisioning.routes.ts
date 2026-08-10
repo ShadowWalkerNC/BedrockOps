@@ -1,7 +1,9 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { db, UserRole } from '@mc-admin/db';
+import { db, UserRole, HostProviderType } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
+import { HostProviderFactory } from '@mc-admin/bedrock';
+import { TemplateEngine } from '@mc-admin/templates';
 import {
   PipelineEngine,
   DnsProvider,
@@ -122,8 +124,90 @@ provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: Authe
     actorName: req.user!.username
   });
 
-  return res.status(201).json(result);
+  let propertiesWrite: { success: boolean; stub?: boolean; path?: string; error?: string } | undefined;
+  if (result.propertiesPlan) {
+    const provider = HostProviderFactory.getProvider(result.server.hostProvider || HostProviderType.DOCKER_AGENT);
+    propertiesWrite = await provider.writeServerProperties(result.server, result.propertiesPlan);
+    result.run.logs.push(
+      propertiesWrite.success
+        ? `[Step 2b/4] Wrote server.properties via agent → ${propertiesWrite.path}`
+        : `[Step 2b/4] Properties write deferred: ${propertiesWrite.error || 'agent offline (honest stub)'}`
+    );
+  }
+
+  return res.status(201).json({ ...result, propertiesWrite });
 });
+
+// POST /api/v1/provisioning/apply-template — re-apply mode properties to disk (retry after agent pairs)
+const applyTemplateSchema = z.object({
+  serverId: z.string().min(1),
+  templateId: z.string().min(1)
+});
+
+provisioningRouter.post(
+  '/apply-template',
+  requireRole(UserRole.ADMIN),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parse = applyTemplateSchema.safeParse(req.body);
+    if (!parse.success) {
+      return res.status(400).json({ error: 'INVALID_INPUT', details: parse.error.format() });
+    }
+
+    const server = db.servers.find((s) => s.id === parse.data.serverId && !s.deletedAt);
+    if (!server) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+    }
+
+    let propertiesPlan;
+    try {
+      TemplateEngine.applyTemplateToServer(parse.data.templateId, server);
+      propertiesPlan = TemplateEngine.buildPropertiesWritePlan(parse.data.templateId, server);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return res.status(400).json({ error: 'TEMPLATE_APPLY_FAILED', message });
+    }
+
+    const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
+    const propertiesWrite = await provider.writeServerProperties(server, propertiesPlan);
+
+    AuditLogger.record({
+      actorId: req.user!.userId,
+      actorName: req.user!.username,
+      action: 'TEMPLATE_PROPERTIES_APPLY',
+      entityType: 'BedrockServer',
+      entityId: server.id,
+      metadata: {
+        templateId: parse.data.templateId,
+        path: propertiesPlan.targetPath,
+        success: propertiesWrite.success,
+        stub: propertiesWrite.stub,
+        error: propertiesWrite.error
+      }
+    });
+
+    if (!propertiesWrite.success) {
+      return res.status(503).json({
+        error: 'PROPERTIES_WRITE_DEFERRED',
+        message: propertiesWrite.error || 'Agent offline — server.properties not written',
+        server: toPublicServerSafe(server),
+        propertiesPlan: { targetPath: propertiesPlan.targetPath, templateId: propertiesPlan.templateId },
+        propertiesWrite
+      });
+    }
+
+    return res.json({
+      success: true,
+      server: toPublicServerSafe(server),
+      propertiesPlan: { targetPath: propertiesPlan.targetPath, templateId: propertiesPlan.templateId },
+      propertiesWrite
+    });
+  }
+);
+
+function toPublicServerSafe(server: (typeof db.servers)[number]) {
+  const { rconPassword: _omit, ...rest } = server;
+  return { ...rest, hasRconPassword: Boolean(server.rconPassword) };
+}
 
 // POST /api/v1/provisioning/onboarding/console — console player onboarding (R5.2)
 const onboardingSchema = z.object({

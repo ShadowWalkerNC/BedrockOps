@@ -364,6 +364,26 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.templates)).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_vanilla_survival')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_creative_sandbox')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_flat_skyblock')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_classic_smp')).toBe(true);
+  });
+
+  it('applies Creative Sandbox properties via POST /provisioning/apply-template (honest stub without agent)', async () => {
+    const res = await request(app)
+      .post('/api/v1/provisioning/apply-template')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', templateId: 'tmpl_creative_sandbox' });
+
+    expect([200, 503]).toContain(res.status);
+    expect(res.body.propertiesWrite).toBeDefined();
+    expect(res.body.propertiesPlan?.targetPath).toMatch(/server\.properties$/);
+    const server = db.servers.find((s) => s.id === 'srv_bedrock_1');
+    expect(server?.gameMode).toBe('creative');
+    expect(server?.difficulty).toBe('peaceful');
+    if (res.status === 503) {
+      expect(res.body.propertiesWrite.stub || res.body.propertiesWrite.success === false).toBeTruthy();
+    }
   });
 
   it('returns non-secret system status on GET /api/v1/system/status', async () => {

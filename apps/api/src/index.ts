@@ -8,7 +8,9 @@ import {
   ServerStatus,
   BackupRecord,
   BedrockServer,
-  initializeDatabase
+  initializeDatabase,
+  defaultServerPath,
+  DEFAULT_DOCKER_AGENT_ID
 } from '@mc-admin/db';
 import { BackupEngine } from '@mc-admin/backups';
 import { PipelineEngine } from '@mc-admin/pipelines';
@@ -25,8 +27,9 @@ export class ApiServer {
   }
 
   public static async createServer(data: Partial<BedrockServer>) {
+    const serverId = `srv_${Date.now()}`;
     const server = {
-      id: `srv_${Date.now()}`,
+      id: serverId,
       name: data.name || 'New Bedrock Server',
       type: data.type || 'VANILLA',
       hostProvider: data.hostProvider || 'DOCKER_AGENT',
@@ -35,13 +38,13 @@ export class ApiServer {
       port: data.port || 19132,
       rconPort: data.rconPort || 19133,
       rconPassword: data.rconPassword || 'secret_rcon_pass',
-      serverPath: data.serverPath || `/var/minecraft/${(data.name || 'new-server').toLowerCase().replace(/\s+/g, '-')}`,
+      serverPath: defaultServerPath(serverId, data.serverPath),
       status: ServerStatus.OFFLINE,
       maxPlayers: data.maxPlayers || 10,
       gameMode: data.gameMode || 'survival',
       difficulty: data.difficulty || 'easy',
       ownerId: data.ownerId || 'usr_admin_1',
-      agentId: data.agentId || 'node_docker_agent_1',
+      agentId: data.agentId || DEFAULT_DOCKER_AGENT_ID,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -57,10 +60,14 @@ export class ApiServer {
     return BackupEngine.triggerBackup({ serverId, isManual: true });
   }
 
-  public static async executeSetupPipeline(_pipelineId: string, _serverId?: string) {
+  public static async executeSetupPipeline(
+    _pipelineId: string,
+    _serverId?: string,
+    templateId = 'tmpl_vanilla_survival'
+  ) {
     return PipelineEngine.runServerSetupPipeline({
       serverName: 'Pipeline Server',
-      templateId: 'tmpl_vanilla_survival',
+      templateId,
       actorName: 'admin'
     });
   }
