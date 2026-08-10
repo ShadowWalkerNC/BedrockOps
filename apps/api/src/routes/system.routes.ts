@@ -1,7 +1,15 @@
 import { Router, Response } from 'express';
 import { getDatabaseAdapterMode } from '@mc-admin/db';
+import {
+  HostProviderFactory,
+  isPterodactylConfigured,
+  isDirectSshConfigured,
+  parsePterodactylPartnerConfig,
+  parseDirectSshPartnerConfig
+} from '@mc-admin/bedrock';
 import { authenticateJwt, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { config } from '../config';
+import { agentGateway } from '../ws/agentGateway';
 
 export const systemRouter: Router = Router();
 
@@ -13,21 +21,44 @@ function present(value: string | undefined): boolean {
 
 /** GET /api/v1/system/status — non-secret control-plane readiness for Settings. */
 systemRouter.get('/status', (_req: AuthenticatedRequest, res: Response) => {
+  const connectedAgentIds = agentGateway.listConnectedNodeIds();
+  let pterodactylConfigured = false;
+  let directSshConfigured = false;
+  try {
+    pterodactylConfigured = isPterodactylConfigured(parsePterodactylPartnerConfig(process.env));
+    directSshConfigured = isDirectSshConfigured(parseDirectSshPartnerConfig(process.env));
+  } catch {
+    // Partial env — treat as unset for status pills; boot-time bindPartnerHosts would have thrown.
+    pterodactylConfigured = false;
+    directSshConfigured = false;
+  }
+
   return res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     nodeEnv: config.NODE_ENV,
     dbAdapter: getDatabaseAdapterMode(),
     corsOrigin: config.CORS_ORIGIN,
+    agents: {
+      connectedCount: connectedAgentIds.length,
+      connectedNodeIds: connectedAgentIds
+    },
     integrations: {
-      r2: present(process.env.R2_ACCOUNT_ID) && present(process.env.R2_ACCESS_KEY_ID) && present(process.env.R2_SECRET_ACCESS_KEY) && present(process.env.R2_BUCKET),
+      r2:
+        present(process.env.R2_ACCOUNT_ID) &&
+        present(process.env.R2_ACCESS_KEY_ID) &&
+        present(process.env.R2_SECRET_ACCESS_KEY) &&
+        present(process.env.R2_BUCKET),
       discordWebhook: present(process.env.DISCORD_WEBHOOK_URL),
       discordSlash:
         present(process.env.DISCORD_BOT_TOKEN) &&
         present(process.env.DISCORD_APPLICATION_ID) &&
         present(process.env.DISCORD_GUILD_ID),
       cloudflareDns: present(process.env.CLOUDFLARE_API_TOKEN) && present(process.env.CLOUDFLARE_ZONE_ID),
-      xbox: present(process.env.XBOX_API_KEY) || present(process.env.OPENXBL_API_KEY)
-    }
+      xbox: present(process.env.XBOX_API_KEY) || present(process.env.OPENXBL_API_KEY),
+      pterodactyl: pterodactylConfigured,
+      directSsh: directSshConfigured
+    },
+    hostProviders: HostProviderFactory.listReadiness()
   });
 });

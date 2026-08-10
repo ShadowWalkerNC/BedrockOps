@@ -101,7 +101,7 @@ export default function WorldsPage() {
         <div>
           <h1 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 28 }}>Worlds</h1>
           <p style={{ margin: '6px 0 0', color: c.onSurfaceVariant }}>
-            Realm world paths and safety snapshots. Multi-world upload/switch is Wave D (not faked).
+            Realm world paths and safety snapshots. Multi-world upload/switch is a later add-on (not faked).
           </p>
         </div>
         <button type="button" onClick={() => void load()} style={btnSecondary}>
@@ -165,8 +165,8 @@ export default function WorldsPage() {
                   color: c.onSurfaceVariant
                 }}
               >
-                TODO (Wave D / agent): list world folders, upload/replace worlds, switch <code>level-name</code>. Until
-                then, backups are the supported world recovery path.
+                Multi-world folder list / upload / <code>level-name</code> switch is a later add-on.
+                Until then, backups are the supported world recovery path.
               </div>
 
               <div>

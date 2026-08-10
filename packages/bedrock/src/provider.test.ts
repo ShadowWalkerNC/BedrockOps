@@ -72,7 +72,10 @@ describe('HostProvider Strategy Pattern', () => {
     const server = db.servers[0];
 
     expect(await provider.startServer(server)).toBe(true);
-    expect(calls[0]).toEqual({ command: 'POWER_ACTION', payload: { action: 'START' } });
+    expect(calls[0]).toEqual({
+      command: 'POWER_ACTION',
+      payload: { action: 'START', serverPath: server.serverPath }
+    });
 
     const rcon = await provider.executeRcon(server, 'list');
     expect(rcon).toContain('rcon stub ok');
@@ -82,6 +85,48 @@ describe('HostProvider Strategy Pattern', () => {
     expect(status.cpuPercent).toBe(12);
     expect(status.memoryMb).toBe(256);
     expect(status.activePlayers).toBe(2);
+  });
+
+  it('writes server.properties through WRITE_PROPERTIES when agent is connected', async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const gateway: AgentTunnelGatewayLike = {
+      isNodeConnected: () => true,
+      sendCommand: async (_nodeId, _serverId, command, payload) => {
+        calls.push({ command, payload });
+        return { success: true, output: `wrote ${payload.targetPath}` };
+      }
+    };
+    const provider = HostProviderFactory.bindAgentTunnel(gateway);
+    const server = db.servers[0];
+    const result = await provider.writeServerProperties(server, {
+      targetPath: `${server.serverPath}/server.properties`,
+      tempPath: `${server.serverPath}/server.properties.tmp`,
+      contents: 'gamemode=survival\n'
+    });
+    expect(result.success).toBe(true);
+    expect(calls[0].command).toBe('WRITE_PROPERTIES');
+    expect(calls[0].payload.contents).toContain('gamemode=survival');
+  });
+
+  it('writes pack files through WRITE_PACK_FILES when agent is connected', async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const gateway: AgentTunnelGatewayLike = {
+      isNodeConnected: () => true,
+      sendCommand: async (_nodeId, _serverId, command, payload) => {
+        calls.push({ command, payload });
+        return { success: true, output: 'wrote 2 pack files under /tmp' };
+      }
+    };
+    const provider = HostProviderFactory.bindAgentTunnel(gateway);
+    const result = await provider.writePackFiles(db.servers[0], {
+      files: [
+        { relativePath: 'worlds/Bedrock level/behavior_packs/p/manifest.json', contents: '{}\n' },
+        { relativePath: 'worlds/Bedrock level/world_behavior_packs.json', contents: '[]\n' }
+      ]
+    });
+    expect(result.success).toBe(true);
+    expect(result.filesWritten).toBe(2);
+    expect(calls[0].command).toBe('WRITE_PACK_FILES');
   });
 
   it('returns false when bound tunnel reports agent disconnected', async () => {

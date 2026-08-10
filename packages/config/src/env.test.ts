@@ -37,4 +37,19 @@ describe('@mc-admin/config env validation', () => {
   it('throws an error when invalid DISCORD_WEBHOOK_URL is provided', () => {
     expect(() => validateEnv({ DISCORD_WEBHOOK_URL: 'not-a-url' })).toThrow(/Environment variable validation failed/);
   });
+
+  it('rejects partial Pterodactyl partner env', () => {
+    expect(() =>
+      validateEnv({ PTERODACTYL_API_BASE_URL: 'https://panel.example.com' })
+    ).toThrow(/Environment variable validation failed/);
+  });
+
+  it('accepts complete Pterodactyl partner env', () => {
+    const env = validateEnv({
+      PTERODACTYL_API_BASE_URL: 'https://panel.example.com',
+      PTERODACTYL_API_KEY: 'ptla_test'
+    });
+    expect(env.PTERODACTYL_API_BASE_URL).toBe('https://panel.example.com');
+    expect(env.PTERODACTYL_API_KEY).toBe('ptla_test');
+  });
 });

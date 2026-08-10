@@ -116,7 +116,7 @@ If you improve it — **please open a pull request.** That’s how this grows.
 
 - **Settings** — account, agents, integration readiness, realm config  
 - **Worlds** — world path + snapshot/restore surface  
-- **Plugins / templates** — catalog today; pack install refuses until Wave D (no fake success)  
+- **Plugins / templates / marketplace** — first-party vetted BP/RP catalog, cosmetics as world resource packs, Script API matrix gates, mode templates with pack + level.dat experiment apply (honest stubs when the agent is offline)  
 - **Audit log** — state-changing actions leave a trail  
 - **Analytics + rate limits** — destructive-action throttles, join-flood detection  
 
@@ -148,7 +148,7 @@ If you improve it — **please open a pull request.** That’s how this grows.
 | `apps/discord` | Webhooks / slash-command relay |
 | `packages/*` | Shared domain libs (`@mc-admin/*`) |
 
-Deeper map: [PROJECT_PLAN.md](./PROJECT_PLAN.md) · contributor rules: [AGENTS.md](./AGENTS.md) · ship status: [SHIP_READINESS.md](./SHIP_READINESS.md)
+Deeper map: [PROJECT_PLAN.md](./PROJECT_PLAN.md) · contributor rules: [AGENTS.md](./AGENTS.md) · ship status: [SHIP_READINESS.md](./SHIP_READINESS.md) · deploy: [DEPLOY.md](./DEPLOY.md)
 
 ---
 
@@ -180,19 +180,35 @@ Open **http://localhost:3000/login**
 
 That’s a local seed account for development. Change it before you expose anything to the internet.
 
+### Deploy to a VPS / staging
+
+See **[DEPLOY.md](./DEPLOY.md)**. Short version:
+
+```bash
+cp .env.example .env   # set NODE_ENV=production, strong secrets, DATABASE_URL, CORS_ORIGIN,
+                       # API_URL + NEXT_PUBLIC_API_URL to your public API origin
+docker compose up -d postgres
+./scripts/start-prod.sh
+# pair the Go agent on the game host (DEPLOY.md §4)
+```
+
+Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
+
 ### Windows
+
+There is no `start-local.ps1` yet — use Docker Desktop for Postgres, then run the same stack in separate terminals (root `.env` uses `PORT=3000` for the website — the API must override to **4000**):
 
 ```powershell
 git clone https://github.com/ShadowWalkerNC/BedrockOps.git
 cd BedrockOps
 pnpm install
 copy .env.example .env
-powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
-```
 
-Then run **two** terminals (root `.env` uses `PORT=3000` for the website — the API must override to **4000**):
+docker compose up -d postgres
+pnpm --filter @mc-admin/db db:generate
+pnpm --filter @mc-admin/db db:migrate
+pnpm --filter @mc-admin/agent agent:build
 
-```powershell
 # Terminal A — API
 $env:PORT="4000"
 $env:DB_ADAPTER="prisma"
@@ -203,9 +219,31 @@ $env:API_URL="http://localhost:4000"
 $env:NEXT_PUBLIC_DEV_AUTO_LOGIN="false"
 pnpm --filter @mc-admin/web clean
 pnpm --filter @mc-admin/web dev
+
+# Terminal C — Go agent (simulated lifecycle)
+.\apps\agent\bin\bedrock-agent.exe `
+  -control-plane http://127.0.0.1:4000 `
+  -node-id node_docker_agent_1 `
+  -token dev_agent_token_change_me `
+  -server-path $env:TEMP\bedrockops-world
 ```
 
 Open http://localhost:3000/login with the same seed login.
+
+On Mac/Linux, stop a `./scripts/start-local.sh` stack with:
+
+```bash
+./scripts/stop-local.sh
+```
+
+### Add a server and power it
+
+1. Start the stack (`./scripts/start-local.sh`) so the Go agent tunnel is connected.
+2. Dashboard **+ Register Server** (or Setup wizard) — new realms bind to `node_docker_agent_1` with a writable path under `/tmp/bedrockops-worlds/<id>` (or `BDS_HOME` when set).
+3. Optionally set **Server path** in Settings → Realm configuration.
+4. **Start** from the dashboard or Ops Room — power payloads include `serverPath` so the agent uses that directory (falls back to `-server-path`).
+
+Without a connected agent, power returns an honest stub / 503 — never a fake success.
 
 > **Avoid OneDrive / iCloud sync folders** for the clone. They corrupt Next.js `.next` caches.  
 > If you see `Cannot find module './chunks/vendor-chunks/…'`, run:
@@ -256,6 +294,8 @@ Copy `.env.example` → `.env`. Important knobs:
 | `JWT_SECRET` | Sign dashboard sessions (use a long random string) |
 | `NODE_PAIRING_SECRET` | Agent pairing hardness |
 | `CORS_ORIGIN` | Your dashboard origin (`http://localhost:3000` locally) |
+| `API_URL` | Server-side API origin for Next rewrites |
+| `NEXT_PUBLIC_API_URL` | Browser API origin for live console WebSockets |
 | `BEDROCK_AGENT_TOKEN` | Must match the agent node’s hashed token |
 | `R2_*` | Optional offsite backups |
 | `DISCORD_WEBHOOK_URL` | Optional live alerts |
@@ -264,7 +304,7 @@ Copy `.env.example` → `.env`. Important knobs:
 
 **Missing keys never fake success.** Backups, Discord, DNS, and Xbox paths return honest stubs / pending states until configured. That’s a feature.
 
-Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
+Deploy runbook: [DEPLOY.md](./DEPLOY.md) · Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
 
 ---
 
@@ -282,6 +322,11 @@ pnpm --filter @mc-admin/db db:generate
 pnpm --filter @mc-admin/db db:migrate
 pnpm --filter @mc-admin/web clean
 pnpm --filter @mc-admin/agent agent:build
+
+# Production-shaped process starts (after pnpm build / migrate):
+pnpm start:api
+pnpm start:web
+pnpm start:worker
 ```
 
 ---
@@ -290,12 +335,16 @@ pnpm --filter @mc-admin/agent agent:build
 
 | Wave | What | Status |
 |------|------|--------|
-| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Shipped on `main` |
-| **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped on `main` |
-| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped on `main` |
-| **D** | Pack/add-on engine, marketplace, host partners, seasonal rounds | Next — **come help** |
+| **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Shipped |
+| **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped |
+| **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped |
+| **D1–D4** | Pack engine, mode templates + packs, cosmetics, Script API matrix, marketplace, level.dat experiments | Shipped |
+| **D5** | Partner host readiness (env + Settings); live panel/SSH HTTP still a later add-on | Readiness shipped |
+| **D6+** | Seasonal rounds, Mojang store federation, Persona force-apply | Later add-ons — **come help** |
 
-If Wave D excites you (packs, Script API, marketplace UX, Pterodactyl wiring), open an issue or PR. We’ll take serious contributions over vaporware screenshots.
+Core product is **deployable today** with `DOCKER_AGENT` — see [DEPLOY.md](./DEPLOY.md).
+
+If live Pterodactyl wiring or round-based modes excite you, open an issue or PR. We’ll take serious contributions over vaporware screenshots.
 
 ---
 
@@ -311,6 +360,8 @@ If Wave D excites you (packs, Script API, marketplace UX, Pterodactyl wiring), o
 - Tests around bugs you hit  
 - Hardening env validation / error messages  
 - Real agent edge cases (process exit, pipe drain, allowlist races)  
+- Extra vetted cosmetic RPs or Script matrix rows for new BDS pins  
+- Pterodactyl / partner `HostProvider` wiring (Wave D5) that fails honestly until live  
 
 ### Ground rules
 

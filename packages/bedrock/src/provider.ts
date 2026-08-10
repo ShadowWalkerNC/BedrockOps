@@ -1,5 +1,16 @@
 import { BedrockServer, HostProviderType } from '@mc-admin/db';
 import { RconClient } from './rcon';
+import {
+  type HostProviderReadiness,
+  type PterodactylPartnerConfig,
+  type DirectSshPartnerConfig,
+  parsePterodactylPartnerConfig,
+  parseDirectSshPartnerConfig,
+  isPterodactylConfigured,
+  dockerAgentReadiness,
+  pterodactylReadiness,
+  directRconSshReadiness
+} from './partnerHosts';
 
 export interface ServerMetrics {
   cpuPercent: number;
@@ -41,6 +52,31 @@ export interface RestoreResult {
   output?: string;
 }
 
+export interface PropertiesWriteResult {
+  success: boolean;
+  stub?: boolean;
+  path?: string;
+  error?: string;
+  output?: string;
+}
+
+export interface PackApplyResult {
+  success: boolean;
+  stub?: boolean;
+  filesWritten?: number;
+  error?: string;
+  output?: string;
+}
+
+export interface WorldFileResult {
+  success: boolean;
+  stub?: boolean;
+  relativePath?: string;
+  contentsBase64?: string;
+  error?: string;
+  output?: string;
+}
+
 export interface HostProvider {
   readonly type: HostProviderType;
 
@@ -52,6 +88,26 @@ export interface HostProvider {
   streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void;
   triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult>;
   restoreBackup(server: BedrockServer, options: RestoreTriggerOptions): Promise<RestoreResult>;
+  writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult>;
+  writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult>;
+  /** Wave D — jailed binary world file read (level.dat). */
+  readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult>;
+  /** Wave D — jailed binary world file write (level.dat); optional .bak. */
+  writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult>;
+  /** Wave D5 — honest capability / readiness surface for partner hosts. */
+  getReadiness(): HostProviderReadiness;
 }
 
 /** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
@@ -69,6 +125,10 @@ export class DockerAgentHostProvider implements HostProvider {
     this.tunnelGateway = gateway;
   }
 
+  public getReadiness(): HostProviderReadiness {
+    return dockerAgentReadiness(Boolean(this.tunnelGateway));
+  }
+
   private async power(server: BedrockServer, action: 'START' | 'STOP' | 'KILL' | 'RESTART'): Promise<boolean> {
     if (!server.agentId) {
       throw new Error(`Server ${server.id} has no assigned agentNode`);
@@ -81,7 +141,10 @@ export class DockerAgentHostProvider implements HostProvider {
       console.warn(`[STUB] DockerAgentHostProvider.${action} — agent ${server.agentId} is not connected`);
       return false;
     }
-    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', { action }) as {
+    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', {
+      action,
+      serverPath: server.serverPath || undefined
+    }) as {
       success?: boolean;
     };
     return result?.success !== false;
@@ -223,27 +286,215 @@ export class DockerAgentHostProvider implements HostProvider {
       error: '[STUB] Agent tunnel not connected — restore not executed on host.'
     };
   }
+
+  public async writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        error: `Server ${server.id} has no assigned agentNode — properties not written.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        path: plan.targetPath,
+        error: '[STUB] Agent tunnel not connected — server.properties not written on host.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        path: plan.targetPath,
+        error: `[STUB] Agent ${server.agentId} not connected — server.properties not written on host.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'WRITE_PROPERTIES', {
+      targetPath: plan.targetPath,
+      tempPath: plan.tempPath,
+      contents: plan.contents
+    })) as { success?: boolean; stub?: boolean; error?: string; output?: string };
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      path: plan.targetPath,
+      output: result?.output,
+      error: result?.error
+    };
+  }
+
+  public async writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        error: `Server ${server.id} has no assigned agentNode — pack files not written.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        error: '[STUB] Agent tunnel not connected — pack files not written on host.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        error: `[STUB] Agent ${server.agentId} not connected — pack files not written on host.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'WRITE_PACK_FILES', {
+      serverPath: server.serverPath,
+      files: plan.files
+    })) as { success?: boolean; stub?: boolean; error?: string; output?: string };
+    const writtenMatch = result?.output?.match(/wrote (\d+) pack files/);
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      filesWritten: writtenMatch ? parseInt(writtenMatch[1], 10) : plan.files.length,
+      output: result?.output,
+      error: result?.error
+    };
+  }
+
+  public async readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `Server ${server.id} has no assigned agentNode — world file not read.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: '[STUB] Agent tunnel not connected — world file not read.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `[STUB] Agent ${server.agentId} not connected — world file not read.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'READ_WORLD_FILE', {
+      serverPath: server.serverPath,
+      relativePath: plan.relativePath
+    })) as {
+      success?: boolean;
+      stub?: boolean;
+      error?: string;
+      output?: string;
+      contentsBase64?: string;
+    };
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      relativePath: plan.relativePath,
+      contentsBase64: result?.contentsBase64,
+      output: result?.output,
+      error: result?.error
+    };
+  }
+
+  public async writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `Server ${server.id} has no assigned agentNode — world file not written.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: '[STUB] Agent tunnel not connected — world file not written.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `[STUB] Agent ${server.agentId} not connected — world file not written.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'WRITE_WORLD_FILE', {
+      serverPath: server.serverPath,
+      relativePath: plan.relativePath,
+      contentsBase64: plan.contentsBase64,
+      backup: plan.backup !== false
+    })) as { success?: boolean; stub?: boolean; error?: string; output?: string };
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      relativePath: plan.relativePath,
+      output: result?.output,
+      error: result?.error
+    };
+  }
 }
 
 export class PterodactylHostProvider implements HostProvider {
   public readonly type = HostProviderType.PTERODACTYL;
 
-  constructor(private apiBaseUrl?: string, private apiKey?: string) {}
+  constructor(private config: PterodactylPartnerConfig = {}) {}
 
-  private notImplemented(action: string, server: BedrockServer): never | false {
+  public setConfig(config: PterodactylPartnerConfig): void {
+    this.config = config;
+  }
+
+  public getReadiness(): HostProviderReadiness {
+    return pterodactylReadiness(this.config);
+  }
+
+  private notImplemented(action: string, server: BedrockServer): false {
+    const id = server.pterodactylServerId || server.id;
+    if (!isPterodactylConfigured(this.config)) {
+      console.warn(
+        `[STUB] PterodactylHostProvider.${action} — panel credentials unset for ${id}`
+      );
+      return false;
+    }
+    if (!server.pterodactylServerId) {
+      console.warn(
+        `[STUB] PterodactylHostProvider.${action} — server ${server.id} has no pterodactylServerId`
+      );
+      return false;
+    }
     console.warn(
-      `[STUB] PterodactylHostProvider.${action} — panel API integration pending for ${server.pterodactylServerId || server.id}`
+      `[STUB] PterodactylHostProvider.${action} — panel API integration pending for ${server.pterodactylServerId}`
     );
+    void this.config.apiBaseUrl;
+    void this.config.apiKey;
     return false;
   }
 
   public async startServer(server: BedrockServer): Promise<boolean> {
-    if (!server.pterodactylServerId && !server.id) {
-      throw new Error(`Server ${server.id} has no pterodactylServerId specified`);
-    }
-    // TODO: Call Pterodactyl power API when apiBaseUrl + apiKey are configured.
-    void this.apiBaseUrl;
-    void this.apiKey;
     return this.notImplemented('START', server);
   }
 
@@ -280,7 +531,9 @@ export class PterodactylHostProvider implements HostProvider {
       success: false,
       stub: true,
       backupId: options.backupId,
-      error: '[STUB] Pterodactyl backup API integration pending.'
+      error: isPterodactylConfigured(this.config)
+        ? '[STUB] Pterodactyl backup API integration pending.'
+        : '[STUB] Pterodactyl credentials unset — backup not run.'
     };
   }
 
@@ -290,7 +543,59 @@ export class PterodactylHostProvider implements HostProvider {
       success: false,
       stub: true,
       backupId: options.backupId,
-      error: '[STUB] Pterodactyl restore API integration pending.'
+      error: isPterodactylConfigured(this.config)
+        ? '[STUB] Pterodactyl restore API integration pending.'
+        : '[STUB] Pterodactyl credentials unset — restore not run.'
+    };
+  }
+
+  public async writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Pterodactyl properties write pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
+
+  public async writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Pterodactyl pack install pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
+
+  public async readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult> {
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Pterodactyl world file read pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
+
+  public async writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult> {
+    void plan.contentsBase64;
+    void plan.backup;
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Pterodactyl world file write pending for ${server.pterodactylServerId || server.id}`
     };
   }
 }
@@ -298,10 +603,21 @@ export class PterodactylHostProvider implements HostProvider {
 export class DirectRconSshHostProvider implements HostProvider {
   public readonly type = HostProviderType.DIRECT_RCON_SSH;
 
+  constructor(private config: DirectSshPartnerConfig = {}) {}
+
+  public setConfig(config: DirectSshPartnerConfig): void {
+    this.config = config;
+  }
+
+  public getReadiness(): HostProviderReadiness {
+    return directRconSshReadiness(this.config);
+  }
+
   private notImplemented(action: string, server: BedrockServer): false {
     console.warn(
       `[STUB] DirectRconSshHostProvider.${action} — SSH/RCON lifecycle integration pending for ${server.host}`
     );
+    void this.config;
     return false;
   }
 
@@ -363,6 +679,56 @@ export class DirectRconSshHostProvider implements HostProvider {
       error: '[STUB] Direct RCON/SSH restore integration pending.'
     };
   }
+
+  public async writeServerProperties(
+    server: BedrockServer,
+    plan: { targetPath: string; tempPath: string; contents: string }
+  ): Promise<PropertiesWriteResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Direct RCON/SSH properties write pending for ${server.host}`
+    };
+  }
+
+  public async writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Direct RCON/SSH pack install pending for ${server.host}`
+    };
+  }
+
+  public async readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult> {
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Direct RCON/SSH world file read pending for ${server.host}`
+    };
+  }
+
+  public async writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult> {
+    void plan.contentsBase64;
+    void plan.backup;
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Direct RCON/SSH world file write pending for ${server.host}`
+    };
+  }
 }
 
 export class HostProviderFactory {
@@ -382,6 +748,49 @@ export class HostProviderFactory {
     const provider = new DockerAgentHostProvider(gateway);
     this.providers.set(HostProviderType.DOCKER_AGENT, provider);
     return provider;
+  }
+
+  /**
+   * Wave D5 — bind optional partner host credentials from env.
+   * Throws if partner env is partially set (both-or-neither).
+   */
+  public static bindPartnerHosts(
+    env: Record<string, string | undefined> = process.env
+  ): {
+    pterodactyl: PterodactylHostProvider;
+    directRconSsh: DirectRconSshHostProvider;
+  } {
+    const pteroCfg = parsePterodactylPartnerConfig(env);
+    const sshCfg = parseDirectSshPartnerConfig(env);
+
+    let ptero = this.providers.get(HostProviderType.PTERODACTYL);
+    if (ptero instanceof PterodactylHostProvider) {
+      ptero.setConfig(pteroCfg);
+    } else {
+      ptero = new PterodactylHostProvider(pteroCfg);
+      this.providers.set(HostProviderType.PTERODACTYL, ptero);
+    }
+
+    let direct = this.providers.get(HostProviderType.DIRECT_RCON_SSH);
+    if (direct instanceof DirectRconSshHostProvider) {
+      direct.setConfig(sshCfg);
+    } else {
+      direct = new DirectRconSshHostProvider(sshCfg);
+      this.providers.set(HostProviderType.DIRECT_RCON_SSH, direct);
+    }
+
+    return {
+      pterodactyl: ptero as PterodactylHostProvider,
+      directRconSsh: direct as DirectRconSshHostProvider
+    };
+  }
+
+  public static listReadiness(): HostProviderReadiness[] {
+    return [
+      this.getProvider(HostProviderType.DOCKER_AGENT).getReadiness(),
+      this.getProvider(HostProviderType.PTERODACTYL).getReadiness(),
+      this.getProvider(HostProviderType.DIRECT_RCON_SSH).getReadiness()
+    ];
   }
 
   public static getProvider(type: HostProviderType | string): HostProvider {

@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
-import { db } from '@mc-admin/db';
+import { db, MODE_EXPERIMENT_HINTS } from '@mc-admin/db';
 import { authenticateJwt, AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const templatesRouter: Router = Router();
 
 templatesRouter.use(authenticateJwt);
 
-/** GET /api/v1/templates — list realm templates (read-only; pack install is Wave D). */
+/** GET /api/v1/templates — mode catalog with declared packs + experiment hints (D2). */
 templatesRouter.get('/', (_req: AuthenticatedRequest, res: Response) => {
   return res.json({
     templates: db.templates.map((t) => ({
@@ -16,6 +16,10 @@ templatesRouter.get('/', (_req: AuthenticatedRequest, res: Response) => {
       bdsVersion: t.bdsVersion,
       defaultProperties: t.defaultProperties,
       addonPacks: t.addonPacks,
+      experiments: MODE_EXPERIMENT_HINTS[t.id] || [],
+      experimentsApplied: false,
+      experimentsNote:
+        'Setup / apply-template patches worlds/<level>/level.dat experiment flags via the agent when online. experimentsApplied is true only after a successful host write.',
       createdAt: t.createdAt
     }))
   });

@@ -14,6 +14,14 @@ export interface DashboardServer {
   serverPath?: string;
   agentId?: string;
   hostProvider?: string;
+  pterodactylServerId?: string;
+}
+
+export interface HostProviderReadiness {
+  type: string;
+  configured: boolean;
+  summary: string;
+  capabilities: Record<string, { state: string; detail?: string }>;
 }
 
 export interface DashboardNode {
@@ -39,13 +47,20 @@ export interface SystemStatus {
   nodeEnv: string;
   dbAdapter: string;
   corsOrigin: string;
+  agents?: {
+    connectedCount: number;
+    connectedNodeIds: string[];
+  };
   integrations: {
     r2: boolean;
     discordWebhook: boolean;
     discordSlash: boolean;
     cloudflareDns: boolean;
     xbox: boolean;
+    pterodactyl?: boolean;
+    directSsh?: boolean;
   };
+  hostProviders?: HostProviderReadiness[];
 }
 
 export interface RealmTemplate {
@@ -55,6 +70,9 @@ export interface RealmTemplate {
   bdsVersion: string;
   defaultProperties: Record<string, string>;
   addonPacks: string[];
+  experiments?: string[];
+  experimentsApplied?: boolean;
+  experimentsNote?: string;
   createdAt: string;
 }
 

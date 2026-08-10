@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { UserRole, ServerStatus } from './schema';
 import { assertDatabaseModeAllowed, isMemoryDatabaseMode } from './adapter';
+import { ensureModeCatalogTemplates } from './modeCatalog';
 
 import type {
   User,
@@ -21,6 +22,8 @@ export * from './schema';
 export * from './client';
 export * from './adapter';
 export * from './persist';
+export * from './paths';
+export * from './modeCatalog';
 
 /** Well-known bcrypt hash of password "admin" (cost 10) for local/test seeding only. */
 export const DEV_ADMIN_PASSWORD_HASH =
@@ -104,20 +107,7 @@ export class MemoryDatabase {
       createdAt: new Date()
     });
 
-    this.templates.push({
-      id: 'tmpl_vanilla_survival',
-      name: 'Vanilla Hard Survival',
-      description: 'Standard vanilla survival Bedrock configuration template.',
-      bdsVersion: '1.20.80',
-      defaultProperties: {
-        'gamemode': 'survival',
-        'difficulty': 'hard',
-        'allow-cheats': 'false',
-        'max-players': '10'
-      },
-      addonPacks: [],
-      createdAt: new Date()
-    });
+    ensureModeCatalogTemplates(this);
 
     this.bdsVersions.push(
       {

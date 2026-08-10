@@ -29,12 +29,30 @@ describe('PipelineEngine Package', () => {
 
     expect(result.server).toBeDefined();
     expect(result.server.name).toBe('New Skyblock Server');
-    expect(result.server.status).toBe(ServerStatus.ONLINE);
+    expect(result.server.status).toBe(ServerStatus.OFFLINE);
+    expect(result.server.hostProvider).toBe('DOCKER_AGENT');
+    expect(result.server.agentId).toBe('node_docker_agent_1');
+    expect(result.server.serverPath).toBeTruthy();
+    expect(result.server.serverPath).not.toContain('/var/minecraft/');
     expect(result.run.status).toBe(PipelineStatus.SUCCESS);
     expect(db.servers.some((s) => s.id === result.server.id)).toBe(true);
     expect(result.run.logs.some((l) => l.includes('backup snapshot'))).toBe(true);
     expect(db.auditLogs.some((a) => a.action === 'PIPELINE_SERVER_SETUP')).toBe(true);
     expect(NotificationDispatcher.sentMessages.length).toBe(1);
+  });
+
+  it('applies Creative Sandbox mode and prepares properties plan', async () => {
+    const result = await PipelineEngine.runServerSetupPipeline({
+      serverName: 'Sandbox Realm',
+      templateId: 'tmpl_creative_sandbox',
+      actorName: 'AdminUser'
+    });
+
+    expect(result.server.gameMode).toBe('creative');
+    expect(result.server.difficulty).toBe('peaceful');
+    expect(result.server.maxPlayers).toBe(20);
+    expect(result.propertiesPlan?.contents).toContain('gamemode=creative');
+    expect(result.propertiesPlan?.targetPath).toContain(result.server.id);
   });
 
   it('allocates a play subdomain + UDP port during setup (R5.1/R5.3)', async () => {

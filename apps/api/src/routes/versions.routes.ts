@@ -4,18 +4,25 @@ import { db, UserRole } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { BdsVersionMatrix } from '@mc-admin/bedrock';
 import { BackupEngine } from '@mc-admin/backups';
+import { SCRIPT_API_MATRIX, PackEngine } from '@mc-admin/templates';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 
 export const versionsRouter: Router = Router();
 
 versionsRouter.use(authenticateJwt);
 
-// GET /api/v1/versions - BDS version catalog + latest
+// GET /api/v1/versions - BDS version catalog + latest + Script API matrix
 versionsRouter.get('/', (_req: AuthenticatedRequest, res: Response) => {
   return res.json({
     versions: BdsVersionMatrix.list(db),
-    latest: BdsVersionMatrix.latest(db) ?? null
+    latest: BdsVersionMatrix.latest(db) ?? null,
+    scriptApiMatrix: SCRIPT_API_MATRIX
   });
+});
+
+// GET /api/v1/versions/script-matrix — Script API compatibility rows
+versionsRouter.get('/script-matrix', (_req: AuthenticatedRequest, res: Response) => {
+  return res.json({ matrix: SCRIPT_API_MATRIX });
 });
 
 // GET /api/v1/versions/servers/:id/check - drift check for a server's pinned version
@@ -24,7 +31,14 @@ versionsRouter.get('/servers/:id/check', (req: AuthenticatedRequest, res: Respon
   if (!server) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
   }
-  return res.json({ check: BdsVersionMatrix.checkServer(server, db) });
+  const check = BdsVersionMatrix.checkServer(server, db);
+  const scriptPacks = PackEngine.listCatalog({ vettedOnly: true })
+    .filter((p) => p.scriptApi)
+    .map((p) => ({
+      packId: p.id,
+      ...PackEngine.checkScriptCompatibility(server.version, p)
+    }));
+  return res.json({ check, scriptPacks });
 });
 
 // POST /api/v1/versions/servers/:id/pin - pin a BDS version (optionally backup-before-update)

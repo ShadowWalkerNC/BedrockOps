@@ -2,10 +2,20 @@
 # Start a production-shaped local BedrockOps stack:
 #   Postgres (compose) + Prisma API + web dashboard + Go agent (simulated BDS).
 # Usage: from repo root → ./scripts/start-local.sh
+# Stop with: ./scripts/stop-local.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+
+LOG_DIR="${BEDROCKOPS_LOG_DIR:-/tmp/bedrockops-logs}"
+
+# Idempotent: stop any previous start-local stack before launching again.
+if [[ -d "$LOG_DIR" ]] && compgen -G "$LOG_DIR/*.pid" >/dev/null 2>&1; then
+  echo "[start-local] existing PIDs found — running stop-local first"
+  "$ROOT/scripts/stop-local.sh" || true
+  sleep 0.5
+fi
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
@@ -40,6 +50,7 @@ text = set_kv(text, "DB_ADAPTER", "prisma")
 text = set_kv(text, "NEXT_PUBLIC_DEV_AUTO_LOGIN", "false")
 text = set_kv(text, "CORS_ORIGIN", "http://localhost:3000")
 text = set_kv(text, "API_URL", "http://localhost:4000")
+text = set_kv(text, "NEXT_PUBLIC_API_URL", "http://localhost:4000")
 path.write_text(text)
 print("[start-local] .env hardened for local prisma play")
 PY
@@ -62,12 +73,13 @@ pnpm --filter @mc-admin/db db:migrate
 echo "[start-local] building Go agent…"
 pnpm --filter @mc-admin/agent agent:build
 
-mkdir -p /tmp/bedrockops-logs
+mkdir -p "$LOG_DIR"
 
 echo "[start-local] launching API (4000), web (3000), agent…"
 echo "  Dashboard: http://localhost:3000/login"
 echo "  Login:     admin@minecraft-admin.local / admin"
 echo "  API:       http://localhost:4000/health"
+echo "  Stop with: ./scripts/stop-local.sh"
 
 # Export env for child processes (dotenv not loaded by ts-node by default).
 set -a
@@ -76,15 +88,15 @@ source <(grep -E '^[A-Z0-9_]+=' .env | sed 's/\r$//')
 set +a
 
 PORT=4000 DB_ADAPTER=prisma NODE_ENV="${NODE_ENV:-development}" \
-  pnpm --filter @mc-admin/api dev > /tmp/bedrockops-logs/api.log 2>&1 &
-echo $! > /tmp/bedrockops-logs/api.pid
+  pnpm --filter @mc-admin/api dev > "$LOG_DIR/api.log" 2>&1 &
+echo $! > "$LOG_DIR/api.pid"
 
 # Wipe stale Next cache (corrupt vendor-chunks are common after branch switches / OneDrive sync).
 pnpm --filter @mc-admin/web clean >/dev/null 2>&1 || rm -rf apps/web/.next
 
-NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 \
-  pnpm --filter @mc-admin/web dev > /tmp/bedrockops-logs/web.log 2>&1 &
-echo $! > /tmp/bedrockops-logs/web.pid
+NEXT_PUBLIC_DEV_AUTO_LOGIN=false API_URL=http://localhost:4000 NEXT_PUBLIC_API_URL=http://localhost:4000 \
+  pnpm --filter @mc-admin/web dev > "$LOG_DIR/web.log" 2>&1 &
+echo $! > "$LOG_DIR/web.pid"
 
 AGENT_SERVER_PATH="${BDS_HOME:-/tmp/bedrockops-world}"
 AGENT_ARGS=(
@@ -102,12 +114,12 @@ else
 fi
 
 ./apps/agent/bin/bedrock-agent "${AGENT_ARGS[@]}" \
-  > /tmp/bedrockops-logs/agent.log 2>&1 &
-echo $! > /tmp/bedrockops-logs/agent.pid
+  > "$LOG_DIR/agent.log" 2>&1 &
+echo $! > "$LOG_DIR/agent.pid"
 
 # Optional worker (honest stubs without R2)
-pnpm --filter @mc-admin/worker dev > /tmp/bedrockops-logs/worker.log 2>&1 &
-echo $! > /tmp/bedrockops-logs/worker.pid
+pnpm --filter @mc-admin/worker dev > "$LOG_DIR/worker.log" 2>&1 &
+echo $! > "$LOG_DIR/worker.pid"
 
 for i in $(seq 1 60); do
   if curl -sf http://127.0.0.1:4000/health >/dev/null && curl -sf http://127.0.0.1:3000/login >/dev/null; then
@@ -117,5 +129,5 @@ for i in $(seq 1 60); do
   sleep 0.5
 done
 
-echo "[start-local] timed out waiting for health — see /tmp/bedrockops-logs/"
+echo "[start-local] timed out waiting for health — see $LOG_DIR/"
 exit 1

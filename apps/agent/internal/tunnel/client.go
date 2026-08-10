@@ -16,8 +16,11 @@ import (
 	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/packs"
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/properties"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/protocol"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/rcon"
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/worldfile"
 	"github.com/gorilla/websocket"
 )
 
@@ -231,7 +234,7 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 	serverID := frame.ServerID
 	switch payload.Command {
 	case protocol.CmdPowerAction:
-		c.handlePower(frame, serverID, strings.ToUpper(payload.Action))
+		c.handlePower(frame, serverID, strings.ToUpper(payload.Action), payload.ServerPath)
 	case protocol.CmdRconCommand:
 		cmd := payload.RconCommand
 		if cmd == "" {
@@ -246,10 +249,18 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleStatus(frame, serverID)
 	case protocol.CmdAllowlistSync:
 		c.handleAllowlistSync(frame, serverID, payload)
+	case protocol.CmdWriteProperties:
+		c.handleWriteProperties(frame, serverID, payload)
+	case protocol.CmdWritePackFiles:
+		c.handleWritePackFiles(frame, serverID, payload)
+	case protocol.CmdReadWorldFile:
+		c.handleReadWorldFile(frame, serverID, payload)
+	case protocol.CmdWriteWorldFile:
+		c.handleWriteWorldFile(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
-			c.handlePower(frame, serverID, strings.ToUpper(payload.Action))
+			c.handlePower(frame, serverID, strings.ToUpper(payload.Action), payload.ServerPath)
 			return
 		}
 		c.respond(frame, protocol.CmdRespPayload{
@@ -259,8 +270,11 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 	}
 }
 
-func (c *Client) handlePower(frame protocol.Frame, serverID, action string) {
-	path := c.cfg.ServerPathHint
+func (c *Client) handlePower(frame protocol.Frame, serverID, action, serverPath string) {
+	path := strings.TrimSpace(serverPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
 	var (
 		state lifecycle.State
 		mode  lifecycle.Mode
@@ -299,9 +313,9 @@ func (c *Client) handlePower(frame protocol.Frame, serverID, action string) {
 		Success: true,
 		Mode:    string(mode),
 		State:   string(state),
-		Output:  fmt.Sprintf("power action %s -> %s (mode=%s)", action, state, mode),
+		Output:  fmt.Sprintf("power action %s -> %s (mode=%s path=%s)", action, state, mode, path),
 	})
-	_ = c.sendLog(serverID, fmt.Sprintf("power %s -> %s", action, state))
+	_ = c.sendLog(serverID, fmt.Sprintf("power %s -> %s (path=%s)", action, state, path))
 }
 
 func (c *Client) handleRcon(frame protocol.Frame, serverID, command string) {
@@ -377,6 +391,104 @@ func (c *Client) handleAllowlistSync(frame protocol.Frame, serverID string, payl
 		Output:  fmt.Sprintf("allowlist synced: wrote %d entries -> %s", len(entries), payload.TargetPath),
 	})
 	_ = c.sendLog(serverID, fmt.Sprintf("allowlist synced (%d entries) -> %s", len(entries), payload.TargetPath))
+}
+
+func (c *Client) handleWriteProperties(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	if payload.Contents == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "contents required for WRITE_PROPERTIES"})
+		return
+	}
+	if err := properties.AtomicWrite(payload.TargetPath, payload.TempPath, payload.Contents); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("properties write failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("server.properties written -> %s", payload.TargetPath),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("server.properties written -> %s", payload.TargetPath))
+}
+
+func (c *Client) handleWritePackFiles(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	path := strings.TrimSpace(payload.ServerPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
+	if path == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "serverPath required for WRITE_PACK_FILES"})
+		return
+	}
+	specs := make([]packs.FileSpec, 0, len(payload.Files))
+	for _, f := range payload.Files {
+		specs = append(specs, packs.FileSpec{RelativePath: f.RelativePath, Contents: f.Contents})
+	}
+	n, err := packs.AtomicWriteAll(path, specs)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("pack write failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("wrote %d pack files under %s", n, path),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("wrote %d pack files under %s", n, path))
+}
+
+func (c *Client) handleReadWorldFile(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	path := strings.TrimSpace(payload.ServerPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
+	if path == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "serverPath required for READ_WORLD_FILE"})
+		return
+	}
+	b64, err := worldfile.ReadBase64(path, payload.RelativePath)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("world file read failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success:        true,
+		Mode:           string(c.manager.Mode()),
+		Output:         fmt.Sprintf("read %s", payload.RelativePath),
+		ContentsBase64: b64,
+	})
+}
+
+func (c *Client) handleWriteWorldFile(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	path := strings.TrimSpace(payload.ServerPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
+	if path == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "serverPath required for WRITE_WORLD_FILE"})
+		return
+	}
+	if payload.ContentsBase64 == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "contentsBase64 required for WRITE_WORLD_FILE"})
+		return
+	}
+	backup := true
+	if payload.Backup != nil {
+		backup = *payload.Backup
+	}
+	if err := worldfile.WriteBase64(path, payload.RelativePath, payload.ContentsBase64, backup); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("world file write failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("wrote %s", payload.RelativePath),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("wrote world file %s", payload.RelativePath))
 }
 
 func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {

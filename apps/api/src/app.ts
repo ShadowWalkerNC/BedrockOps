@@ -11,6 +11,7 @@ import { analyticsRouter } from './routes/analytics.routes';
 import { versionsRouter } from './routes/versions.routes';
 import { auditRouter } from './routes/audit.routes';
 import { templatesRouter } from './routes/templates.routes';
+import { packsRouter } from './routes/packs.routes';
 import { systemRouter } from './routes/system.routes';
 import { prismaWriteThroughMiddleware } from './middleware/persist.middleware';
 
@@ -36,4 +37,5 @@ app.use('/api/v1/analytics', analyticsRouter);
 app.use('/api/v1/versions', versionsRouter);
 app.use('/api/v1/audit', auditRouter);
 app.use('/api/v1/templates', templatesRouter);
+app.use('/api/v1/packs', packsRouter);
 app.use('/api/v1/system', systemRouter);

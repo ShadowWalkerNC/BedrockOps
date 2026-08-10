@@ -364,6 +364,99 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.templates)).toBe(true);
     expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_vanilla_survival')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_creative_sandbox')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_flat_skyblock')).toBe(true);
+    expect(res.body.templates.some((t: { id: string }) => t.id === 'tmpl_classic_smp')).toBe(true);
+    const smp = res.body.templates.find((t: { id: string }) => t.id === 'tmpl_classic_smp');
+    expect(smp.addonPacks).toEqual(expect.arrayContaining(['pack_sample_bp', 'pack_sample_rp']));
+    expect(smp.experimentsApplied).toBe(false);
+  });
+
+  it('applies Creative Sandbox properties via POST /provisioning/apply-template (honest stub without agent)', async () => {
+    const res = await request(app)
+      .post('/api/v1/provisioning/apply-template')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', templateId: 'tmpl_creative_sandbox' });
+
+    expect([200, 503]).toContain(res.status);
+    expect(res.body.propertiesWrite).toBeDefined();
+    expect(res.body.propertiesPlan?.targetPath).toMatch(/server\.properties$/);
+    const server = db.servers.find((s) => s.id === 'srv_bedrock_1');
+    expect(server?.gameMode).toBe('creative');
+    expect(server?.difficulty).toBe('peaceful');
+    if (res.status === 503) {
+      expect(res.body.propertiesWrite.stub || res.body.propertiesWrite.success === false).toBeTruthy();
+    }
+  });
+
+  it('lists Wave D1 pack catalog on GET /api/v1/packs', async () => {
+    const res = await request(app)
+      .get('/api/v1/packs')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.packs.some((p: { id: string }) => p.id === 'pack_sample_bp')).toBe(true);
+    expect(res.body.packs.some((p: { id: string }) => p.id === 'pack_sample_rp')).toBe(true);
+    expect(res.body.facets?.categories).toContain('gameplay');
+    expect(res.body.marketplace?.publisher).toBe('BedrockOps');
+  });
+
+  it('filters marketplace packs by category', async () => {
+    const res = await request(app)
+      .get('/api/v1/packs?category=gameplay')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.packs.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.packs.every((p: { category: string }) => p.category === 'gameplay')).toBe(true);
+  });
+
+  it('refuses Script API marketplace packs honestly', async () => {
+    const res = await request(app)
+      .post('/api/v1/packs/apply')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', packId: 'pack_utility_clearlag_stub' });
+
+    expect(res.status).toBe(409);
+    expect(['SCRIPT_API_UNSUPPORTED', 'PACK_APPLY_BLOCKED']).toContain(res.body.error);
+  });
+
+  it('refuses Persona uploads honestly', async () => {
+    const res = await request(app)
+      .post('/api/v1/packs/persona')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('PERSONA_UNSUPPORTED');
+  });
+
+  it('exposes Script API matrix on GET /versions', async () => {
+    const res = await request(app)
+      .get('/api/v1/versions')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.scriptApiMatrix?.some((r: { bdsVersion: string }) => r.bdsVersion === '1.21.0')).toBe(
+      true
+    );
+  });
+
+  it('applies a sample pack via POST /packs/apply (honest stub without agent)', async () => {
+    const res = await request(app)
+      .post('/api/v1/packs/apply')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', packId: 'pack_sample_bp' });
+
+    expect([201, 503]).toContain(res.status);
+    expect(db.auditLogs.some((a) => a.action === 'PACK_APPLY')).toBe(true);
+    if (res.status === 503) {
+      expect(res.body.error).toBe('PACK_APPLY_DEFERRED');
+      expect(res.body.write?.success).toBe(false);
+    } else {
+      expect(res.body.success).toBe(true);
+      expect(res.body.write?.success).toBe(true);
+    }
   });
 
   it('returns non-secret system status on GET /api/v1/system/status', async () => {
@@ -378,8 +471,42 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
       r2: expect.any(Boolean),
       discordWebhook: expect.any(Boolean),
       cloudflareDns: expect.any(Boolean),
-      xbox: expect.any(Boolean)
+      xbox: expect.any(Boolean),
+      pterodactyl: expect.any(Boolean),
+      directSsh: expect.any(Boolean)
     });
+    expect(res.body.hostProviders?.some((h: { type: string }) => h.type === 'DOCKER_AGENT')).toBe(true);
+    expect(res.body.hostProviders?.some((h: { type: string }) => h.type === 'PTERODACTYL')).toBe(true);
+  });
+
+  it('requires pterodactylServerId when creating a PTERODACTYL realm', async () => {
+    const bad = await request(app)
+      .post('/api/v1/servers')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ name: 'Ptero Missing Id', hostProvider: 'PTERODACTYL' });
+    expect(bad.status).toBe(400);
+
+    const ok = await request(app)
+      .post('/api/v1/servers')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'Ptero Partner',
+        hostProvider: 'PTERODACTYL',
+        pterodactylServerId: 'pt_srv_1'
+      });
+    expect(ok.status).toBe(201);
+    expect(ok.body.server.pterodactylServerId).toBe('pt_srv_1');
+    expect(ok.body.hostReadiness?.type).toBe('PTERODACTYL');
+  });
+
+  it('returns host readiness on GET /servers/:id/host', async () => {
+    const serverId = db.servers[0].id;
+    const res = await request(app)
+      .get(`/api/v1/servers/${serverId}/host`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.readiness?.capabilities?.power).toBeDefined();
   });
 
   it('rejects mass-assignment of status/ownerId on PATCH', async () => {

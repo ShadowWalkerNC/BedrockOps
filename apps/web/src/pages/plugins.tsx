@@ -2,24 +2,74 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { THEME } from '@mc-admin/ui';
 import { AppShell } from '../components/AppShell';
-import { apiFetch } from '../lib/api-client';
+import { apiFetch, ApiError } from '../lib/api-client';
 import { RealmTemplate } from '../lib/types';
 
 const c = THEME.colors;
 
+interface CatalogPack {
+  id: string;
+  name: string;
+  description: string;
+  kind: string;
+  category: string;
+  tags: string[];
+  publisher: string;
+  vetted: boolean;
+  version: number[];
+  scriptApi: boolean;
+  fileCount: number;
+  applyBlockedReason?: string;
+  personaNote?: string;
+}
+
 export default function PluginsPage() {
   const [templates, setTemplates] = useState<RealmTemplate[]>([]);
+  const [packs, setPacks] = useState<CatalogPack[]>([]);
+  const [facets, setFacets] = useState<{ categories: string[]; kinds: string[]; tags: string[] }>({
+    categories: [],
+    kinds: [],
+    tags: []
+  });
+  const [category, setCategory] = useState('');
+  const [kind, setKind] = useState('');
+  const [query, setQuery] = useState('');
+  const [servers, setServers] = useState<Array<{ id: string; name: string }>>([]);
+  const [serverId, setServerId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+
+  const loadPacks = async (opts?: { category?: string; kind?: string; q?: string }) => {
+    const params = new URLSearchParams();
+    const cat = opts?.category ?? category;
+    const k = opts?.kind ?? kind;
+    const q = opts?.q ?? query;
+    if (cat) params.set('category', cat);
+    if (k) params.set('kind', k);
+    if (q.trim()) params.set('q', q.trim());
+    const packRes = await apiFetch<{
+      packs: CatalogPack[];
+      facets: { categories: string[]; kinds: string[]; tags: string[] };
+    }>(`/packs${params.toString() ? `?${params}` : ''}`);
+    setPacks(packRes.packs);
+    setFacets(packRes.facets);
+  };
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiFetch<{ templates: RealmTemplate[] }>('/templates');
-        setTemplates(res.templates);
+        const [tmpl, srv] = await Promise.all([
+          apiFetch<{ templates: RealmTemplate[] }>('/templates'),
+          apiFetch<{ servers: Array<{ id: string; name: string }> }>('/servers')
+        ]);
+        setTemplates(tmpl.templates);
+        setServers(srv.servers);
+        if (srv.servers[0]) setServerId(srv.servers[0].id);
+        await loadPacks({ category: '', kind: '', q: '' });
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load templates');
       } finally {
@@ -27,12 +77,94 @@ export default function PluginsPage() {
       }
     };
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const refuseInstall = (name: string) => {
-    setNote(
-      `Install refused for "${name}". Pack / add-on installation is Wave D and is not wired — refusing rather than faking success.`
-    );
+  const applyProperties = async (templateId: string, name: string) => {
+    if (!serverId) {
+      setNote('No realm selected — create one in Setup first.');
+      return;
+    }
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await apiFetch<{
+        success?: boolean;
+        propertiesWrite?: { success: boolean; stub?: boolean; path?: string; error?: string };
+        message?: string;
+      }>('/provisioning/apply-template', {
+        method: 'POST',
+        body: JSON.stringify({ serverId, templateId })
+      });
+      if (res.propertiesWrite?.success || res.success) {
+        const packNote =
+          Array.isArray((res as { packWrites?: unknown[] }).packWrites) &&
+          (res as { packWrites: Array<{ packId: string; success: boolean }> }).packWrites.length
+            ? ` Packs: ${(res as { packWrites: Array<{ packId: string; success: boolean }> }).packWrites
+                .map((p) => `${p.packId}${p.success ? '✓' : '…'}`)
+                .join(', ')}.`
+            : '';
+        setNote(
+          `Applied "${name}" properties → ${res.propertiesWrite?.path || 'server.properties'}.${packNote}`
+        );
+      } else {
+        setNote(
+          res.propertiesWrite?.error ||
+            res.message ||
+            `Applied "${name}" in DB; disk write deferred until agent connects.`
+        );
+      }
+    } catch (e) {
+      const body =
+        e instanceof ApiError && e.body && typeof e.body === 'object'
+          ? (e.body as { propertiesWrite?: { error?: string }; message?: string })
+          : null;
+      setNote(
+        body?.propertiesWrite?.error ||
+          body?.message ||
+          (e instanceof Error ? e.message : 'Apply failed')
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const installPack = async (packId: string, name: string, restart: boolean) => {
+    if (!serverId) {
+      setNote('No realm selected — create one in Setup first.');
+      return;
+    }
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await apiFetch<{
+        success?: boolean;
+        write?: { filesWritten?: number; path?: string };
+        plan?: { levelName?: string; fileCount?: number };
+        message?: string;
+      }>('/packs/apply', {
+        method: 'POST',
+        body: JSON.stringify({ serverId, packId, restart })
+      });
+      setNote(
+        `Installed "${name}" → ${res.plan?.fileCount ?? res.write?.filesWritten ?? '?'} files` +
+          (res.plan?.levelName ? ` under worlds/${res.plan.levelName}` : '') +
+          (restart ? ' (restart requested)' : '') +
+          '.'
+      );
+    } catch (e) {
+      const body =
+        e instanceof ApiError && e.body && typeof e.body === 'object'
+          ? (e.body as { write?: { error?: string }; message?: string })
+          : null;
+      setNote(
+        body?.write?.error ||
+          body?.message ||
+          (e instanceof Error ? e.message : 'Pack install failed')
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -40,7 +172,7 @@ export default function PluginsPage() {
       <header>
         <h1 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 28 }}>Plugins & packs</h1>
         <p style={{ margin: '6px 0 0', color: c.onSurfaceVariant }}>
-          Template catalog is live (read-only). Installing behavior packs / Script API add-ons is Wave D.
+          First-party marketplace (D4) + mode templates. One-click apply fails honestly if the agent is offline.
         </p>
       </header>
 
@@ -73,6 +205,169 @@ export default function PluginsPage() {
         </div>
       ) : null}
 
+      {servers.length > 0 ? (
+        <label style={{ display: 'grid', gap: 4, maxWidth: 360, marginTop: THEME.space.md }}>
+          <span style={{ fontFamily: THEME.fonts.mono, fontSize: 11, color: c.onSurfaceVariant }}>
+            Target realm
+          </span>
+          <select
+            value={serverId}
+            onChange={(e) => setServerId(e.target.value)}
+            style={{
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          >
+            {servers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      <section
+        style={{
+          marginTop: THEME.space.md,
+          background: c.surfaceContainer,
+          border: `1px solid ${c.outline}`,
+          borderRadius: THEME.radius.lg,
+          padding: THEME.space.md,
+          display: 'grid',
+          gap: 12
+        }}
+      >
+        <h2 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 18 }}>Marketplace (D4)</h2>
+        <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
+          BedrockOps-vetted catalog only — not the Mojang store. Cosmetics apply as world resource
+          packs (not Xbox Persona). Script packs follow the per-BDS compatibility matrix.
+        </p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search packs"
+            style={{
+              flex: '1 1 160px',
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          />
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            style={{
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          >
+            <option value="">All categories</option>
+            {facets.categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            style={{
+              background: c.surfaceContainerLowest,
+              color: c.onSurface,
+              border: `1px solid ${c.outline}`,
+              borderRadius: THEME.radius.md,
+              padding: '8px 10px',
+              fontFamily: THEME.fonts.mono,
+              fontSize: 13
+            }}
+          >
+            <option value="">All kinds</option>
+            {facets.kinds.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            style={btnSecondary}
+            disabled={busy || loading}
+            onClick={() => void loadPacks()}
+          >
+            Filter
+          </button>
+        </div>
+        {loading ? <p style={{ color: c.onSurfaceVariant }}>Loading…</p> : null}
+        {!loading && packs.length === 0 ? (
+          <p style={{ margin: 0, color: c.onSurfaceVariant }}>No packs match filters.</p>
+        ) : null}
+        <div style={{ display: 'grid', gap: 12 }}>
+          {packs.map((p) => (
+            <article
+              key={p.id}
+              style={{
+                background: c.surface,
+                border: `1px solid ${c.outline}`,
+                borderRadius: THEME.radius.md,
+                padding: 14,
+                display: 'grid',
+                gap: 8
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <strong style={{ fontFamily: THEME.fonts.heading, fontSize: 16 }}>{p.name}</strong>
+                  <div style={{ color: c.onSurfaceVariant, fontSize: 13, marginTop: 4 }}>{p.description}</div>
+                </div>
+                <span style={{ fontFamily: THEME.fonts.mono, fontSize: 12, color: c.tertiary }}>
+                  {p.category} · {p.kind} · v{p.version.join('.')}
+                  {p.vetted ? ' · vetted' : ''}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
+                {p.publisher} · tags: {(p.tags || []).join(', ') || '—'}
+                {p.personaNote ? ` · ${p.personaNote}` : ''}
+                {p.applyBlockedReason ? ` · blocked: ${p.applyBlockedReason}` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  style={btnPrimary}
+                  disabled={busy || !serverId || !!p.applyBlockedReason}
+                  onClick={() => installPack(p.id, p.name, false)}
+                >
+                  One-click apply
+                </button>
+                <button
+                  type="button"
+                  style={btnSecondary}
+                  disabled={busy || !serverId || !!p.applyBlockedReason}
+                  onClick={() => installPack(p.id, p.name, true)}
+                >
+                  Apply + restart
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section
         style={{
           marginTop: THEME.space.md,
@@ -88,7 +383,7 @@ export default function PluginsPage() {
         {loading ? <p style={{ color: c.onSurfaceVariant }}>Loading…</p> : null}
         {!loading && templates.length === 0 ? (
           <p style={{ margin: 0, color: c.onSurfaceVariant }}>
-            No templates seeded. Run Setup to apply the default vanilla template, or seed via the API.
+            No templates seeded. Run Setup to apply a mode preset.
           </p>
         ) : null}
 
@@ -113,21 +408,28 @@ export default function PluginsPage() {
                 <span style={{ fontFamily: THEME.fonts.mono, fontSize: 12, color: c.tertiary }}>BDS {t.bdsVersion}</span>
               </div>
               <div style={{ fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
-                props: {Object.entries(t.defaultProperties || {})
+                props:{' '}
+                {Object.entries(t.defaultProperties || {})
                   .map(([k, v]) => `${k}=${v}`)
                   .join(' · ') || '—'}
               </div>
-              <div style={{ fontSize: 13 }}>
-                <span style={{ color: c.onSurfaceVariant }}>Addon packs: </span>
-                {t.addonPacks?.length ? t.addonPacks.join(', ') : 'none declared'}
+              <div style={{ fontSize: 12, color: c.onSurfaceVariant }}>
+                Packs: {(t.addonPacks || []).length ? t.addonPacks.join(', ') : 'none'} · Experiments:{' '}
+                {(t.experiments || []).length ? t.experiments!.join(', ') : 'none'} (patched into
+                level.dat on apply when agent is online)
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <Link href="/setup" style={btnSecondary}>
-                  Apply via Setup
-                </Link>
-                <button type="button" style={btnPrimary} onClick={() => refuseInstall(t.name)}>
-                  Install packs
+                <button
+                  type="button"
+                  style={btnPrimary}
+                  disabled={busy || !serverId}
+                  onClick={() => applyProperties(t.id, t.name)}
+                >
+                  Apply properties + packs
                 </button>
+                <Link href="/setup" style={btnSecondary}>
+                  Create via Setup
+                </Link>
               </div>
             </article>
           ))}
@@ -146,15 +448,13 @@ export default function PluginsPage() {
           gap: 8
         }}
       >
-        <strong style={{ color: c.onSurface }}>Wave D — not implemented</strong>
+        <strong style={{ color: c.onSurface }}>Later add-ons</strong>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Pack / add-on engine and Script API compatibility checks</li>
-          <li>First-party marketplace catalog</li>
-          <li>Skins / cosmetics pipelines</li>
+          <li>Xbox Persona / .mcpersona uploads (BDS cannot force client Persona)</li>
+          <li>Mojang Marketplace federation</li>
+          <li>Live Pterodactyl / SSH lifecycle HTTP (credentials + readiness exist; panel power still stubbed)</li>
+          <li>Seasonal rounds</li>
         </ul>
-        <p style={{ margin: 0 }}>
-          Per repo rules, these must not pretend to succeed until the pack engine lands.
-        </p>
       </section>
     </AppShell>
   );
@@ -168,7 +468,8 @@ const btnPrimary: React.CSSProperties = {
   padding: '10px 14px',
   fontWeight: 700,
   cursor: 'pointer',
-  fontFamily: THEME.fonts.heading
+  fontFamily: THEME.fonts.mono,
+  fontSize: 13
 };
 
 const btnSecondary: React.CSSProperties = {
@@ -177,8 +478,10 @@ const btnSecondary: React.CSSProperties = {
   border: `1px solid ${c.outline}`,
   borderRadius: THEME.radius.md,
   padding: '10px 14px',
+  fontWeight: 700,
   cursor: 'pointer',
+  fontFamily: THEME.fonts.mono,
+  fontSize: 13,
   textDecoration: 'none',
-  display: 'inline-flex',
-  alignItems: 'center'
+  display: 'inline-block'
 };
