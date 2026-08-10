@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { THEME } from '@mc-admin/ui';
 import { AppShell } from '../components/AppShell';
-import { apiFetch, ensureAuthenticated } from '../lib/api-client';
+import { apiFetch, ApiError, ensureAuthenticated } from '../lib/api-client';
 
 const c = THEME.colors;
 
@@ -39,6 +39,7 @@ export default function SetupWizardPage() {
   const [server, setServer] = useState<SetupServer | null>(null);
   const [run, setRun] = useState<PipelineRun | null>(null);
   const [propertiesNote, setPropertiesNote] = useState<string | null>(null);
+  const [propertiesPending, setPropertiesPending] = useState(false);
   const [agentConnected, setAgentConnected] = useState<boolean | null>(null);
 
   // Step 2 — console onboarding
@@ -101,13 +102,16 @@ export default function SetupWizardPage() {
       setRun(res.run);
       if (res.propertiesWrite?.success) {
         setPropertiesNote(`Wrote ${res.propertiesWrite.path}`);
+        setPropertiesPending(false);
       } else if (res.propertiesWrite?.stub || res.propertiesWrite?.error) {
         setPropertiesNote(
           res.propertiesWrite.error ||
             'server.properties prepared but agent offline — Start after pairing the Go agent.'
         );
+        setPropertiesPending(true);
       } else {
         setPropertiesNote(null);
+        setPropertiesPending(false);
       }
       setStep(2);
     } catch (e) {
@@ -173,6 +177,40 @@ export default function SetupWizardPage() {
       const msg = e instanceof Error ? e.message : 'Backup failed';
       setBackupNote(`${msg} — pair a Go agent + configure R2 for a live archive.`);
       setStep(4);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const retryWriteProperties = async () => {
+    if (!server || !templateId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch<{
+        success?: boolean;
+        propertiesWrite?: { success: boolean; stub?: boolean; path?: string; error?: string };
+        message?: string;
+      }>('/provisioning/apply-template', {
+        method: 'POST',
+        body: JSON.stringify({ serverId: server.id, templateId })
+      });
+      if (res.propertiesWrite?.success || res.success) {
+        setPropertiesNote(`Wrote ${res.propertiesWrite?.path || 'server.properties'}`);
+        setPropertiesPending(false);
+      } else {
+        setPropertiesNote(res.propertiesWrite?.error || res.message || 'Properties write still deferred');
+        setPropertiesPending(true);
+      }
+    } catch (e) {
+      const body =
+        e instanceof ApiError && e.body && typeof e.body === 'object'
+          ? (e.body as { propertiesWrite?: { error?: string }; message?: string })
+          : null;
+      setPropertiesNote(
+        body?.propertiesWrite?.error || body?.message || (e instanceof Error ? e.message : 'Properties write failed')
+      );
+      setPropertiesPending(true);
     } finally {
       setBusy(false);
     }
@@ -331,7 +369,7 @@ export default function SetupWizardPage() {
               propertiesNote ? `Properties: ${propertiesNote}` : ''
             ].filter(Boolean)}
           />
-          {agentConnected === false ? (
+          {agentConnected === false || propertiesPending ? (
             <p
               style={{
                 margin: '0 0 12px',
@@ -344,8 +382,9 @@ export default function SetupWizardPage() {
                 color: c.onSurface
               }}
             >
-              Go agent is offline — Start/backup/properties stay honest stubs until you pair an agent.
-              Open Settings to confirm tunnel status, then Start from the dashboard.
+              {agentConnected === false
+                ? 'Go agent is offline — Start/backup/properties stay honest stubs until you pair an agent. Open Settings to confirm tunnel status.'
+                : 'server.properties was not written yet. Retry after the agent is connected.'}
             </p>
           ) : null}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -355,6 +394,11 @@ export default function SetupWizardPage() {
             <Link href="/" style={{ ...ghostBtn(), textDecoration: 'none' }}>
               Dashboard (Start server)
             </Link>
+            {propertiesPending ? (
+              <button type="button" disabled={busy} onClick={retryWriteProperties} style={primaryBtn()}>
+                {busy ? 'Writing…' : 'Retry write properties'}
+              </button>
+            ) : null}
             {agentConnected === false ? (
               <Link href="/settings" style={{ ...ghostBtn(), textDecoration: 'none' }}>
                 Pair agent (Settings)
@@ -371,6 +415,7 @@ export default function SetupWizardPage() {
                 setOnboarding(null);
                 setBackupNote(null);
                 setPropertiesNote(null);
+                setPropertiesPending(false);
                 setGamertag('');
                 setError(null);
               }}

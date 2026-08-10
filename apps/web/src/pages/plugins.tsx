@@ -9,7 +9,10 @@ const c = THEME.colors;
 
 export default function PluginsPage() {
   const [templates, setTemplates] = useState<RealmTemplate[]>([]);
+  const [servers, setServers] = useState<Array<{ id: string; name: string }>>([]);
+  const [serverId, setServerId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
@@ -18,8 +21,13 @@ export default function PluginsPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiFetch<{ templates: RealmTemplate[] }>('/templates');
-        setTemplates(res.templates);
+        const [tmpl, srv] = await Promise.all([
+          apiFetch<{ templates: RealmTemplate[] }>('/templates'),
+          apiFetch<{ servers: Array<{ id: string; name: string }> }>('/servers')
+        ]);
+        setTemplates(tmpl.templates);
+        setServers(srv.servers);
+        if (srv.servers[0]) setServerId(srv.servers[0].id);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load templates');
       } finally {
@@ -33,6 +41,46 @@ export default function PluginsPage() {
     setNote(
       `Install refused for "${name}". Pack / add-on installation is Wave D and is not wired — refusing rather than faking success.`
     );
+  };
+
+  const applyProperties = async (templateId: string, name: string) => {
+    if (!serverId) {
+      setNote('No realm selected — create one in Setup first.');
+      return;
+    }
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await apiFetch<{
+        success?: boolean;
+        propertiesWrite?: { success: boolean; stub?: boolean; path?: string; error?: string };
+        message?: string;
+      }>('/provisioning/apply-template', {
+        method: 'POST',
+        body: JSON.stringify({ serverId, templateId })
+      });
+      if (res.propertiesWrite?.success || res.success) {
+        setNote(`Applied "${name}" properties → ${res.propertiesWrite?.path || 'server.properties'}`);
+      } else {
+        setNote(
+          res.propertiesWrite?.error ||
+            res.message ||
+            `Applied "${name}" in DB; disk write deferred until agent connects.`
+        );
+      }
+    } catch (e) {
+      const body =
+        e instanceof ApiError && e.body && typeof e.body === 'object'
+          ? (e.body as { propertiesWrite?: { error?: string }; message?: string })
+          : null;
+      setNote(
+        body?.propertiesWrite?.error ||
+          body?.message ||
+          (e instanceof Error ? e.message : 'Apply failed')
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -85,6 +133,32 @@ export default function PluginsPage() {
         }}
       >
         <h2 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 18 }}>Realm templates</h2>
+        {servers.length > 0 ? (
+          <label style={{ display: 'grid', gap: 4, maxWidth: 360 }}>
+            <span style={{ fontFamily: THEME.fonts.mono, fontSize: 11, color: c.onSurfaceVariant }}>
+              Target realm for Apply properties
+            </span>
+            <select
+              value={serverId}
+              onChange={(e) => setServerId(e.target.value)}
+              style={{
+                background: c.surfaceContainerLowest,
+                color: c.onSurface,
+                border: `1px solid ${c.outline}`,
+                borderRadius: THEME.radius.md,
+                padding: '8px 10px',
+                fontFamily: THEME.fonts.mono,
+                fontSize: 13
+              }}
+            >
+              {servers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {loading ? <p style={{ color: c.onSurfaceVariant }}>Loading…</p> : null}
         {!loading && templates.length === 0 ? (
           <p style={{ margin: 0, color: c.onSurfaceVariant }}>
@@ -122,10 +196,18 @@ export default function PluginsPage() {
                 {t.addonPacks?.length ? t.addonPacks.join(', ') : 'none declared'}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  style={btnPrimary}
+                  disabled={busy || !serverId}
+                  onClick={() => applyProperties(t.id, t.name)}
+                >
+                  Apply properties
+                </button>
                 <Link href="/setup" style={btnSecondary}>
-                  Apply via Setup
+                  Create via Setup
                 </Link>
-                <button type="button" style={btnPrimary} onClick={() => refuseInstall(t.name)}>
+                <button type="button" style={btnSecondary} onClick={() => refuseInstall(t.name)}>
                   Install packs
                 </button>
               </div>
