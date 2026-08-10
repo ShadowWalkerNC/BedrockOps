@@ -72,7 +72,10 @@ describe('HostProvider Strategy Pattern', () => {
     const server = db.servers[0];
 
     expect(await provider.startServer(server)).toBe(true);
-    expect(calls[0]).toEqual({ command: 'POWER_ACTION', payload: { action: 'START' } });
+    expect(calls[0]).toEqual({
+      command: 'POWER_ACTION',
+      payload: { action: 'START', serverPath: server.serverPath }
+    });
 
     const rcon = await provider.executeRcon(server, 'list');
     expect(rcon).toContain('rcon stub ok');

@@ -44,7 +44,8 @@ describe('Tier 4: Real-World Applications (Complete Operational Workflows)', () 
       actorName: 'OpsLead',
     });
     expect(run.status).toBe(PipelineStatus.SUCCESS);
-    expect(server.status).toBe(ServerStatus.ONLINE);
+    expect(server.status).toBe(ServerStatus.OFFLINE);
+    expect(server.agentId).toBe('node_docker_agent_1');
 
     // 2. Assign subdomain & port via DNS Provider
     const dnsResult = dnsProvider.provisionSubdomain('prime', '192.168.1.100', 19132);

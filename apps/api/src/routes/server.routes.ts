@@ -1,6 +1,14 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { db, ServerStatus, UserRole, HostProviderType, BedrockServer } from '@mc-admin/db';
+import {
+  db,
+  ServerStatus,
+  UserRole,
+  HostProviderType,
+  BedrockServer,
+  defaultServerPath,
+  DEFAULT_DOCKER_AGENT_ID
+} from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -46,6 +54,7 @@ const createServerSchema = z.object({
   version: z.string().default('1.20.80'),
   hostProvider: z.enum(['DOCKER_AGENT', 'PTERODACTYL', 'DIRECT_RCON_SSH']).default('DOCKER_AGENT'),
   agentId: z.string().optional(),
+  serverPath: z.string().min(1).optional(),
   maxPlayers: z.number().optional().default(10),
   gameMode: z.string().optional().default('survival'),
   difficulty: z.string().optional().default('easy')
@@ -58,23 +67,27 @@ serverRouter.post('/', requireRole(UserRole.ADMIN), (req: AuthenticatedRequest, 
   }
 
   const data = parse.data;
+  const serverId = `srv_${Date.now()}`;
+  const onlineAgent =
+    db.agentNodes.find((n) => n.status === 'ONLINE') ||
+    db.agentNodes.find((n) => n.id === DEFAULT_DOCKER_AGENT_ID);
   const server = {
-    id: `srv_${Date.now()}`,
+    id: serverId,
     name: data.name,
     type: data.type,
-    hostProvider: data.hostProvider,
+    hostProvider: data.hostProvider || HostProviderType.DOCKER_AGENT,
     version: data.version,
     host: data.host,
     port: data.port,
     rconPort: data.rconPort,
     rconPassword: data.rconPassword,
-    serverPath: `/var/minecraft/${data.name.toLowerCase().replace(/\s+/g, '-')}`,
+    serverPath: defaultServerPath(serverId, data.serverPath),
     status: ServerStatus.OFFLINE,
     maxPlayers: data.maxPlayers,
     gameMode: data.gameMode,
     difficulty: data.difficulty,
     ownerId: req.user!.userId,
-    agentId: data.agentId || 'node_docker_agent_1',
+    agentId: data.agentId || onlineAgent?.id || DEFAULT_DOCKER_AGENT_ID,
     createdAt: new Date(),
     updatedAt: new Date()
   };

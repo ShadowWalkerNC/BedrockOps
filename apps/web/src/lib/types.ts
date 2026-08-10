@@ -39,6 +39,10 @@ export interface SystemStatus {
   nodeEnv: string;
   dbAdapter: string;
   corsOrigin: string;
+  agents?: {
+    connectedCount: number;
+    connectedNodeIds: string[];
+  };
   integrations: {
     r2: boolean;
     discordWebhook: boolean;

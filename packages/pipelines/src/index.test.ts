@@ -29,7 +29,11 @@ describe('PipelineEngine Package', () => {
 
     expect(result.server).toBeDefined();
     expect(result.server.name).toBe('New Skyblock Server');
-    expect(result.server.status).toBe(ServerStatus.ONLINE);
+    expect(result.server.status).toBe(ServerStatus.OFFLINE);
+    expect(result.server.hostProvider).toBe('DOCKER_AGENT');
+    expect(result.server.agentId).toBe('node_docker_agent_1');
+    expect(result.server.serverPath).toBeTruthy();
+    expect(result.server.serverPath).not.toContain('/var/minecraft/');
     expect(result.run.status).toBe(PipelineStatus.SUCCESS);
     expect(db.servers.some((s) => s.id === result.server.id)).toBe(true);
     expect(result.run.logs.some((l) => l.includes('backup snapshot'))).toBe(true);

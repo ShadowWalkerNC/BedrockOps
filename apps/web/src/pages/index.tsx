@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [regName, setRegName] = useState('');
   const [regGameMode, setRegGameMode] = useState('survival');
   const [regDifficulty, setRegDifficulty] = useState('hard');
+  const [regServerPath, setRegServerPath] = useState('');
+  const [agentConnected, setAgentConnected] = useState<boolean | null>(null);
 
   const [playerQuery, setPlayerQuery] = useState('');
   const [modGamertag, setModGamertag] = useState('');
@@ -34,14 +36,18 @@ export default function Dashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [s, b, m] = await Promise.all([
+      const [s, b, m, status] = await Promise.all([
         apiFetch<{ servers: DashboardServer[] }>('/servers'),
         apiFetch<{ backups: DashboardBackup[] }>('/backups'),
-        apiFetch<{ moderationActions: DashboardModeration[] }>('/moderation')
+        apiFetch<{ moderationActions: DashboardModeration[] }>('/moderation'),
+        apiFetch<{ agents?: { connectedCount: number } }>('/system/status').catch(() => null)
       ]);
       setServers(s.servers);
       setBackups(b.backups);
       setModerations(m.moderationActions);
+      if (status?.agents) {
+        setAgentConnected(status.agents.connectedCount > 0);
+      }
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Failed to load dashboard');
     } finally {
@@ -66,13 +72,26 @@ export default function Dashboard() {
     e.preventDefault();
     if (!regName) return;
     try {
+      const body: Record<string, unknown> = {
+        name: regName,
+        gameMode: regGameMode,
+        difficulty: regDifficulty
+      };
+      if (regServerPath.trim()) {
+        body.serverPath = regServerPath.trim();
+      }
       const data = await apiFetch<{ server: DashboardServer }>('/servers', {
         method: 'POST',
-        body: JSON.stringify({ name: regName, gameMode: regGameMode, difficulty: regDifficulty })
+        body: JSON.stringify(body)
       });
-      notify(`Server "${data.server.name}" registered.`);
+      notify(
+        `Server "${data.server.name}" registered` +
+          (data.server.serverPath ? ` at ${data.server.serverPath}` : '') +
+          (agentConnected === false ? ' — agent offline; Start will stub until Go agent connects.' : '.')
+      );
       setRegisterOpen(false);
       setRegName('');
+      setRegServerPath('');
       fetchData();
     } catch (err) {
       notify(`Register failed: ${err instanceof Error ? err.message : 'unknown error'}`);
@@ -87,7 +106,13 @@ export default function Dashboard() {
           method: 'POST',
           body: JSON.stringify({ action: toPowerAction(action) })
         });
-        notify(data.success ? `${data.server.name}: ${data.action} accepted.` : 'Power action failed — agent may be offline.');
+        notify(
+          data.success
+            ? `${data.server.name}: ${data.action} accepted.`
+            : agentConnected === false
+              ? 'Power not executed — Go agent tunnel is offline (honest stub).'
+              : 'Power action failed — agent may be offline or path unavailable.'
+        );
         fetchData();
       } catch (err) {
         notify(`Control failed: ${err instanceof Error ? err.message : 'unknown error'}`);
@@ -180,7 +205,10 @@ export default function Dashboard() {
           Operations Overview
         </h1>
         <p style={{ color: c.onSurfaceVariant, margin: '4px 0 0' }}>
-          {stats.online} of {stats.total} realms online · {stats.successRate}% backup success
+          {stats.online} of {stats.total} realms online · {stats.successRate}% backup success ·{' '}
+          <span style={{ color: agentConnected === true ? c.primary : agentConnected === false ? c.warning : c.onSurfaceVariant }}>
+            agent {agentConnected === true ? 'connected' : agentConnected === false ? 'offline' : 'status unknown'}
+          </span>
         </p>
       </div>
 
@@ -287,6 +315,16 @@ export default function Dashboard() {
                 {['peaceful', 'easy', 'normal', 'hard'].map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+            <input
+              value={regServerPath}
+              onChange={(e) => setRegServerPath(e.target.value)}
+              placeholder="Server path (optional — defaults to /tmp/bedrockops-worlds/<id>)"
+              style={inputStyle()}
+            />
+            <p style={{ margin: 0, fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
+              Binds to agent node_docker_agent_1 ·{' '}
+              {agentConnected === true ? 'agent connected' : agentConnected === false ? 'agent offline' : 'checking agent…'}
+            </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => setRegisterOpen(false)} style={ghostBtn(c.onSurfaceVariant)}>Cancel</button>
               <button type="submit" style={primaryBtn()}>Create Realm</button>

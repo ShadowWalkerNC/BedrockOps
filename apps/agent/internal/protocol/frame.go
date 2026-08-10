@@ -48,6 +48,8 @@ type CmdExecPayload struct {
 	PresignedDownloadURL string `json:"presignedDownloadUrl,omitempty"`
 	IsManual             bool   `json:"isManual,omitempty"`
 	IsHoldCheckpoint     bool   `json:"isHoldCheckpoint,omitempty"`
+	// Working directory for POWER_ACTION (falls back to agent -server-path hint).
+	ServerPath string `json:"serverPath,omitempty"`
 	// Allowlist sync (ALLOWLIST_SYNC) fields.
 	Entries       json.RawMessage `json:"entries,omitempty"`
 	TargetPath    string          `json:"targetPath,omitempty"`

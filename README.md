@@ -182,17 +182,19 @@ That’s a local seed account for development. Change it before you expose anyth
 
 ### Windows
 
+There is no `start-local.ps1` yet — use Docker Desktop for Postgres, then run the same stack in separate terminals (root `.env` uses `PORT=3000` for the website — the API must override to **4000**):
+
 ```powershell
 git clone https://github.com/ShadowWalkerNC/BedrockOps.git
 cd BedrockOps
 pnpm install
 copy .env.example .env
-powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
-```
 
-Then run **two** terminals (root `.env` uses `PORT=3000` for the website — the API must override to **4000**):
+docker compose up -d postgres
+pnpm --filter @mc-admin/db db:generate
+pnpm --filter @mc-admin/db db:migrate
+pnpm --filter @mc-admin/agent agent:build
 
-```powershell
 # Terminal A — API
 $env:PORT="4000"
 $env:DB_ADAPTER="prisma"
@@ -203,9 +205,31 @@ $env:API_URL="http://localhost:4000"
 $env:NEXT_PUBLIC_DEV_AUTO_LOGIN="false"
 pnpm --filter @mc-admin/web clean
 pnpm --filter @mc-admin/web dev
+
+# Terminal C — Go agent (simulated lifecycle)
+.\apps\agent\bin\bedrock-agent.exe `
+  -control-plane http://127.0.0.1:4000 `
+  -node-id node_docker_agent_1 `
+  -token dev_agent_token_change_me `
+  -server-path $env:TEMP\bedrockops-world
 ```
 
 Open http://localhost:3000/login with the same seed login.
+
+On Mac/Linux, stop a `./scripts/start-local.sh` stack with:
+
+```bash
+./scripts/stop-local.sh
+```
+
+### Add a server and power it
+
+1. Start the stack (`./scripts/start-local.sh`) so the Go agent tunnel is connected.
+2. Dashboard **+ Register Server** (or Setup wizard) — new realms bind to `node_docker_agent_1` with a writable path under `/tmp/bedrockops-worlds/<id>` (or `BDS_HOME` when set).
+3. Optionally set **Server path** in Settings → Realm configuration.
+4. **Start** from the dashboard or Ops Room — power payloads include `serverPath` so the agent uses that directory (falls back to `-server-path`).
+
+Without a connected agent, power returns an honest stub / 503 — never a fake success.
 
 > **Avoid OneDrive / iCloud sync folders** for the clone. They corrupt Next.js `.next` caches.  
 > If you see `Cannot find module './chunks/vendor-chunks/…'`, run:

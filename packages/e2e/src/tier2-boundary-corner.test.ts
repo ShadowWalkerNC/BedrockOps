@@ -1001,7 +1001,8 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
 
       expect(result.server.id).toBeDefined();
       expect(result.server.name).toBe('Automation Realm');
-      expect(result.server.status).toBe(ServerStatus.ONLINE);
+      expect(result.server.status).toBe(ServerStatus.OFFLINE);
+      expect(result.server.agentId).toBe('node_docker_agent_1');
 
       expect(result.run.status).toBe(PipelineStatus.SUCCESS);
       expect(result.run.logs.length).toBeGreaterThanOrEqual(4);
@@ -1018,14 +1019,15 @@ describe('Tier 2: Boundary & Corner Cases (R1.1 - R5.3)', () => {
       expect(result.run.logs.some((l) => l.includes('Template apply skipped or failed'))).toBe(true);
     });
 
-    it('PipelineEngine formats server path from server name correctly', async () => {
+    it('PipelineEngine assigns a writable server path under bedrockops-worlds', async () => {
       const result = await PipelineEngine.runServerSetupPipeline({
         serverName: 'My Awesome Realm 2026',
         templateId: 'tmpl_vanilla_survival',
         actorName: 'DevUser',
       });
 
-      expect(result.server.serverPath).toBe('/var/minecraft/my-awesome-realm-2026');
+      expect(result.server.serverPath).toContain(result.server.id);
+      expect(result.server.serverPath).not.toContain('/var/minecraft/');
     });
 
     it('PipelineEngine creates automated safety backup snapshot during setup', async () => {
