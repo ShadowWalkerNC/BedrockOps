@@ -28,6 +28,8 @@ const (
 	CmdAllowlistSync     = "ALLOWLIST_SYNC"
 	CmdWriteProperties   = "WRITE_PROPERTIES"
 	CmdWritePackFiles    = "WRITE_PACK_FILES"
+	CmdReadWorldFile     = "READ_WORLD_FILE"
+	CmdWriteWorldFile    = "WRITE_WORLD_FILE"
 )
 
 // Frame is the bidirectional agent ↔ API tunnel envelope.
@@ -60,6 +62,10 @@ type CmdExecPayload struct {
 	ReloadCommand string          `json:"reloadCommand,omitempty"`
 	// WRITE_PACK_FILES — multiple jailed files under serverPath.
 	Files []PackFileSpec `json:"files,omitempty"`
+	// READ/WRITE_WORLD_FILE — jailed binary world files (level.dat).
+	RelativePath    string `json:"relativePath,omitempty"`
+	ContentsBase64  string `json:"contentsBase64,omitempty"`
+	Backup          *bool  `json:"backup,omitempty"`
 }
 
 // PackFileSpec is one file in a WRITE_PACK_FILES payload.
@@ -87,6 +93,8 @@ type CmdRespPayload struct {
 	BackupID      string `json:"backupId,omitempty"`
 	FileSizeBytes int64  `json:"fileSizeBytes,omitempty"`
 	SHA256        string `json:"sha256,omitempty"`
+	// World file extras
+	ContentsBase64 string `json:"contentsBase64,omitempty"`
 }
 
 // MetricsPayload is emitted on METRICS frames.
@@ -141,7 +149,7 @@ func DecodeCmdExec(raw json.RawMessage) (CmdExecPayload, error) {
 		// the merged payload is { command: <rcon>, ... } overwriting POWER style.
 		// Detect: if command looks like RCON text (not a known cmd name) treat as RCON.
 		known := map[string]bool{
-			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdRestoreBackup: true, CmdGetStatus: true, CmdAllowlistSync: true, CmdWriteProperties: true, CmdWritePackFiles: true,
+			CmdPowerAction: true, CmdRconCommand: true, CmdTriggerBackup: true, CmdRestoreBackup: true, CmdGetStatus: true, CmdAllowlistSync: true, CmdWriteProperties: true, CmdWritePackFiles: true, CmdReadWorldFile: true, CmdWriteWorldFile: true,
 		}
 		if !known[payload.Command] && payload.Action == "" && payload.BackupID == "" {
 			payload.RconCommand = payload.Command

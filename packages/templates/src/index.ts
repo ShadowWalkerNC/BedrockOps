@@ -2,6 +2,7 @@ import { db, ServerTemplate, BedrockServer, MODE_EXPERIMENT_HINTS } from '@mc-ad
 import { PackApplyPlan, PackEngine } from './packs';
 
 export * from './packs';
+export * from './scriptMatrix';
 
 export interface CreateTemplateInput {
   name: string;
@@ -108,7 +109,13 @@ export class TemplateEngine {
           };
         }
         if (pack.scriptApi) {
-          return { packId, error: 'Script API packs not applied by D2 template flow yet' };
+          const compat = PackEngine.checkScriptCompatibility(
+            server.version || template.bdsVersion,
+            pack
+          );
+          if (!compat.ok) {
+            return { packId, error: compat.reason || 'Script API incompatible' };
+          }
         }
         return {
           packId,

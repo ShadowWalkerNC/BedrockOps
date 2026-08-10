@@ -1,4 +1,5 @@
 import type { BedrockServer } from '@mc-admin/db';
+import { checkScriptCompatibility, type ScriptCompatResult } from './scriptMatrix';
 
 export type PackKind = 'behavior' | 'resource';
 export type PackCategory = 'starter' | 'gameplay' | 'cosmetic' | 'utility';
@@ -23,6 +24,10 @@ export interface PackCatalogEntry {
   version: [number, number, number];
   minEngineVersion: [number, number, number];
   scriptApi: boolean;
+  /** Required @minecraft/* module versions when scriptApi is true. */
+  requiredScriptModules?: Record<string, string>;
+  /** Hard block reason — never one-click apply (stubs / persona). */
+  blockedReason?: string;
   /** Pack root files keyed by path relative to the pack folder. */
   files: Record<string, string>;
 }
@@ -153,10 +158,84 @@ export const PACK_CATALOG: PackCatalogEntry[] = [
     }
   },
   {
+    id: 'pack_cosmetic_staff_badge_rp',
+    name: 'Staff Badge Cosmetics',
+    description:
+      'World resource pack cosmetics (textures/lang). Applies as a world RP — does not replace Xbox Persona skins.',
+    kind: 'resource',
+    category: 'cosmetic',
+    tags: ['skin', 'cosmetics', 'staff', 'badge'],
+    publisher: 'BedrockOps',
+    vetted: true,
+    uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee11',
+    version: [1, 0, 0],
+    minEngineVersion: [1, 20, 0],
+    scriptApi: false,
+    files: {
+      'manifest.json': rpManifest(
+        'Staff Badge Cosmetics',
+        'BedrockOps D3 cosmetic RP — world download only',
+        'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee11',
+        'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee12'
+      ),
+      'texts/en_US.lang':
+        'pack.name=Staff Badge Cosmetics\npack.description=World RP cosmetics — not Persona\n'
+    }
+  },
+  {
+    id: 'pack_script_hello_bp',
+    name: 'Script Hello Sample',
+    description:
+      'Minimal Script API behavior pack (hello world). Apply only when the BDS Script matrix allows it.',
+    kind: 'behavior',
+    category: 'utility',
+    tags: ['script', 'sample', 'hello'],
+    publisher: 'BedrockOps',
+    vetted: true,
+    uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee13',
+    version: [1, 0, 0],
+    minEngineVersion: [1, 21, 0],
+    scriptApi: true,
+    requiredScriptModules: { '@minecraft/server': '1.11.0' },
+    files: {
+      'manifest.json': `${JSON.stringify(
+        {
+          format_version: 2,
+          header: {
+            name: 'Script Hello Sample',
+            description: 'BedrockOps Script API sample',
+            uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee13',
+            version: [1, 0, 0],
+            min_engine_version: [1, 21, 0]
+          },
+          modules: [
+            {
+              type: 'script',
+              language: 'javascript',
+              uuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee14',
+              version: [1, 0, 0],
+              entry: 'scripts/main.js'
+            }
+          ],
+          dependencies: [
+            {
+              module_name: '@minecraft/server',
+              version: '1.11.0'
+            }
+          ]
+        },
+        null,
+        2
+      )}\n`,
+      'scripts/main.js':
+        "import { world } from '@minecraft/server';\nworld.sendMessage('[BedrockOps] Script Hello sample loaded');\n"
+    }
+  },
+  {
     id: 'pack_utility_clearlag_stub',
     name: 'Utility Clear-Lag Stub',
     description:
-      'Utility-category stub pack (manifest only). Real clear-lag needs Script API — refused until Script packs are enabled.',
+      'Utility-category stub pack (manifest only). Real clear-lag needs a complete Script implementation.',
     kind: 'behavior',
     category: 'utility',
     tags: ['utility', 'performance'],
@@ -166,6 +245,9 @@ export const PACK_CATALOG: PackCatalogEntry[] = [
     version: [1, 0, 0],
     minEngineVersion: [1, 20, 0],
     scriptApi: true,
+    requiredScriptModules: { '@minecraft/server': '1.11.0' },
+    blockedReason:
+      'Clear-lag is a catalog stub — not a runnable Script module yet. Use pack_script_hello_bp to validate Script apply.',
     files: {
       'manifest.json': bpManifest(
         'Utility Clear-Lag Stub',
@@ -194,7 +276,8 @@ export class PackEngine {
     }).map((p) => ({
       ...p,
       tags: [...p.tags],
-      files: { ...p.files }
+      files: { ...p.files },
+      requiredScriptModules: p.requiredScriptModules ? { ...p.requiredScriptModules } : undefined
     }));
   }
 
@@ -220,6 +303,20 @@ export class PackEngine {
       throw new Error(`Pack ID ${packId} not found in catalog`);
     }
     return pack;
+  }
+
+  /** Gate Script API packs against the per-BDS compatibility matrix. */
+  public static checkScriptCompatibility(
+    serverVersion: string,
+    pack: PackCatalogEntry
+  ): ScriptCompatResult {
+    if (pack.blockedReason) {
+      return { ok: false, reason: pack.blockedReason };
+    }
+    if (!pack.scriptApi) {
+      return { ok: true };
+    }
+    return checkScriptCompatibility(serverVersion, pack.requiredScriptModules || {});
   }
 
   public static resolveLevelName(serverPropertiesContents?: string): string {

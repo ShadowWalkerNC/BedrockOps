@@ -10,7 +10,14 @@ export const packsRouter: Router = Router();
 
 packsRouter.use(authenticateJwt);
 
-function toPublicPack(p: ReturnType<typeof PackEngine.listCatalog>[number]) {
+function toPublicPack(p: ReturnType<typeof PackEngine.listCatalog>[number], serverVersion?: string) {
+  let applyBlockedReason: string | undefined = p.blockedReason;
+  if (!applyBlockedReason && p.scriptApi && serverVersion) {
+    const compat = PackEngine.checkScriptCompatibility(serverVersion, p);
+    if (!compat.ok) applyBlockedReason = compat.reason;
+  } else if (!applyBlockedReason && p.scriptApi && !serverVersion) {
+    applyBlockedReason = undefined; // matrix checked at apply time against the target realm
+  }
   return {
     id: p.id,
     name: p.name,
@@ -24,10 +31,13 @@ function toPublicPack(p: ReturnType<typeof PackEngine.listCatalog>[number]) {
     version: p.version,
     minEngineVersion: p.minEngineVersion,
     scriptApi: p.scriptApi,
+    requiredScriptModules: p.requiredScriptModules || {},
     fileCount: Object.keys(p.files).length,
-    applyBlockedReason: p.scriptApi
-      ? 'Script API packs require additional BDS Script module checks'
-      : undefined
+    applyBlockedReason,
+    personaNote:
+      p.category === 'cosmetic'
+        ? 'Applies as a world resource pack. Does not replace Xbox / console Persona skins.'
+        : undefined
   };
 }
 
@@ -38,6 +48,7 @@ packsRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
   const category =
     typeof req.query.category === 'string' ? (req.query.category as PackCategory) : undefined;
   const tag = typeof req.query.tag === 'string' ? req.query.tag : undefined;
+  const serverId = typeof req.query.serverId === 'string' ? req.query.serverId : undefined;
   const vettedOnly =
     req.query.vettedOnly === '1' ||
     req.query.vettedOnly === 'true' ||
@@ -51,7 +62,10 @@ packsRouter.get('/', (req: AuthenticatedRequest, res: Response) => {
     return res.status(400).json({ error: 'INVALID_INPUT', message: 'invalid category' });
   }
 
-  const packs = PackEngine.listCatalog({ q, kind, category, tag, vettedOnly }).map(toPublicPack);
+  const server = serverId ? db.servers.find((s) => s.id === serverId && !s.deletedAt) : undefined;
+  const packs = PackEngine.listCatalog({ q, kind, category, tag, vettedOnly }).map((p) =>
+    toPublicPack(p, server?.version)
+  );
   return res.json({
     packs,
     facets: PackEngine.listFacets(),
@@ -102,6 +116,13 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
     });
   }
 
+  if (pack.blockedReason) {
+    return res.status(409).json({
+      error: 'PACK_APPLY_BLOCKED',
+      message: pack.blockedReason
+    });
+  }
+
   if (!PackEngine.isBdsCompatible(server.version, pack.minEngineVersion)) {
     return res.status(409).json({
       error: 'BDS_INCOMPATIBLE',
@@ -110,10 +131,14 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
   }
 
   if (pack.scriptApi) {
-    return res.status(409).json({
-      error: 'SCRIPT_API_UNSUPPORTED',
-      message: 'Script API packs require additional BDS Script module checks (Wave D follow-on).'
-    });
+    const compat = PackEngine.checkScriptCompatibility(server.version, pack);
+    if (!compat.ok) {
+      return res.status(409).json({
+        error: 'SCRIPT_API_UNSUPPORTED',
+        message: compat.reason || 'Script API pack incompatible with this BDS pin',
+        matrix: compat.matrix
+      });
+    }
   }
 
   const plan = PackEngine.buildApplyPlan(pack.id, server, {
@@ -133,6 +158,7 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
       packId: pack.id,
       kind: pack.kind,
       category: pack.category,
+      scriptApi: pack.scriptApi,
       levelName: plan.levelName,
       success: write.success,
       stub: write.stub,
@@ -145,7 +171,7 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
     return res.status(503).json({
       error: 'PACK_APPLY_DEFERRED',
       message: write.error || 'Agent offline — pack not written on host',
-      pack: toPublicPack(pack),
+      pack: toPublicPack(pack, server.version),
       plan: { levelName: plan.levelName, fileCount: plan.files.length },
       write
     });
@@ -169,9 +195,18 @@ packsRouter.post('/apply', requireRole(UserRole.ADMIN), async (req: Authenticate
 
   return res.status(201).json({
     success: true,
-    pack: toPublicPack(pack),
+    pack: toPublicPack(pack, server.version),
     plan: { levelName: plan.levelName, fileCount: plan.files.length },
     write,
     restart
+  });
+});
+
+/** POST /api/v1/packs/persona — Persona / .mcpersona uploads are not supported on BDS. */
+packsRouter.post('/persona', requireRole(UserRole.ADMIN), (_req: AuthenticatedRequest, res: Response) => {
+  return res.status(409).json({
+    error: 'PERSONA_UNSUPPORTED',
+    message:
+      'Xbox / console Persona skins cannot be forced by Bedrock Dedicated Server. Apply a cosmetic world resource pack instead (category=cosmetic).'
   });
 });

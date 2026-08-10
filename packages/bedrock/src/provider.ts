@@ -57,6 +57,15 @@ export interface PackApplyResult {
   output?: string;
 }
 
+export interface WorldFileResult {
+  success: boolean;
+  stub?: boolean;
+  relativePath?: string;
+  contentsBase64?: string;
+  error?: string;
+  output?: string;
+}
+
 export interface HostProvider {
   readonly type: HostProviderType;
 
@@ -76,6 +85,16 @@ export interface HostProvider {
     server: BedrockServer,
     plan: { files: Array<{ relativePath: string; contents: string }> }
   ): Promise<PackApplyResult>;
+  /** Wave D — jailed binary world file read (level.dat). */
+  readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult>;
+  /** Wave D — jailed binary world file write (level.dat); optional .bak. */
+  writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult>;
 }
 
 /** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
@@ -330,6 +349,97 @@ export class DockerAgentHostProvider implements HostProvider {
       error: result?.error
     };
   }
+
+  public async readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `Server ${server.id} has no assigned agentNode — world file not read.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: '[STUB] Agent tunnel not connected — world file not read.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `[STUB] Agent ${server.agentId} not connected — world file not read.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'READ_WORLD_FILE', {
+      serverPath: server.serverPath,
+      relativePath: plan.relativePath
+    })) as {
+      success?: boolean;
+      stub?: boolean;
+      error?: string;
+      output?: string;
+      contentsBase64?: string;
+    };
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      relativePath: plan.relativePath,
+      contentsBase64: result?.contentsBase64,
+      output: result?.output,
+      error: result?.error
+    };
+  }
+
+  public async writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `Server ${server.id} has no assigned agentNode — world file not written.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: '[STUB] Agent tunnel not connected — world file not written.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        relativePath: plan.relativePath,
+        error: `[STUB] Agent ${server.agentId} not connected — world file not written.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'WRITE_WORLD_FILE', {
+      serverPath: server.serverPath,
+      relativePath: plan.relativePath,
+      contentsBase64: plan.contentsBase64,
+      backup: plan.backup !== false
+    })) as { success?: boolean; stub?: boolean; error?: string; output?: string };
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      relativePath: plan.relativePath,
+      output: result?.output,
+      error: result?.error
+    };
+  }
 }
 
 export class PterodactylHostProvider implements HostProvider {
@@ -424,6 +534,32 @@ export class PterodactylHostProvider implements HostProvider {
       error: `[STUB] Pterodactyl pack install pending for ${server.pterodactylServerId || server.id}`
     };
   }
+
+  public async readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult> {
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Pterodactyl world file read pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
+
+  public async writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult> {
+    void plan.contentsBase64;
+    void plan.backup;
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Pterodactyl world file write pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
 }
 
 export class DirectRconSshHostProvider implements HostProvider {
@@ -516,6 +652,32 @@ export class DirectRconSshHostProvider implements HostProvider {
       success: false,
       stub: true,
       error: `[STUB] Direct RCON/SSH pack install pending for ${server.host}`
+    };
+  }
+
+  public async readWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string }
+  ): Promise<WorldFileResult> {
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Direct RCON/SSH world file read pending for ${server.host}`
+    };
+  }
+
+  public async writeWorldFile(
+    server: BedrockServer,
+    plan: { relativePath: string; contentsBase64: string; backup?: boolean }
+  ): Promise<WorldFileResult> {
+    void plan.contentsBase64;
+    void plan.backup;
+    return {
+      success: false,
+      stub: true,
+      relativePath: plan.relativePath,
+      error: `[STUB] Direct RCON/SSH world file write pending for ${server.host}`
     };
   }
 }

@@ -13,6 +13,17 @@ describe('PackEngine (Wave D1)', () => {
     const smp = PackEngine.listCatalog({ q: 'smp' });
     expect(smp.some((p) => p.id === 'pack_smp_welcome_bp')).toBe(true);
     expect(PackEngine.listFacets().categories).toContain('utility');
+    const cosmetics = PackEngine.listCatalog({ category: 'cosmetic' });
+    expect(cosmetics.some((p) => p.id === 'pack_cosmetic_staff_badge_rp')).toBe(true);
+  });
+
+  it('gates Script API packs via the BDS matrix', () => {
+    const hello = PackEngine.getPack('pack_script_hello_bp');
+    expect(PackEngine.checkScriptCompatibility('1.21.0', hello).ok).toBe(true);
+    expect(PackEngine.checkScriptCompatibility('1.20.80', hello).ok).toBe(false);
+    const stub = PackEngine.getPack('pack_utility_clearlag_stub');
+    expect(PackEngine.checkScriptCompatibility('1.21.0', stub).ok).toBe(false);
+    expect(stub.blockedReason).toBeTruthy();
   });
 
   it('builds a behavior pack apply plan under worlds/<level>/behavior_packs', () => {

@@ -2,8 +2,8 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { db, UserRole, HostProviderType } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
-import { HostProviderFactory } from '@mc-admin/bedrock';
-import { TemplateEngine } from '@mc-admin/templates';
+import { HostProviderFactory, applyWorldExperiments } from '@mc-admin/bedrock';
+import { TemplateEngine, PackEngine } from '@mc-admin/templates';
 import {
   PipelineEngine,
   DnsProvider,
@@ -112,7 +112,9 @@ const setupSchema = z.object({
   subdomain: z.string().optional(),
   preferredPort: z.number().int().optional(),
   /** When true (default), also install template.addonPacks via the pack engine. */
-  applyPacks: z.boolean().optional().default(true)
+  applyPacks: z.boolean().optional().default(true),
+  /** When true (default), patch level.dat experiment flags for the mode. */
+  applyExperiments: z.boolean().optional().default(true)
 });
 
 provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
@@ -142,12 +144,27 @@ provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: Authe
     ? await applyDeclaredPacks(result.server, parse.data.templateId, provider, result.run.logs)
     : [];
 
+  const experimentIds = TemplateEngine.getExperimentHints(parse.data.templateId);
+  const levelName = PackEngine.resolveLevelName(result.propertiesPlan?.contents);
+  const experimentsWrite = parse.data.applyExperiments
+    ? await applyWorldExperiments(provider, result.server, experimentIds, { levelName })
+    : { success: true, applied: [] as string[] };
+
+  if (parse.data.applyExperiments) {
+    result.run.logs.push(
+      experimentsWrite.success
+        ? `[Experiments] Applied ${experimentsWrite.applied.join(', ') || '(none)'} → ${experimentsWrite.relativePath || 'level.dat'}`
+        : `[Experiments] Deferred: ${experimentsWrite.error || 'agent offline'}`
+    );
+  }
+
   return res.status(201).json({
     ...result,
     propertiesWrite,
     packWrites,
-    experiments: TemplateEngine.getExperimentHints(parse.data.templateId),
-    experimentsApplied: false
+    experiments: experimentIds,
+    experimentsApplied: !!experimentsWrite.success && experimentIds.length > 0,
+    experimentsWrite
   });
 });
 
@@ -155,7 +172,8 @@ provisioningRouter.post('/setup', requireRole(UserRole.ADMIN), async (req: Authe
 const applyTemplateSchema = z.object({
   serverId: z.string().min(1),
   templateId: z.string().min(1),
-  applyPacks: z.boolean().optional().default(true)
+  applyPacks: z.boolean().optional().default(true),
+  applyExperiments: z.boolean().optional().default(true)
 });
 
 provisioningRouter.post(
@@ -188,6 +206,12 @@ provisioningRouter.post(
       ? await applyDeclaredPacks(server, parse.data.templateId, provider, logs)
       : [];
 
+    const experimentIds = TemplateEngine.getExperimentHints(parse.data.templateId);
+    const levelName = PackEngine.resolveLevelName(propertiesPlan.contents);
+    const experimentsWrite = parse.data.applyExperiments
+      ? await applyWorldExperiments(provider, server, experimentIds, { levelName })
+      : { success: true, applied: [] as string[] };
+
     AuditLogger.record({
       actorId: req.user!.userId,
       actorName: req.user!.username,
@@ -205,7 +229,14 @@ provisioningRouter.post(
           success: p.success,
           stub: p.stub,
           error: p.error
-        }))
+        })),
+        experimentsApplied: !!experimentsWrite.success && experimentIds.length > 0,
+        experimentsWrite: {
+          success: experimentsWrite.success,
+          stub: experimentsWrite.stub,
+          applied: experimentsWrite.applied,
+          error: experimentsWrite.error
+        }
       }
     });
 
@@ -217,8 +248,9 @@ provisioningRouter.post(
         propertiesPlan: { targetPath: propertiesPlan.targetPath, templateId: propertiesPlan.templateId },
         propertiesWrite,
         packWrites,
-        experiments: TemplateEngine.getExperimentHints(parse.data.templateId),
-        experimentsApplied: false
+        experiments: experimentIds,
+        experimentsApplied: false,
+        experimentsWrite
       });
     }
 
@@ -228,8 +260,9 @@ provisioningRouter.post(
       propertiesPlan: { targetPath: propertiesPlan.targetPath, templateId: propertiesPlan.templateId },
       propertiesWrite,
       packWrites,
-      experiments: TemplateEngine.getExperimentHints(parse.data.templateId),
-      experimentsApplied: false
+      experiments: experimentIds,
+      experimentsApplied: !!experimentsWrite.success && experimentIds.length > 0,
+      experimentsWrite
     });
   }
 );

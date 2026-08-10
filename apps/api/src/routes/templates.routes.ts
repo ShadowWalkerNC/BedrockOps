@@ -19,7 +19,7 @@ templatesRouter.get('/', (_req: AuthenticatedRequest, res: Response) => {
       experiments: MODE_EXPERIMENT_HINTS[t.id] || [],
       experimentsApplied: false,
       experimentsNote:
-        'World experiments need level.dat edits — listed for awareness only until a NBT writer ships.',
+        'Setup / apply-template patches worlds/<level>/level.dat experiment flags via the agent when online. experimentsApplied is true only after a successful host write.',
       createdAt: t.createdAt
     }))
   });

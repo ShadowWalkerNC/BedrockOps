@@ -20,6 +20,7 @@ interface CatalogPack {
   scriptApi: boolean;
   fileCount: number;
   applyBlockedReason?: string;
+  personaNote?: string;
 }
 
 export default function PluginsPage() {
@@ -244,7 +245,8 @@ export default function PluginsPage() {
       >
         <h2 style={{ margin: 0, fontFamily: THEME.fonts.heading, fontSize: 18 }}>Marketplace (D4)</h2>
         <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
-          BedrockOps-vetted catalog only — not the Mojang store.
+          BedrockOps-vetted catalog only — not the Mojang store. Cosmetics apply as world resource
+          packs (not Xbox Persona). Script packs follow the per-BDS compatibility matrix.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
@@ -340,13 +342,14 @@ export default function PluginsPage() {
               </div>
               <div style={{ fontSize: 12, color: c.onSurfaceVariant, fontFamily: THEME.fonts.mono }}>
                 {p.publisher} · tags: {(p.tags || []).join(', ') || '—'}
+                {p.personaNote ? ` · ${p.personaNote}` : ''}
                 {p.applyBlockedReason ? ` · blocked: ${p.applyBlockedReason}` : ''}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   style={btnPrimary}
-                  disabled={busy || !serverId || !!p.applyBlockedReason || p.scriptApi}
+                  disabled={busy || !serverId || !!p.applyBlockedReason}
                   onClick={() => installPack(p.id, p.name, false)}
                 >
                   One-click apply
@@ -354,7 +357,7 @@ export default function PluginsPage() {
                 <button
                   type="button"
                   style={btnSecondary}
-                  disabled={busy || !serverId || !!p.applyBlockedReason || p.scriptApi}
+                  disabled={busy || !serverId || !!p.applyBlockedReason}
                   onClick={() => installPack(p.id, p.name, true)}
                 >
                   Apply + restart
@@ -412,8 +415,8 @@ export default function PluginsPage() {
               </div>
               <div style={{ fontSize: 12, color: c.onSurfaceVariant }}>
                 Packs: {(t.addonPacks || []).length ? t.addonPacks.join(', ') : 'none'} · Experiments:{' '}
-                {(t.experiments || []).length ? t.experiments!.join(', ') : 'none'} (not written to
-                level.dat yet)
+                {(t.experiments || []).length ? t.experiments!.join(', ') : 'none'} (patched into
+                level.dat on apply when agent is online)
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
@@ -445,11 +448,11 @@ export default function PluginsPage() {
           gap: 8
         }}
       >
-        <strong style={{ color: c.onSurface }}>Still Wave D</strong>
+        <strong style={{ color: c.onSurface }}>Still deferred</strong>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>D3 Skins / cosmetics pipelines</li>
-          <li>Script API pack compatibility matrix per BDS build</li>
-          <li>Third-party / Mojang Marketplace federation (out of scope)</li>
+          <li>Xbox Persona / .mcpersona uploads (BDS cannot force client Persona)</li>
+          <li>Mojang Marketplace federation</li>
+          <li>Host partners (D5) and seasonal rounds (D6)</li>
         </ul>
       </section>
     </AppShell>

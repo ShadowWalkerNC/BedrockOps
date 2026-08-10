@@ -60,16 +60,15 @@ docker compose up -d postgres
 
 Without R2/Discord/DNS/Xbox secrets, those adapters remain honest stubs (expected).
 
-## Deferred: Wave D (content platform & optional partners)
+## Deferred: Wave D5–D6 (partners & rounds)
 
-Per `PROJECT_PLAN.md`, Wave D is explicitly post–Realms-stable and depends on
-external accounts/services, so it is **not** implemented here (and must not be
-faked per the repo's "no fake stubs" rule):
+Per `PROJECT_PLAN.md`, Wave **D1–D4** (packs, templates, cosmetics as world RPs, Script matrix,
+first-party marketplace, level.dat experiments) are implemented with honest agent stubs when offline.
 
-- Pack / add-on engine, template presets, skins/cosmetics
-- First-party marketplace catalog
-- Host-partner providers (Pterodactyl, etc.) — interfaces exist and fail honestly until wired
-- Round-based / seasonal game modes
+Still deferred (and must not be faked):
 
-These can be built once the relevant credentials/services (host panels, pack
-storage, marketplace backend) are available.
+- Host-partner providers (Pterodactyl, etc.) — interfaces exist and fail honestly until wired (D5)
+- Round-based / seasonal game modes (D6)
+- Mojang Marketplace federation / Xbox Persona force-apply
+
+These can be built once the relevant credentials/services (host panels, partner APIs) are available.

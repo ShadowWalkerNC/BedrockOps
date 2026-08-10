@@ -418,7 +418,28 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
       .send({ serverId: 'srv_bedrock_1', packId: 'pack_utility_clearlag_stub' });
 
     expect(res.status).toBe(409);
-    expect(res.body.error).toBe('SCRIPT_API_UNSUPPORTED');
+    expect(['SCRIPT_API_UNSUPPORTED', 'PACK_APPLY_BLOCKED']).toContain(res.body.error);
+  });
+
+  it('refuses Persona uploads honestly', async () => {
+    const res = await request(app)
+      .post('/api/v1/packs/persona')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('PERSONA_UNSUPPORTED');
+  });
+
+  it('exposes Script API matrix on GET /versions', async () => {
+    const res = await request(app)
+      .get('/api/v1/versions')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.scriptApiMatrix?.some((r: { bdsVersion: string }) => r.bdsVersion === '1.21.0')).toBe(
+      true
+    );
   });
 
   it('applies a sample pack via POST /packs/apply (honest stub without agent)', async () => {

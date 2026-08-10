@@ -20,6 +20,7 @@ import (
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/properties"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/protocol"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/rcon"
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/worldfile"
 	"github.com/gorilla/websocket"
 )
 
@@ -252,6 +253,10 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleWriteProperties(frame, serverID, payload)
 	case protocol.CmdWritePackFiles:
 		c.handleWritePackFiles(frame, serverID, payload)
+	case protocol.CmdReadWorldFile:
+		c.handleReadWorldFile(frame, serverID, payload)
+	case protocol.CmdWriteWorldFile:
+		c.handleWriteWorldFile(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
@@ -431,6 +436,59 @@ func (c *Client) handleWritePackFiles(frame protocol.Frame, serverID string, pay
 		Output:  fmt.Sprintf("wrote %d pack files under %s", n, path),
 	})
 	_ = c.sendLog(serverID, fmt.Sprintf("wrote %d pack files under %s", n, path))
+}
+
+func (c *Client) handleReadWorldFile(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	path := strings.TrimSpace(payload.ServerPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
+	if path == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "serverPath required for READ_WORLD_FILE"})
+		return
+	}
+	b64, err := worldfile.ReadBase64(path, payload.RelativePath)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("world file read failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success:        true,
+		Mode:           string(c.manager.Mode()),
+		Output:         fmt.Sprintf("read %s", payload.RelativePath),
+		ContentsBase64: b64,
+	})
+}
+
+func (c *Client) handleWriteWorldFile(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	path := strings.TrimSpace(payload.ServerPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
+	if path == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "serverPath required for WRITE_WORLD_FILE"})
+		return
+	}
+	if payload.ContentsBase64 == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "contentsBase64 required for WRITE_WORLD_FILE"})
+		return
+	}
+	backup := true
+	if payload.Backup != nil {
+		backup = *payload.Backup
+	}
+	if err := worldfile.WriteBase64(path, payload.RelativePath, payload.ContentsBase64, backup); err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("world file write failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("wrote %s", payload.RelativePath),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("wrote world file %s", payload.RelativePath))
 }
 
 func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {

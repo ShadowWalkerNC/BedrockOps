@@ -116,7 +116,7 @@ If you improve it — **please open a pull request.** That’s how this grows.
 
 - **Settings** — account, agents, integration readiness, realm config  
 - **Worlds** — world path + snapshot/restore surface  
-- **Plugins / templates** — catalog today; pack install refuses until Wave D (no fake success)  
+- **Plugins / templates / marketplace** — first-party vetted BP/RP catalog, cosmetics as world resource packs, Script API matrix gates, mode templates with pack + level.dat experiment apply (honest stubs when the agent is offline)  
 - **Audit log** — state-changing actions leave a trail  
 - **Analytics + rate limits** — destructive-action throttles, join-flood detection  
 
@@ -317,9 +317,12 @@ pnpm --filter @mc-admin/agent agent:build
 | **A** | Agent tunnel, RCON, Prisma, R2 backup/restore, security hardening | Shipped on `main` |
 | **B** | Moderation, allowlist, subdomain onboarding, Discord | Shipped on `main` |
 | **C** | Live console, analytics, rate limits, versions, crash alerts, Settings/Worlds/Plugins | Shipped on `main` |
-| **D** | Pack/add-on engine, marketplace, host partners, seasonal rounds | Next — **come help** |
+| **D1–D4** | Pack engine, mode templates + packs, cosmetics (world RP), Script API matrix, first-party marketplace, level.dat experiments | Shipped on this branch / merging to `main` |
+| **D5–D6** | Host partners (Pterodactyl/etc.), seasonal rounds | Later — **come help** |
 
-If Wave D excites you (packs, Script API, marketplace UX, Pterodactyl wiring), open an issue or PR. We’ll take serious contributions over vaporware screenshots.
+Still out of scope on purpose: Mojang Marketplace federation, Xbox Persona force-apply, player Discord↔in-game chat relay.
+
+If D5 host wiring or round-based modes excite you, open an issue or PR. We’ll take serious contributions over vaporware screenshots.
 
 ---
 
@@ -335,6 +338,8 @@ If Wave D excites you (packs, Script API, marketplace UX, Pterodactyl wiring), o
 - Tests around bugs you hit  
 - Hardening env validation / error messages  
 - Real agent edge cases (process exit, pipe drain, allowlist races)  
+- Extra vetted cosmetic RPs or Script matrix rows for new BDS pins  
+- Pterodactyl / partner `HostProvider` wiring (Wave D5) that fails honestly until live  
 
 ### Ground rules
 

@@ -68,8 +68,8 @@ export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
 ];
 
 /**
- * Experiment IDs operators may want for a mode. Not written to level.dat yet —
- * surfaced for awareness until a world NBT writer exists.
+ * Experiment IDs operators may want for a mode.
+ * Applied to worlds/<level>/level.dat via agent WRITE_WORLD_FILE when provisioning.
  */
 export const MODE_EXPERIMENT_HINTS: Record<string, string[]> = {
   tmpl_flat_skyblock: ['data_driven_items', 'gametest'],

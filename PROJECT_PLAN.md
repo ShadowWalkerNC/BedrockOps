@@ -157,14 +157,18 @@ Do not hard-depend on a single public DNS redirect. Product UX: invite link → 
 |------------|-------------|
 | **D1 Pack engine** | Install/enable behavior + resource packs; world manifest updates; Script API v2 awareness |
 
-**D1 progress:** First-party sample BP/RP catalog, `PackEngine` apply plans, agent `WRITE_PACK_FILES` (path-jailed under `worlds/**/(behavior|resource)_packs` + enable lists), `POST /api/v1/packs/apply`. Script API packs remain blocked honestly; marketplace browse/filter is D4.
+**D1 progress:** First-party sample BP/RP catalog, `PackEngine` apply plans, agent `WRITE_PACK_FILES` (path-jailed under `worlds/**/(behavior|resource)_packs` + enable lists), `POST /api/v1/packs/apply`. Script API packs gated by the D matrix (below).
 | **D2 Templates** | Game-style presets (survival, creative, minigame stub) pinned to BDS + experiments |
 
-**D2 progress:** Mode templates declare `addonPacks` (wired to D1 catalog). Setup/apply-template can install those packs. Experiment IDs are listed for awareness (`experimentsApplied: false`) until level.dat NBT writing exists.
+**D2 progress:** Mode templates declare `addonPacks` (wired to D1 catalog). Setup/apply-template installs those packs and patches `level.dat` experiment flags when the agent is online (`experimentsApplied` only after a successful host write).
 | **D3 Skins / cosmetics** | Skin/persona pack apply within Bedrock constraints |
+
+**D3 progress:** Cosmetic world resource packs (`category=cosmetic`) via the pack engine. Persona / `.mcpersona` uploads return `409 PERSONA_UNSUPPORTED` — BDS cannot force Xbox Persona skins.
 | **D4 Marketplace** | First-party catalog of vetted packs; one-click apply to a Realm |
 
-**D4 progress:** Catalog metadata (category/tags/publisher/vetted), `GET /packs` filters + facets, Plugins marketplace UI with one-click apply. First-party only — not Mojang store. Script API packs remain blocked honestly.
+**D4 progress:** Catalog metadata (category/tags/publisher/vetted), `GET /packs` filters + facets, Plugins marketplace UI with one-click apply. First-party only — not Mojang store. Script API clear-lag remains a blocked stub; `pack_script_hello_bp` applies when the matrix allows.
+
+**Script API matrix:** `SCRIPT_API_MATRIX` in `@mc-admin/templates` + `GET /versions` / `/versions/script-matrix`. Fail-closed for unknown BDS pins.
 | **D5 Host partners** | Optional capacity via friends/hosts (Purpify, Verixen, etc.) through `HostProvider` — white-label or reseller, not required to operate |
 | **D6 Rounds** | Round-based / seasonal mode product surfaces (explicitly post–Realms-stable) |
 
