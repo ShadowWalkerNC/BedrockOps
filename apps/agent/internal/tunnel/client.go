@@ -16,6 +16,7 @@ import (
 	agentbackup "github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/backup"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/lifecycle"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/metrics"
+	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/packs"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/properties"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/protocol"
 	"github.com/ShadowWalkerNC/BedrockOps/apps/agent/internal/rcon"
@@ -249,6 +250,8 @@ func (c *Client) handleCommand(frame protocol.Frame) {
 		c.handleAllowlistSync(frame, serverID, payload)
 	case protocol.CmdWriteProperties:
 		c.handleWriteProperties(frame, serverID, payload)
+	case protocol.CmdWritePackFiles:
+		c.handleWritePackFiles(frame, serverID, payload)
 	default:
 		// POWER-style action without explicit command name
 		if payload.Action != "" {
@@ -401,6 +404,33 @@ func (c *Client) handleWriteProperties(frame protocol.Frame, serverID string, pa
 		Output:  fmt.Sprintf("server.properties written -> %s", payload.TargetPath),
 	})
 	_ = c.sendLog(serverID, fmt.Sprintf("server.properties written -> %s", payload.TargetPath))
+}
+
+func (c *Client) handleWritePackFiles(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {
+	path := strings.TrimSpace(payload.ServerPath)
+	if path == "" {
+		path = c.cfg.ServerPathHint
+	}
+	if path == "" {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: "serverPath required for WRITE_PACK_FILES"})
+		return
+	}
+	specs := make([]packs.FileSpec, 0, len(payload.Files))
+	for _, f := range payload.Files {
+		specs = append(specs, packs.FileSpec{RelativePath: f.RelativePath, Contents: f.Contents})
+	}
+	n, err := packs.AtomicWriteAll(path, specs)
+	if err != nil {
+		c.respond(frame, protocol.CmdRespPayload{Success: false, Error: err.Error()})
+		_ = c.sendLog(serverID, fmt.Sprintf("pack write failed: %v", err))
+		return
+	}
+	c.respond(frame, protocol.CmdRespPayload{
+		Success: true,
+		Mode:    string(c.manager.Mode()),
+		Output:  fmt.Sprintf("wrote %d pack files under %s", n, path),
+	})
+	_ = c.sendLog(serverID, fmt.Sprintf("wrote %d pack files under %s", n, path))
 }
 
 func (c *Client) handleBackup(frame protocol.Frame, serverID string, payload protocol.CmdExecPayload) {

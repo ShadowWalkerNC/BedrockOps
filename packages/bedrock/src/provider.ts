@@ -49,6 +49,14 @@ export interface PropertiesWriteResult {
   output?: string;
 }
 
+export interface PackApplyResult {
+  success: boolean;
+  stub?: boolean;
+  filesWritten?: number;
+  error?: string;
+  output?: string;
+}
+
 export interface HostProvider {
   readonly type: HostProviderType;
 
@@ -64,6 +72,10 @@ export interface HostProvider {
     server: BedrockServer,
     plan: { targetPath: string; tempPath: string; contents: string }
   ): Promise<PropertiesWriteResult>;
+  writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult>;
 }
 
 /** Minimal tunnel surface used by DockerAgentHostProvider (implemented by AgentTunnelGateway). */
@@ -279,6 +291,45 @@ export class DockerAgentHostProvider implements HostProvider {
       error: result?.error
     };
   }
+
+  public async writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult> {
+    if (!server.agentId) {
+      return {
+        success: false,
+        stub: true,
+        error: `Server ${server.id} has no assigned agentNode — pack files not written.`
+      };
+    }
+    if (!this.tunnelGateway) {
+      return {
+        success: false,
+        stub: true,
+        error: '[STUB] Agent tunnel not connected — pack files not written on host.'
+      };
+    }
+    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return {
+        success: false,
+        stub: true,
+        error: `[STUB] Agent ${server.agentId} not connected — pack files not written on host.`
+      };
+    }
+    const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'WRITE_PACK_FILES', {
+      serverPath: server.serverPath,
+      files: plan.files
+    })) as { success?: boolean; stub?: boolean; error?: string; output?: string };
+    const writtenMatch = result?.output?.match(/wrote (\d+) pack files/);
+    return {
+      success: !!result?.success,
+      stub: result?.stub,
+      filesWritten: writtenMatch ? parseInt(writtenMatch[1], 10) : plan.files.length,
+      output: result?.output,
+      error: result?.error
+    };
+  }
 }
 
 export class PterodactylHostProvider implements HostProvider {
@@ -361,6 +412,18 @@ export class PterodactylHostProvider implements HostProvider {
       error: `[STUB] Pterodactyl properties write pending for ${server.pterodactylServerId || server.id}`
     };
   }
+
+  public async writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Pterodactyl pack install pending for ${server.pterodactylServerId || server.id}`
+    };
+  }
 }
 
 export class DirectRconSshHostProvider implements HostProvider {
@@ -441,6 +504,18 @@ export class DirectRconSshHostProvider implements HostProvider {
       success: false,
       stub: true,
       error: `[STUB] Direct RCON/SSH properties write pending for ${server.host}`
+    };
+  }
+
+  public async writePackFiles(
+    server: BedrockServer,
+    plan: { files: Array<{ relativePath: string; contents: string }> }
+  ): Promise<PackApplyResult> {
+    void plan;
+    return {
+      success: false,
+      stub: true,
+      error: `[STUB] Direct RCON/SSH pack install pending for ${server.host}`
     };
   }
 }

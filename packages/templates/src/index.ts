@@ -1,5 +1,7 @@
 import { db, ServerTemplate, BedrockServer } from '@mc-admin/db';
 
+export * from './packs';
+
 export interface CreateTemplateInput {
   name: string;
   description: string;

@@ -108,6 +108,27 @@ describe('HostProvider Strategy Pattern', () => {
     expect(calls[0].payload.contents).toContain('gamemode=survival');
   });
 
+  it('writes pack files through WRITE_PACK_FILES when agent is connected', async () => {
+    const calls: Array<{ command: string; payload: Record<string, unknown> }> = [];
+    const gateway: AgentTunnelGatewayLike = {
+      isNodeConnected: () => true,
+      sendCommand: async (_nodeId, _serverId, command, payload) => {
+        calls.push({ command, payload });
+        return { success: true, output: 'wrote 2 pack files under /tmp' };
+      }
+    };
+    const provider = HostProviderFactory.bindAgentTunnel(gateway);
+    const result = await provider.writePackFiles(db.servers[0], {
+      files: [
+        { relativePath: 'worlds/Bedrock level/behavior_packs/p/manifest.json', contents: '{}\n' },
+        { relativePath: 'worlds/Bedrock level/world_behavior_packs.json', contents: '[]\n' }
+      ]
+    });
+    expect(result.success).toBe(true);
+    expect(result.filesWritten).toBe(2);
+    expect(calls[0].command).toBe('WRITE_PACK_FILES');
+  });
+
   it('returns false when bound tunnel reports agent disconnected', async () => {
     const gateway: AgentTunnelGatewayLike = {
       isNodeConnected: () => false,

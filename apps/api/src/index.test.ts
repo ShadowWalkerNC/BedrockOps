@@ -386,6 +386,33 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
     }
   });
 
+  it('lists Wave D1 pack catalog on GET /api/v1/packs', async () => {
+    const res = await request(app)
+      .get('/api/v1/packs')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.packs.some((p: { id: string }) => p.id === 'pack_sample_bp')).toBe(true);
+    expect(res.body.packs.some((p: { id: string }) => p.id === 'pack_sample_rp')).toBe(true);
+  });
+
+  it('applies a sample pack via POST /packs/apply (honest stub without agent)', async () => {
+    const res = await request(app)
+      .post('/api/v1/packs/apply')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ serverId: 'srv_bedrock_1', packId: 'pack_sample_bp' });
+
+    expect([201, 503]).toContain(res.status);
+    expect(db.auditLogs.some((a) => a.action === 'PACK_APPLY')).toBe(true);
+    if (res.status === 503) {
+      expect(res.body.error).toBe('PACK_APPLY_DEFERRED');
+      expect(res.body.write?.success).toBe(false);
+    } else {
+      expect(res.body.success).toBe(true);
+      expect(res.body.write?.success).toBe(true);
+    }
+  });
+
   it('returns non-secret system status on GET /api/v1/system/status', async () => {
     const res = await request(app)
       .get('/api/v1/system/status')
