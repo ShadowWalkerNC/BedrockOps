@@ -15,7 +15,8 @@ import type {
   Pipeline,
   PipelineRun,
   AuditLog,
-  BdsVersion
+  BdsVersion,
+  EndstonePlugin
 } from './schema';
 
 export * from './schema';
@@ -54,6 +55,7 @@ export class MemoryDatabase {
   public pipelineRuns: PipelineRun[] = [];
   public auditLogs: AuditLog[] = [];
   public bdsVersions: BdsVersion[] = [];
+  public endstonePlugins: EndstonePlugin[] = [];
 
   // Seed defaults for development & unit testing
   public seedDefaults() {
@@ -97,6 +99,41 @@ export class MemoryDatabase {
       agentTunnelId: 'tunnel_ws_main_1',
       createdAt: new Date(),
       updatedAt: new Date()
+    });
+
+    this.servers.push({
+      id: 'srv_endstone_1',
+      name: 'Endstone Plugin Hub',
+      type: 'ENDSTONE',
+      hostProvider: 'DOCKER_AGENT',
+      version: '0.5.0',
+      host: '127.0.0.1',
+      port: 19136,
+      rconPort: 19137,
+      rconPassword: 'endstone_rcon_pass',
+      serverPath: '/var/minecraft/endstone-server-1',
+      status: ServerStatus.ONLINE,
+      maxPlayers: 20,
+      gameMode: 'survival',
+      difficulty: 'hard',
+      ownerId: 'usr_admin_1',
+      agentId: 'node_docker_agent_1',
+      agentTunnelId: 'tunnel_ws_endstone_1',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    this.endstonePlugins.push({
+      id: 'plugin_chat_moderator',
+      name: 'EndstoneChatGuard',
+      version: '1.2.0',
+      description: 'Python chat moderation plugin for Endstone BDS event filtering.',
+      entrypoint: 'chat_guard.py',
+      author: 'BedrockOps Community',
+      website: 'https://github.com/endstonemc/endstone',
+      enabled: true,
+      serverId: 'srv_endstone_1',
+      createdAt: new Date()
     });
 
     this.connectionKeys.push({

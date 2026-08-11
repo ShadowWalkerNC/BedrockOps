@@ -1,5 +1,6 @@
 import { BedrockServer, HostProviderType } from '@mc-admin/db';
 import { RconClient } from './rcon';
+import { LocalServerRunner } from './localRunner';
 
 export interface ServerMetrics {
   cpuPercent: number;
@@ -85,21 +86,19 @@ export class DockerAgentHostProvider implements HostProvider {
     if (!server.agentId) {
       throw new Error(`Server ${server.id} has no assigned agentNode`);
     }
-    if (!this.tunnelGateway) {
-      console.warn(`[STUB] DockerAgentHostProvider.${action} — no tunnel gateway registered for agent ${server.agentId}`);
-      return false;
+    if (this.tunnelGateway && this.tunnelGateway.isNodeConnected && this.tunnelGateway.isNodeConnected(server.agentId)) {
+      const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', {
+        action,
+        serverPath: server.serverPath || undefined
+      })) as { success?: boolean };
+      return result?.success !== false;
     }
-    if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
-      console.warn(`[STUB] DockerAgentHostProvider.${action} — agent ${server.agentId} is not connected`);
-      return false;
-    }
-    const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'POWER_ACTION', {
-      action,
-      serverPath: server.serverPath || undefined
-    }) as {
-      success?: boolean;
-    };
-    return result?.success !== false;
+
+    // Local / Standalone Execution Fallback (Vercel for Bedrock Minecraft)
+    const runner = LocalServerRunner.getInstance();
+    if (action === 'START') return runner.startServer(server);
+    if (action === 'STOP' || action === 'KILL') return runner.stopServer(server);
+    return runner.restartServer(server);
   }
 
   public async startServer(server: BedrockServer): Promise<boolean> {
@@ -115,57 +114,47 @@ export class DockerAgentHostProvider implements HostProvider {
   }
 
   public async getStatus(server: BedrockServer): Promise<ServerMetrics> {
-    if (this.tunnelGateway && server.agentId) {
-      if (!this.tunnelGateway.isNodeConnected || this.tunnelGateway.isNodeConnected(server.agentId)) {
-        try {
-          const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'GET_STATUS', {}) as {
-            cpuPercent?: number;
-            memoryMb?: number;
-            totalMemoryMb?: number;
-            uptimeSeconds?: number;
-            activePlayers?: number;
-          };
-          return {
-            cpuPercent: result.cpuPercent ?? 0,
-            memoryMb: result.memoryMb ?? 0,
-            totalMemoryMb: result.totalMemoryMb,
-            uptimeSeconds: result.uptimeSeconds ?? 0,
-            activePlayers: result.activePlayers ?? 0,
-          };
-        } catch {
-          // Fall through to empty metrics when agent is unreachable
-        }
+    if (this.tunnelGateway && server.agentId && this.tunnelGateway.isNodeConnected && this.tunnelGateway.isNodeConnected(server.agentId)) {
+      try {
+        const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'GET_STATUS', {})) as {
+          cpuPercent?: number;
+          memoryMb?: number;
+          totalMemoryMb?: number;
+          uptimeSeconds?: number;
+          activePlayers?: number;
+        };
+        return {
+          cpuPercent: result.cpuPercent ?? 0,
+          memoryMb: result.memoryMb ?? 0,
+          totalMemoryMb: result.totalMemoryMb,
+          uptimeSeconds: result.uptimeSeconds ?? 0,
+          activePlayers: result.activePlayers ?? 0
+        };
+      } catch {
+        // Fallback to local runner
       }
     }
-    return {
-      cpuPercent: 0,
-      memoryMb: 0,
-      uptimeSeconds: 0,
-      activePlayers: 0,
-    };
+    return LocalServerRunner.getInstance().getStatus(server);
   }
 
   public async executeRcon(server: BedrockServer, command: string): Promise<string> {
-    if (this.tunnelGateway && server.agentId) {
-      if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
-        return `[STUB] Agent ${server.agentId} not connected — RCON not executed`;
-      }
-      const result = await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', {
+    if (this.tunnelGateway && server.agentId && this.tunnelGateway.isNodeConnected && this.tunnelGateway.isNodeConnected(server.agentId)) {
+      const result = (await this.tunnelGateway.sendCommand(server.agentId, server.id, 'RCON_COMMAND', {
         rconCommand: command
-      }) as { output?: string; error?: string; stub?: boolean };
+      })) as { output?: string; error?: string; stub?: boolean };
       if (result?.error && !result.output) {
         return result.error;
       }
       return result?.output ?? JSON.stringify(result);
     }
-    return `[STUB] DockerAgent tunnel not connected — RCON "${command}" not executed on ${server.id}`;
+    return LocalServerRunner.getInstance().executeRcon(server, command);
   }
 
   public streamLogs(server: BedrockServer, onLog: (line: string) => void): () => void {
-    onLog(`[DockerAgent] Log streaming started for server ${server.id}`);
-    return () => {
-      // Unsubscribe cleanup callback
-    };
+    if (this.tunnelGateway && server.agentId && this.tunnelGateway.isNodeConnected && this.tunnelGateway.isNodeConnected(server.agentId)) {
+      return () => {};
+    }
+    return LocalServerRunner.getInstance().streamLogs(server, onLog);
   }
 
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {

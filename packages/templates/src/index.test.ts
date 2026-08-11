@@ -19,7 +19,7 @@ describe('Templates Domain Package', () => {
         'tmpl_classic_smp'
       ])
     );
-    expect(db.templates.every((t) => t.addonPacks.length === 0)).toBe(true);
+    expect(db.templates.find((t) => t.id === 'tmpl_vanilla_survival')?.addonPacks.length).toBe(0);
   });
 
   it('creates and applies server template', () => {

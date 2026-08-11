@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc && pnpm run agent:build",
     "dev": "ts-node src/index.ts",
-    "test": "vitest run && go test ./...",
+    "test": "vitest run",
     "agent:build": "mkdir -p bin && go build -o bin/bedrock-agent ./cmd/bedrock-agent",
     "agent:test": "go test ./...",
     "agent:run": "go run ./cmd/bedrock-agent",

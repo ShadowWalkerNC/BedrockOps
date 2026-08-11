@@ -28,8 +28,8 @@ describe('OperationalMetrics.overview', () => {
     );
 
     const o = OperationalMetrics.overview(db);
-    expect(o.servers.total).toBe(1);
-    expect(o.servers.online).toBe(1); // seeded server is ONLINE
+    expect(o.servers.total).toBe(db.servers.length);
+    expect(o.servers.online).toBe(db.servers.filter(s => s.status === 'ONLINE').length); // seeded servers online
     expect(o.agents.total).toBe(1);
     expect(o.agents.online).toBe(1);
     expect(o.backups.completed).toBe(2);

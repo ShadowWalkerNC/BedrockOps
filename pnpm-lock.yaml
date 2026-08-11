@@ -407,6 +407,45 @@ importers:
         specifier: ^1.5.0
         version: 1.6.1(@types/node@20.19.43)
 
+  packages/geyser:
+    dependencies:
+      '@mc-admin/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/lan-discovery:
+    dependencies:
+      '@mc-admin/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/marketplace:
+    dependencies:
+      '@mc-admin/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.43)
+
   packages/moderation:
     dependencies:
       '@mc-admin/config':
@@ -421,6 +460,19 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^1.5.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/nbt:
+    dependencies:
+      '@mc-admin/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.43)
 
   packages/notifications:
@@ -503,6 +555,19 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^1.5.0
+        version: 1.6.1(@types/node@20.19.43)
+
+  packages/waterdog:
+    dependencies:
+      '@mc-admin/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.43)
 
 packages:

@@ -30,7 +30,7 @@ describe('ApiServer & REST API Backend (R1.3 & R1.4)', () => {
 
   it('fetches server list via ApiServer', async () => {
     const servers = await ApiServer.getServers();
-    expect(servers.length).toBe(1);
+    expect(servers.length).toBeGreaterThanOrEqual(1);
     expect(servers[0].name).toBe('Main Survival Realm');
   });
 

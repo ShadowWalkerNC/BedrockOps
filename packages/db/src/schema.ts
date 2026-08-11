@@ -36,6 +36,13 @@ export enum PipelineStatus {
   FAILED = 'FAILED'
 }
 
+export enum ServerType {
+  VANILLA = 'VANILLA',
+  BEHAVIOR = 'BEHAVIOR',
+  POCKETMINE = 'POCKETMINE',
+  ENDSTONE = 'ENDSTONE'
+}
+
 export enum HostProviderType {
   DOCKER_AGENT = 'DOCKER_AGENT',
   PTERODACTYL = 'PTERODACTYL',
@@ -190,4 +197,17 @@ export interface BdsVersion {
   releaseDate: Date;
   isLatest: boolean;
   isSupported: boolean;
+}
+
+export interface EndstonePlugin {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  entrypoint: string;
+  author?: string;
+  website?: string;
+  enabled: boolean;
+  serverId: string;
+  createdAt: Date;
 }

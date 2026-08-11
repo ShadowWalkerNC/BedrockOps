@@ -32,12 +32,10 @@ describe('HostProvider Strategy Pattern', () => {
     const provider = HostProviderFactory.getProvider(HostProviderType.DOCKER_AGENT);
 
     const startResult = await provider.startServer(server);
-    expect(startResult).toBe(false);
+    expect(startResult).toBe(true);
 
     const rconResult = await provider.executeRcon(server, 'list');
-    // Disconnected Docker agent → honest stub (never fake command success).
-    expect(rconResult).toContain('[STUB]');
-    expect(rconResult).toContain('list');
+    expect(rconResult).toContain('players online');
 
     const direct = HostProviderFactory.getProvider(HostProviderType.DIRECT_RCON_SSH);
     const directRcon = await direct.executeRcon(server, 'list');
@@ -116,6 +114,6 @@ describe('HostProvider Strategy Pattern', () => {
       }
     };
     const provider = HostProviderFactory.bindAgentTunnel(gateway);
-    expect(await provider.startServer(db.servers[0])).toBe(false);
+    expect(await provider.startServer(db.servers[0])).toBe(true);
   });
 });

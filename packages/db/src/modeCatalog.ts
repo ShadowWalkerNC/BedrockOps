@@ -64,6 +64,21 @@ export const MODE_CATALOG_TEMPLATES: Omit<ServerTemplate, 'createdAt'>[] = [
       'keep-inventory': 'false'
     },
     addonPacks: []
+  },
+  {
+    id: 'tmpl_endstone_plugin_hub',
+    name: 'Endstone Python/C++ Plugin BDS',
+    description:
+      'Official Endstone server wrapper bringing Bukkit/Spigot Python & C++ plugin APIs directly to Bedrock Dedicated Server.',
+    bdsVersion: '1.20.80',
+    defaultProperties: {
+      gamemode: 'survival',
+      difficulty: 'hard',
+      'allow-cheats': 'true',
+      'max-players': '30',
+      pvp: 'true'
+    },
+    addonPacks: ['endstone-chat-guard', 'endstone-perm-nodes']
   }
 ];
 

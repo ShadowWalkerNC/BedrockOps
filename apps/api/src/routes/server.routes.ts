@@ -263,7 +263,40 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
     metadata: { command: parse.data.command }
   });
 
-  return res.json({ success: true, output: result });
+  return res.json({ serverId: id, command: parse.data.command, output: result });
+});
+
+// POST /api/v1/servers/:id/control - Unified control endpoint (power & RCON)
+serverRouter.post('/:id/control', requireRole(UserRole.ADMIN), async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const server = db.servers.find((s) => s.id === id && !s.deletedAt);
+  if (!server) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Server not found' });
+  }
+
+  const { action, command } = req.body || {};
+  const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
+
+  if (action === 'COMMAND' || command) {
+    const cmd = command || '';
+    const output = await provider.executeRcon(server, cmd);
+    return res.json({ success: true, action: 'COMMAND', command: cmd, output });
+  }
+
+  let powerOk = true;
+  if (action === 'START') {
+    powerOk = await provider.startServer(server);
+    if (powerOk) server.status = ServerStatus.ONLINE;
+  } else if (action === 'STOP' || action === 'KILL') {
+    powerOk = await provider.stopServer(server, action === 'KILL');
+    if (powerOk) server.status = ServerStatus.OFFLINE;
+  } else if (action === 'RESTART') {
+    powerOk = await provider.restartServer(server);
+    if (powerOk) server.status = ServerStatus.ONLINE;
+  }
+  server.updatedAt = new Date();
+
+  return res.json({ success: powerOk, action, server });
 });
 
 // POST /api/v1/servers/:id/crash - record a crash event (from agent/health monitor)
