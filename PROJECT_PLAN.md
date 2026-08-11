@@ -65,7 +65,8 @@ Primary host path remains **`DOCKER_AGENT`**. Live Pterodactyl/SSH lifecycle, D6
 │   ├── notifications/ # Discord embed/payload formatters
 │   ├── templates/     # Realms templates + pack apply (files + manifests)
 │   └── pipelines/     # Setup / onboarding orchestration
-├── docker-compose.yml # Postgres 16
+├── docker-compose.yml # Postgres 16 (+ optional api/web/worker via --profile apps)
+├── docker/            # Control-plane Dockerfiles + entrypoints
 ├── DEPLOY.md          # Self-host / production runbook
 ├── PROJECT.md         # Feature inventory & milestone status
 ├── PROJECT_PLAN.md    # This document

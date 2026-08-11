@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+# BedrockOps worker (scheduled backups / retention)
+FROM node:20-bookworm-slim AS base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps ./apps
+COPY packages ./packages
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+ENV DATABASE_URL=postgresql://mcadmin:mcadmin_password@postgres:5432/minecraft_admin
+RUN pnpm --filter @mc-admin/db db:generate \
+  && pnpm --filter @mc-admin/worker... build
+
+FROM base AS runner
+ENV NODE_ENV=production \
+  DB_ADAPTER=prisma
+COPY --from=build /app /app
+COPY docker/entrypoint-worker.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+# BedrockOps API control plane
+FROM node:20-bookworm-slim AS base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps ./apps
+COPY packages ./packages
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+# Prisma generate needs a URL string at generate-time (not a live DB).
+ENV DATABASE_URL=postgresql://mcadmin:mcadmin_password@postgres:5432/minecraft_admin
+RUN pnpm --filter @mc-admin/db db:generate \
+  && pnpm --filter @mc-admin/api... build
+
+FROM base AS runner
+ENV NODE_ENV=production \
+  PORT=4000 \
+  DB_ADAPTER=prisma
+COPY --from=build /app /app
+COPY docker/entrypoint-api.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+EXPOSE 4000
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD curl -sf http://127.0.0.1:4000/health || exit 1
+ENTRYPOINT ["/entrypoint.sh"]

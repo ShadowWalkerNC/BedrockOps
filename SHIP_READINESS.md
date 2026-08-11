@@ -47,6 +47,7 @@ See [DEPLOY.md](./DEPLOY.md) and `.env.example`.
 - [x] `pnpm install && pnpm --filter @mc-admin/db db:generate`
 - [x] `pnpm build && pnpm test` (CI)
 - [x] Production start scripts (`pnpm start:api` / `start:web` / `start:worker`, `./scripts/start-prod.sh`)
+- [x] Docker control-plane images (`docker compose --profile apps`) — agent remains on the game host
 - [x] Deploy runbook ([DEPLOY.md](./DEPLOY.md))
 - [x] Local production-shaped path: `./scripts/start-local.sh`
 - [ ] Provision production secrets; set `NEXT_PUBLIC_API_URL` to the public API
@@ -68,9 +69,11 @@ docker compose up -d postgres
 ### Staging / VPS
 
 ```bash
-cp .env.example .env   # edit secrets
-docker compose up -d postgres
-./scripts/start-prod.sh
+cp .env.example .env   # edit secrets + NEXT_PUBLIC_API_URL
+# Docker control plane (agent still on the game host):
+docker compose --profile apps up -d --build
+# or Node on the host:
+# docker compose up -d postgres && ./scripts/start-prod.sh
 # pair agent on the game host — see DEPLOY.md
 ```
 

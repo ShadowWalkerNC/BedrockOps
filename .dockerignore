@@ -1,0 +1,24 @@
+# Keep Docker build contexts lean for the monorepo control-plane images.
+.git
+.github
+.agents
+.cursor
+**/.turbo
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+apps/agent/bin
+var
+docs/demo
+docs/images
+*.md
+!DEPLOY.md
+!SHIP_READINESS.md
+!README.md
+!AGENTS.md
+!PROJECT_PLAN.md

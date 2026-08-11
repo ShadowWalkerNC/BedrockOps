@@ -185,12 +185,13 @@ That’s a local seed account for development. Change it before you expose anyth
 See **[DEPLOY.md](./DEPLOY.md)**. Short version:
 
 ```bash
-cp .env.example .env   # set NODE_ENV=production, strong secrets, DATABASE_URL, CORS_ORIGIN,
+cp .env.example .env   # set NODE_ENV=production, strong secrets, CORS_ORIGIN,
                        # API_URL + NEXT_PUBLIC_API_URL to your public API origin
-docker compose up -d postgres
-./scripts/start-prod.sh
+docker compose --profile apps up -d --build
 # pair the Go agent on the game host (DEPLOY.md §4)
 ```
+
+Or run Node on the host: `docker compose up -d postgres && ./scripts/start-prod.sh`
 
 Production checklist: [SHIP_READINESS.md](./SHIP_READINESS.md)
 

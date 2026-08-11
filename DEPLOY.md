@@ -55,13 +55,25 @@ pnpm --filter @mc-admin/db db:migrate
 
 ## 3. Build & start control plane
 
-**Option A — helper script**
+**Option A — Docker control plane (recommended on a VPS)**
+
+```bash
+# Postgres + API + web + worker. Agent still runs on the game host.
+docker compose --profile apps up -d --build
+```
+
+- Dashboard: http://localhost:3000/login  
+- API health: http://localhost:4000/health  
+
+Set `CORS_ORIGIN`, `JWT_SECRET`, `NODE_PAIRING_SECRET`, and `NEXT_PUBLIC_API_URL` in `.env` before build so the web image bakes the correct browser WebSocket origin.
+
+**Option B — helper script (Node on the host)**
 
 ```bash
 ./scripts/start-prod.sh
 ```
 
-**Option B — manual**
+**Option C — manual Node processes**
 
 ```bash
 pnpm build
