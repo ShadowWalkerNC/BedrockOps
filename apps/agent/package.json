@@ -7,7 +7,7 @@
     "build": "tsc && pnpm run agent:build",
     "dev": "ts-node src/index.ts",
     "test": "vitest run",
-    "agent:build": "mkdir -p bin && go build -o bin/bedrock-agent ./cmd/bedrock-agent",
+    "agent:build": "node -e \"const p=require('path').join(process.cwd(),'.gocache'); require('fs').mkdirSync(p,{recursive:true}); require('fs').mkdirSync('bin',{recursive:true}); process.env.GOCACHE=process.env.GOCACHE||p; require('child_process').execSync('go build -o bin/bedrock-agent ./cmd/bedrock-agent',{stdio:'inherit',env:process.env})\"",
     "agent:test": "go test ./...",
     "agent:run": "go run ./cmd/bedrock-agent",
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit"

@@ -46,6 +46,11 @@ export function logout(): void {
   }
 }
 
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
 export async function ensureAuthenticated(): Promise<string> {
   if (typeof window === 'undefined') {
     return '';

@@ -129,7 +129,7 @@ export default function MarketplacePage() {
   };
 
   return (
-    <AppShell title="Addon Marketplace">
+    <AppShell active="marketplace">
       <Head>
         <title>Addon & Plugin Marketplace | BedrockOps</title>
       </Head>
