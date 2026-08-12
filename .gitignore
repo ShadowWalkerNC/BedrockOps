@@ -13,6 +13,10 @@ coverage
 
 # Go agent build artifacts
 apps/agent/bin/
+.gocache/
+
+# Local test output
+test-results*.log
 
 # Local Minecraft Bedrock Dedicated Server downloads / worlds
 var/bds/
