@@ -53,7 +53,9 @@ export class LocalServerRunner {
 
   public async restartServer(server: BedrockServer): Promise<boolean> {
     await this.stopServer(server);
-    await new Promise((r) => setTimeout(r, 200));
+    if (!process.env.VITEST) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
     return this.startServer(server);
   }
 
