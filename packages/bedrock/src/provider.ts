@@ -187,14 +187,6 @@ export class DockerAgentHostProvider implements HostProvider {
     return LocalServerRunner.getInstance().streamLogs(server, onLog);
   }
 
-    if (process.env.VITEST) {
-      onLog(`[DockerAgent] Log streaming started for server ${server.id}`);
-      return () => {};
-    }
-
-    return LocalServerRunner.getInstance().streamLogs(server, onLog);
-  }
-
   public async triggerBackup(server: BedrockServer, options: BackupTriggerOptions): Promise<BackupResult> {
     if (this.tunnelGateway && server.agentId) {
       if (this.tunnelGateway.isNodeConnected && !this.tunnelGateway.isNodeConnected(server.agentId)) {
