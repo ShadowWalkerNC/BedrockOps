@@ -78,31 +78,51 @@ export class LocalServerRunner {
     const logLine = `[${new Date().toISOString()}] [RCON] Executed: /${cleanCmd}`;
     state.logs.push(logLine);
 
-    if (cleanCmd.toLowerCase().startsWith('list')) {
+    const lower = cleanCmd.toLowerCase();
+    if (lower.startsWith('list')) {
       return `There are ${state.players.length}/${server.maxPlayers || 10} players online: ${state.players.join(', ')}`;
     }
-    if (cleanCmd.toLowerCase().startsWith('say ')) {
+    if (lower.startsWith('say ')) {
       const message = cleanCmd.substring(4);
       return `[Server] ${message}`;
     }
-    if (cleanCmd.toLowerCase().startsWith('op ')) {
+    if (lower.startsWith('op ')) {
       const target = cleanCmd.substring(3).trim();
       return `Opped player: ${target}`;
     }
-    if (cleanCmd.toLowerCase().startsWith('deop ')) {
+    if (lower.startsWith('deop ')) {
       const target = cleanCmd.substring(5).trim();
       return `De-opped player: ${target}`;
     }
-    if (cleanCmd.toLowerCase().startsWith('kick ')) {
+    if (lower.startsWith('kick ')) {
       const target = cleanCmd.substring(5).trim();
       state.players = state.players.filter((p) => p.toLowerCase() !== target.toLowerCase());
       return `Kicked player ${target} from server.`;
     }
-    if (cleanCmd.toLowerCase().startsWith('tp ') || cleanCmd.toLowerCase().startsWith('teleport ')) {
+    if (lower.startsWith('tp ') || lower.startsWith('teleport ')) {
       return `Teleported targets successfully.`;
     }
-    if (cleanCmd.toLowerCase() === 'help') {
-      return `Commands: /list, /say <msg>, /op <player>, /deop <player>, /kick <player>, /tp <x y z>, /save-all`;
+    if (lower.startsWith('help') || lower === '?') {
+      return `Bedrock Dedicated Server Command Guide:\n` +
+        `  /list - List connected players\n` +
+        `  /say <message> - Broadcast server message\n` +
+        `  /op <player> / /deop <player> - Manage operator status\n` +
+        `  /kick <player> [reason] - Kick player from server\n` +
+        `  /tp <target> <x y z> - Teleport entities\n` +
+        `  /gamemode <survival|creative|adventure> - Change gamemode\n` +
+        `  /save-all / /save-hold / /save-resume - Control world snapshots\n` +
+        `  /status - View live server metrics & uptime\n` +
+        `  /stop - Gracefully shut down server`;
+    }
+    if (lower.startsWith('log') || lower.startsWith('logs')) {
+      return state.logs.slice(-10).join('\n') || `[INFO] Log buffer empty for ${server.id}`;
+    }
+    if (lower.startsWith('status')) {
+      return `Server Status: ${state.status} | Uptime: ${state.startTime ? Math.floor((Date.now() - state.startTime)/1000) : 0}s | Players: ${state.players.length}`;
+    }
+    if (lower.startsWith('stop')) {
+      await this.stopServer(server);
+      return `Server ${server.id} stopped gracefully via RCON.`;
     }
     return `Command /${cleanCmd} executed successfully on BDS v${server.version || '1.20.80'}.`;
   }
