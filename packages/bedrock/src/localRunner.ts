@@ -72,6 +72,21 @@ export class LocalServerRunner {
     return propsPath;
   }
 
+  private ensureBdsAssets(bdsRoot: string, serverDir: string): void {
+    const assets = ['resource_packs', 'behavior_packs', 'definitions', 'structures', 'permissions.json', 'profanity_filter.wlist'];
+    for (const asset of assets) {
+      const src = path.join(bdsRoot, asset);
+      const dest = path.join(serverDir, asset);
+      if (fs.existsSync(src) && !fs.existsSync(dest)) {
+        try {
+          fs.cpSync(src, dest, { recursive: true });
+        } catch (_) {
+          // ignore copy errors
+        }
+      }
+    }
+  }
+
   public async startServer(server: BedrockServer): Promise<boolean> {
     const state = this.getState(server.id);
 
@@ -108,6 +123,7 @@ export class LocalServerRunner {
     appendLog(`[${new Date().toISOString()}] [INFO] Workspace directory: ${serverDir}`);
 
     if (executable) {
+      this.ensureBdsAssets(path.dirname(executable), serverDir);
       try {
         appendLog(`[${new Date().toISOString()}] [INFO] Executing native BDS binary: ${executable}`);
         const proc = spawn(executable, [], {
