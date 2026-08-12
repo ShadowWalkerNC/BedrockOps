@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>The Ultimate Local-First Developer Studio, Multi-Server Control Plane & Ops Hub for Minecraft Bedrock.</strong><br/>
-  Create, customize, run, and monitor real Bedrock servers locally on your machine.
+  Deploy, manage, customize, run, and monitor real Bedrock servers locally on your machine with 1-click ease.
 </p>
 
 <p align="center">
@@ -18,46 +18,56 @@
 
 <p align="center">
   <a href="#-why-bedrockops-exists">Why BedrockOps</a> ·
-  <a href="#-feature-matrix">Key Features</a> ·
-  <a href="#-product-tour">UI Walkthrough</a> ·
+  <a href="#-key-capabilities">Key Capabilities</a> ·
+  <a href="#-product-tour">Product Tour</a> ·
   <a href="#-supported-server-engines">Supported Engines</a> ·
-  <a href="#%EF%B8%8F-architecture-blueprint">Architecture Blueprint</a> ·
-  <a href="#-quick-start">Quick Start Guide</a> ·
-  <a href="#-contributing">Contributing</a>
+  <a href="#%EF%B8%8F-architecture-blueprint">Architecture</a> ·
+  <a href="#-quick-start--installation">Installation Guide</a> ·
+  <a href="#-extending--contributing">Developer Guide</a>
 </p>
 
 ---
 
 ## 💡 Why BedrockOps Exists
 
-While Minecraft Java Edition has enjoyed a decade of robust server management stacks (Pterodactyl, Crafty Controller, Paper, Spigot), **Minecraft Bedrock Edition represents over 80% of total active players worldwide**—yet its hosting and developer tools remain severely fragmented.
+While Minecraft Java Edition has enjoyed a decade of robust server management stacks (Pterodactyl, Crafty Controller, Paper, Spigot), **Minecraft Bedrock Edition represents over 80% of active players worldwide**—yet its server hosting, moderation, and developer tools remain fragmented.
 
 Minecraft server owners struggle daily with:
-* **The Console IP Barrier**: Xbox, PlayStation, and Nintendo Switch players cannot easily connect to custom server IPs without router DNS tricks.
+* **The Console IP Barrier**: Xbox, PlayStation, and Nintendo Switch players cannot easily enter custom server IPs without router DNS tricks.
 * **The Plugin API Vacuum**: Standard Bedrock Dedicated Server (BDS) lacks event hooks, permission levels, or detailed player logging out-of-the-box.
-* **Complex Addon Installation**: Installing Behavior Packs and Script API addons requires unzipping, matching UUIDs, and editing JSON manifests manually.
+* **Complex Addon Installation**: Installing Behavior Packs, Resource Packs, and Script API addons requires unzipping, matching UUIDs, and editing JSON manifests manually.
 * **Home NAT & CGNAT Firewalls**: Hosting a server at home for friends requires manual port forwarding, which is often blocked by ISPs.
 
 **BedrockOps bridges these gaps.** It is a standalone local-first developer studio and virtual control plane that installs directly on your local computer to download, configure, run, and monitor Bedrock servers with 1-click ease.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Capabilities
 
-### 1-Click Guided Setup Wizard (`/setup`)
-* **Environment Diagnostics**: Automated check for Node.js, databases, and local runtimes with a single-click **Auto-Repair Environment** button.
-- **Server Architect**: Select server engine, mode catalog templates, plugins, and custom skin/resource packs.
-- **Interactive Progress Terminal**: Live log streamer showing download, manifest synthesis, port mapping, and container startup progress.
+### ⚡ 1. Local Native Server Runner
+* **Direct Process Spawning**: Spawns real `bedrock_server.exe` / `bedrock_server` native binaries directly on your machine.
+* **Automatic Mojang BDS Downloader**: Downloads and extracts official Bedrock Dedicated Server binaries directly from Mojang's CDN.
+* **Disk Workspace Management**: Keeps all server files neatly organized under `data/servers/<server_id>/` with dynamic `server.properties` synthesis.
 
-### Live Telemetry & Monitoring
-* **Gauges**: Real-time CPU usage, RAM allocation, server uptime, and active player counts.
-* **Console Log Stream**: Live streaming server stdout/stderr.
-* **Interactive RCON Shell**: Dispatch in-game commands (`/list`, `/op`, `/say`, `/kick`, `/tp`) directly from the browser.
+### 🖥️ 2. Live Terminal & Interactive RCON Shell
+* **Real-Time Logs**: Live streaming stdout and stderr events over WebSockets.
+* **1-Click Action Chips**: Execute quick commands (`/list`, `/status`, `/help`, `/save-all`, `/stop`, `/kick`, `/broadcast`) with a single click.
+* **Interactive RCON Shell**: Dispatch custom in-game slash commands directly to the running server stdin.
 
-### Persistent Player Moderation Ledger
-* **Join Ingest**: Log player connection events, gamer tags, and XUIDs.
+### 🛒 3. Addon & Plugin Marketplace (`/marketplace`)
+* **1-Click Pack Mounting**: Mount Endstone Python plugins (`.whl`), Script API addons (`.mcpack`), and PocketMine plugins (`.phar`).
+* **Automated Manifest Synthesis**: Generates and updates `world_behavior_packs.json` and `world_resource_packs.json` automatically.
+
+### 👥 4. Player Moderation Ledger & Allowlist Sync
+* **Join Tracking**: Ingest player connections, gamertags, and Xbox XUIDs.
 * **Infraction History**: Issue and persist warn, mute, kick, and ban logs.
-* **GDPR Compliance**: Anonymize option to safely wipe player records on request.
+* **Atomic Allowlist Sync**: Atomically writes and reloads `allowlist.json` without file corruption.
+* **GDPR Compliance**: Soft-delete and redact player records on request.
+
+### 🌉 5. Console & Network Proxying
+* **Phantom LAN Broadcast**: Broadcasts local servers on the local Wi-Fi network so Xbox, PlayStation, and Nintendo Switch players see them in the "LAN Games" tab.
+* **GeyserMC & Floodgate**: Integrated Java & Bedrock cross-play bridging.
+* **WaterdogPE Proxy**: Multi-server proxying and hub networking.
 
 ---
 
@@ -106,24 +116,26 @@ BedrockOps is a multi-engine hub designed to orchestrate various server types in
                              └───────────────────────────┘                                             └───────────────────────────┘
 ```
 
-### Monorepo Structure
+### Monorepo Workspace Package Map
 
-* `apps/web`: React / Next.js web interface and Guided Setup wizard.
+* `apps/web`: React / Next.js web interface, Marketplace UI, and Guided Setup wizard.
 * `apps/api`: REST & WebSocket backend control plane (Express).
 * `apps/agent`: Go WebSocket agent daemon for outbound CGNAT-safe remote hosting.
-* `packages/bedrock`: Standalone server process engine (`LocalServerRunner`), RCON client, Endstone configuration.
-* `packages/geyser`: **GeyserMC & Floodgate** Java & Bedrock cross-play manager.
-* `packages/lan-discovery`: **Phantom LAN Broadcast Controller** for console player auto-discovery.
-* `packages/waterdog`: **WaterdogPE Proxy Orchestrator** for multi-server proxy networks.
-* `packages/marketplace`: Unified mod & pack synthesis engine (`.mcpack`, `.whl`, `.phar`).
-* `packages/nbt`: World levelDB and player inventory NBT reader/editor.
-* `packages/db`: Memory database and Prisma PostgreSQL schema.
+* `packages/bedrock`: Native server runner (`LocalServerRunner`), BDS downloader (`BdsDownloader`), RCON client, and Endstone configuration.
+* `packages/templates`: Mode catalog templates and pack manifest synthesizer (`world_behavior_packs.json`).
+* `packages/moderation`: Player identity tracking, persistent infraction ledger, and atomic allowlist writer.
+* `packages/notifications`: Discord rich embed payload generator and webhook dispatcher.
+* `packages/geyser`: GeyserMC & Floodgate Java & Bedrock cross-play manager.
+* `packages/lan-discovery`: Phantom LAN Broadcast Controller for console player auto-discovery.
+* `packages/waterdog`: WaterdogPE Proxy Orchestrator for multi-server networks.
+* `packages/nbt`: LevelDB and player inventory NBT reader/editor.
+* `packages/db`: In-memory seeded database and Prisma PostgreSQL schema.
 
 ---
 
-## 🏁 Quick Start
+## 🏁 Quick Start & Installation
 
-BedrockOps is built to work **out-of-the-box with zero external database setup required** (defaults to an in-memory pre-seeded database).
+BedrockOps works **out-of-the-box with zero external database setup required** (defaults to an in-memory pre-seeded database).
 
 ### Prerequisites
 * **Node.js 18+**
@@ -146,16 +158,13 @@ BedrockOps is built to work **out-of-the-box with zero external database setup r
 
 3. **Start Development Stack**:
    ```powershell
-   # Terminal A — Start API Backend (Port 4000)
-   $env:PORT="4000"
-   pnpm --filter @mc-admin/api dev
-
-   # Terminal B — Start Web Dashboard (Port 3000)
-   pnpm --filter @mc-admin/web dev
+   # Run both API (port 4000) and Web Dashboard (port 3000)
+   pnpm dev
    ```
 
 4. **Launch BedrockOps**:
-   Open **http://localhost:3000/setup** in your browser!
+   Open **http://localhost:3000** in your browser!
+   * **Dev Login Credentials**: `admin@minecraft-admin.local` / `admin`
 
 ---
 
@@ -174,31 +183,30 @@ BedrockOps is built to work **out-of-the-box with zero external database setup r
    ```
 
 3. **Launch BedrockOps**:
-   Open **http://localhost:3000/setup** (Login seed: `admin@minecraft-admin.local` / `admin`).
+   Open **http://localhost:3000** (Login: `admin@minecraft-admin.local` / `admin`).
 
 ---
 
-## 🛠️ Development Commands
-
-```bash
-pnpm install             # Install all dependencies across the monorepo
-pnpm dev                 # Run all dev servers in parallel
-pnpm test                # Run test suite across all 25 projects (100% passing)
-pnpm typecheck           # Run strict TypeScript typecheck
-pnpm build               # Build all production bundles
-pnpm --filter @mc-admin/web clean   # Clean Next.js cache
-```
-
----
-
-## 🤝 Contributing
+## 🛠️ Extending & Contributing
 
 We welcome contributions from Minecraft server operators, addon creators, and open-source developers!
 
-1. Fork this repository.
-2. Create your feature branch (`git checkout -b feature/cool-addition`).
-3. Verify your changes pass all unit tests (`pnpm test`).
-4. Push your branch and open a Pull Request.
+### How to Add a New Package or Plugin
+
+1. **Add a package under `packages/`**:
+   - Create `packages/your-feature/package.json` extending `@mc-admin/config` TSConfig.
+   - Implement clean exports with TypeScript types.
+
+2. **Register in API or Web**:
+   - Export your package functions and wire them into `apps/api/src/routes/` or React components in `apps/web/src/pages/`.
+
+3. **Run Verification Commands**:
+   ```bash
+   pnpm install             # Install dependencies across monorepo
+   pnpm dev                 # Start local API + Web dev environment
+   pnpm test                # Run test suite across all workspace projects (100% passing)
+   pnpm build               # Verify production build compilation
+   ```
 
 ---
 
