@@ -94,3 +94,36 @@ export class TemplateEngine {
     return server;
   }
 }
+
+export interface PackManifestEntry {
+  pack_id: string;
+  version: [number, number, number];
+}
+
+export class PackManifestSynthesizer {
+  public static serializePackManifest(entries: PackManifestEntry[]): string {
+    return `${JSON.stringify(entries, null, 2)}\n`;
+  }
+
+  public static writeWorldPackManifests(
+    worldDir: string,
+    behaviorPacks: PackManifestEntry[] = [],
+    resourcePacks: PackManifestEntry[] = []
+  ): { behaviorPath: string; resourcePath: string } {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const path = require('path');
+
+    fs.mkdirSync(worldDir, { recursive: true });
+
+    const behaviorPath = path.join(worldDir, 'world_behavior_packs.json');
+    const resourcePath = path.join(worldDir, 'world_resource_packs.json');
+
+    fs.writeFileSync(behaviorPath, this.serializePackManifest(behaviorPacks), 'utf8');
+    fs.writeFileSync(resourcePath, this.serializePackManifest(resourcePacks), 'utf8');
+
+    return { behaviorPath, resourcePath };
+  }
+}
+

@@ -11,6 +11,7 @@ import {
 } from '@mc-admin/db';
 import { AuditLogger } from '@mc-admin/audit';
 import { HostProviderFactory } from '@mc-admin/bedrock';
+import { NotificationDispatcher } from '@mc-admin/notifications';
 import { authenticateJwt, requireRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { rateLimitDestructive } from '../middleware/rate-limit.middleware';
 import { recordServerCrash } from '../crash';
@@ -199,7 +200,12 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), rateLimitDestru
     powerOk = await provider.restartServer(server);
     if (powerOk) server.status = ServerStatus.ONLINE;
   }
-  server.updatedAt = new Date();
+  if (powerOk) {
+    void NotificationDispatcher.sendWebhook(
+      process.env.DISCORD_WEBHOOK_URL || '',
+      NotificationDispatcher.formatServerStatusEmbed(server.name, server.status, server.host, server.port)
+    );
+  }
 
   AuditLogger.record({
     actorId: req.user!.userId,
