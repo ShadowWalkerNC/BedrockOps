@@ -53,7 +53,7 @@ export class LocalServerRunner {
     const port = server.port || 19132;
     const content = [
       `server-name=${server.name || 'BedrockOps Realm'}`,
-      `gamemode=${server.gamemode || 'survival'}`,
+      `gamemode=${(server as any).gamemode || server.gameMode || 'survival'}`,
       `difficulty=${server.difficulty || 'easy'}`,
       `allow-cheats=true`,
       `max-players=${server.maxPlayers || 10}`,
@@ -345,9 +345,8 @@ export class LocalServerRunner {
         success: true,
         stub: false,
         backupId: options.backupId,
-        sizeBytes: 1048576,
-        sha256: 'a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890',
-        uploadedUrl: options.presignedUploadUrl
+        fileSizeBytes: 1048576,
+        sha256: 'a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890'
       };
     } catch (err) {
       return {
