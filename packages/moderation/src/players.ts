@@ -416,4 +416,19 @@ export class AllowlistManager {
       reloadCommand: this.RELOAD_COMMAND
     };
   }
+
+  public static writeAllowlistFile(serverPath: string, entries: AllowlistEntry[]): string {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const path = require('path');
+    const sanitized = this.sanitize(entries);
+    const contents = this.serialize(sanitized);
+    const targetPath = path.join(serverPath, this.FILENAME);
+    const tempPath = `${targetPath}.${Date.now()}.tmp`;
+    fs.mkdirSync(serverPath, { recursive: true });
+    fs.writeFileSync(tempPath, contents, 'utf8');
+    fs.renameSync(tempPath, targetPath);
+    return targetPath;
+  }
 }

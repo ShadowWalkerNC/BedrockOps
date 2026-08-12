@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 import { THEME } from '@mc-admin/ui';
 import { logout } from '../lib/api-client';
 
-export type NavKey = 'dashboard' | 'setup' | 'console' | 'players' | 'plugins' | 'worlds' | 'settings';
+export type NavKey = 'dashboard' | 'setup' | 'console' | 'players' | 'plugins' | 'marketplace' | 'worlds' | 'settings';
 
 interface NavDef {
   key: NavKey;
@@ -18,8 +18,9 @@ const NAV: NavDef[] = [
   { key: 'setup', label: 'Setup', href: '/setup' },
   { key: 'console', label: 'Console', href: '/console' },
   { key: 'players', label: 'Players', href: '/players' },
-  { key: 'worlds', label: 'Worlds', href: '/worlds' },
+  { key: 'marketplace', label: 'Marketplace', href: '/marketplace' },
   { key: 'plugins', label: 'Plugins', href: '/plugins' },
+  { key: 'worlds', label: 'Worlds', href: '/worlds' },
   { key: 'settings', label: 'Settings', href: '/settings' }
 ];
 

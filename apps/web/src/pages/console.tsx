@@ -23,7 +23,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'command', label: 'Commands' }
 ];
 
-const QUICK_COMMANDS = ['/save-all', '/kick <player>', '/broadcast <msg>', '/whitelist'];
+const QUICK_COMMANDS = ['/list', '/status', '/help', '/save-all', '/kick <player>', '/broadcast <msg>', '/stop'];
 
 function classify(line: string): LogCategory {
   const l = line.toLowerCase();
@@ -253,7 +253,13 @@ export default function LiveConsolePage() {
         {QUICK_COMMANDS.map((q) => (
           <button
             key={q}
-            onClick={() => setCommand(q)}
+            onClick={() => {
+              if (q.includes('<')) {
+                setCommand(q);
+              } else {
+                sendCommand(q);
+              }
+            }}
             style={{ fontFamily: THEME.fonts.mono, fontSize: 12, padding: '4px 10px', borderRadius: THEME.radius.sm, cursor: 'pointer', background: c.surfaceContainer, color: c.onSurfaceVariant, border: `2px solid ${c.outline}` }}
           >
             {q}
