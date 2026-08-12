@@ -57,7 +57,7 @@ export class LocalServerRunner {
       `difficulty=${server.difficulty || 'easy'}`,
       `allow-cheats=true`,
       `max-players=${server.maxPlayers || 10}`,
-      `online-mode=false`,
+      `online-mode=true`,
       `white-list=false`,
       `server-port=${port}`,
       `server-portv6=${port + 1}`,
