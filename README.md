@@ -28,6 +28,38 @@
 
 ---
 
+## ⚡ 1-Minute Quick Start (Run Locally on Any Machine)
+
+Anyone can clone and run BedrockOps in under 60 seconds with zero database setup required:
+
+### 🪟 Windows (1-Click)
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ShadowWalkerNC/BedrockOps.git
+   cd BedrockOps
+   ```
+2. Double-click **`start.bat`** (or run `.\start.bat` in PowerShell/Command Prompt).
+3. The dashboard opens automatically at **`http://localhost:3000`**!
+
+---
+
+### 🍏 macOS & 🐧 Linux (1-Click)
+```bash
+git clone https://github.com/ShadowWalkerNC/BedrockOps.git
+cd BedrockOps
+chmod +x start.sh && ./start.sh
+```
+
+---
+
+### 🐳 Docker Compose (Optional Containerized Mode)
+```bash
+docker compose up -d
+pnpm dev
+```
+
+---
+
 ## 💡 Why BedrockOps Exists
 
 While Minecraft Java Edition has enjoyed a decade of robust server management stacks (Pterodactyl, Crafty Controller, Paper, Spigot), **Minecraft Bedrock Edition represents over 80% of active players worldwide**—yet its server hosting, moderation, and developer tools remain fragmented.
