@@ -5,6 +5,7 @@ export * from './versions';
 export * from './endstone';
 export * from './localRunner';
 export * from './downloader';
+export * from './diagnostics';
 export { RconClient } from './rcon';
 
 export interface BedrockProperties {

@@ -15,7 +15,14 @@ const WEAK_PAIRING_DEFAULTS = new Set([
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().default('4000').transform(Number),
+  PORT: z
+    .string()
+    .optional()
+    .transform((v) => {
+      if (process.env.API_PORT) return Number(process.env.API_PORT);
+      if (!v || v === '3000') return 4000;
+      return Number(v);
+    }),
   JWT_SECRET: z.string().min(16).default('dev_jwt_secret_change_in_production'),
   NODE_PAIRING_SECRET: z.string().min(16).default('dev_node_pairing_secret_change_in_production'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),

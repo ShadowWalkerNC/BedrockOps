@@ -266,7 +266,7 @@ export default function MarketplacePage() {
                   <div style={{ fontSize: 12, color: '#66c0f4' }}>
                     ★ {pack.rating} · {pack.downloads.toLocaleString()} downloads
                   </div>
-                  <Button variant="primary" size="small" onClick={() => setSelectedPack(pack)}>
+                  <Button variant="primary" size="sm" onClick={() => setSelectedPack(pack)}>
                     Mount Addon
                   </Button>
                 </div>
@@ -277,7 +277,7 @@ export default function MarketplacePage() {
 
         {/* Modal */}
         {selectedPack && (
-          <Modal title={`Mount ${selectedPack.name}`} onClose={() => setSelectedPack(null)}>
+          <Modal isOpen={!!selectedPack} title={`Mount ${selectedPack.name}`} onClose={() => setSelectedPack(null)}>
             <div style={{ padding: 12 }}>
               <div style={{ fontSize: 14, color: '#c7d5e0', marginBottom: 16 }}>
                 Select the target Bedrock Dedicated Server instance to mount <strong>{selectedPack.name}</strong> ({selectedPack.fileExtension}):

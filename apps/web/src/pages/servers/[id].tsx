@@ -101,8 +101,12 @@ export default function ServerOpsRoom() {
       setToken(t);
       await load();
     })();
+    const timer = setInterval(() => {
+      if (!cancelled) void load();
+    }, 3000);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
   }, [load]);
 

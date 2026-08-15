@@ -12,6 +12,7 @@ import { versionsRouter } from './routes/versions.routes';
 import { auditRouter } from './routes/audit.routes';
 import { templatesRouter } from './routes/templates.routes';
 import { systemRouter } from './routes/system.routes';
+import { diagnosticsRouter } from './routes/diagnostics.routes';
 import { prismaWriteThroughMiddleware } from './middleware/persist.middleware';
 
 export const app: Application = express();
@@ -37,3 +38,4 @@ app.use('/api/v1/versions', versionsRouter);
 app.use('/api/v1/audit', auditRouter);
 app.use('/api/v1/templates', templatesRouter);
 app.use('/api/v1/system', systemRouter);
+app.use('/api/v1/diagnostics', diagnosticsRouter);

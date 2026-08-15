@@ -9,7 +9,11 @@
     "clean": "turbo clean",
     "typecheck": "turbo typecheck",
     "bds:e2e": "./scripts/bds/run-bot-e2e.sh",
-    "bds:e2e:api": "./scripts/bds/run-bot-e2e.sh --with-api"
+    "bds:e2e:api": "./scripts/bds/run-bot-e2e.sh --with-api",
+    "bds:health": "node scripts/test-server-health.js",
+    "bds:launcher": "powershell -Command \"Start-Process '$env:USERPROFILE\\Downloads\\BedrockLauncher\\BedrockLauncher\\BedrockLauncher.exe'\"",
+    "bds:tunnel": "node scripts/tunnel.js",
+    "odysseus:audit": "python scripts/run-odysseus-tools.py"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

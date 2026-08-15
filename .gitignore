@@ -13,7 +13,13 @@ coverage
 
 # Go agent build artifacts
 apps/agent/bin/
+apps/agent/.gocache/
 .gocache/
+
+# Local Tools and server runtime data
+data/
+apps/api/data/
+BedrockOps/
 
 # Local test output
 test-results*.log
@@ -26,3 +32,4 @@ packages/db/prisma/dev.db
 packages/db/prisma/dev.db-journal
 
 *.tsbuildinfo
+

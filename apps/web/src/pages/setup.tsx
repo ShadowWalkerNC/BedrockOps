@@ -218,7 +218,7 @@ export default function SetupWizardPage() {
               padding: '10px 14px',
               borderRadius: THEME.radius.md,
               background: step === s.num ? c.primaryContainer : c.surfaceContainer,
-              color: step === s.num ? c.onPrimaryContainer : c.onSurfaceVariant,
+              color: step === s.num ? c.onPrimary : c.onSurfaceVariant,
               fontWeight: step === s.num ? 700 : 400,
               border: `1px solid ${step === s.num ? c.primary : c.outline}`,
               fontSize: 13,
@@ -269,7 +269,7 @@ export default function SetupWizardPage() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-            <button type="button" onClick={autoBootstrapEnv} disabled={busy} style={{ background: c.secondary, color: c.onSecondary, border: 'none', padding: '10px 16px', borderRadius: THEME.radius.md, cursor: 'pointer', fontWeight: 700 }}>
+            <button type="button" onClick={autoBootstrapEnv} disabled={busy} style={{ background: c.secondary, color: '#1b1c1c', border: 'none', padding: '10px 16px', borderRadius: THEME.radius.md, cursor: 'pointer', fontWeight: 700 }}>
               Auto-Fix & Bootstrap Environment
             </button>
             <button type="button" onClick={() => setStep(2)} style={{ background: c.primary, color: c.onPrimary, border: 'none', padding: '10px 20px', borderRadius: THEME.radius.md, cursor: 'pointer', fontWeight: 700 }}>
