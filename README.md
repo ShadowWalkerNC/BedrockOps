@@ -219,29 +219,73 @@ BedrockOps works **out-of-the-box with zero external database setup required** (
 
 ---
 
+## 🗺️ Development Roadmap & Help Needed
+
+We are actively building the ultimate Bedrock server operations platform. Here is the current development roadmap, what features are in progress, and **where we need help from the open-source community**:
+
+```mermaid
+graph LR
+  A[V1: Foundation & Local Engine] --> B[V2: Distributed Agents & Cloud Backups]
+  B --> C[V3: Cross-Play & Network Proxies]
+  C --> D[V4: Add-on Ecosystem & 3D Maps]
+```
+
+### 🟢 Completed & Operational in V1
+* [x] **Native BDS Process Runner** — Direct process lifecycle management (`bedrock_server.exe` / `bedrock_server`).
+* [x] **Live RakNet Packet Diagnostics** — Low-latency UDP unconnected ping returning MOTD, protocol, player count, and latency.
+* [x] **Real-Time Operations Room** — Continuous 3-second live telemetry sync (CPU, RAM, Uptime, Active Players).
+* [x] **Zero-Config Remote Play Tunneling** — Integrated `playit.gg` UDP tunnel manager (`pnpm run bds:tunnel`) for outside friend connections without port forwarding.
+* [x] **1-Click Diagnostics & Auto-Fixers** — Windows loopback exemption, firewall configuration, and `online-mode` toggle.
+* [x] **Marketplace & Addon Synthesis** — Manifest synthesis for Behavior Packs, Resource Packs, and Endstone plugins.
+* [x] **Player Ledger & History** — Join/leave tracking, XUID resolution, and moderation ledger (Ban, Kick, Mute, Warn, Note).
+* [x] **Universal 1-Click Launchers** — `start.bat` (Windows) and `start.sh` (macOS/Linux) with zero-config in-memory DB.
+
+---
+
+### 🟡 Features In Progress & Looking for Contributors (Help Needed!)
+
+We would love community help with the following features:
+
+#### 1. 🛰️ Distributed Outbound Go Agent Multi-Node Clustering (`apps/agent`)
+* **Goal:** Connect remote VPS nodes and home servers behind CGNAT firewalls to a single BedrockOps web dashboard via an outbound WebSocket tunnel gateway.
+* **Help Needed:** Implementing binary process supervision, automated BDS updates on Linux, and resource throttling in the Go agent daemon (`apps/agent`).
+
+#### 2. ☁️ Cloudflare R2 / AWS S3 Direct Streaming Backups (`packages/backups`)
+* **Goal:** Stream compressed `tar.gz` world backups directly to Cloudflare R2 / S3 presigned URLs without buffering huge files to local disk first.
+* **Help Needed:** Completing the streaming multipart upload adapter and retention policy pruning sweep.
+
+#### 3. 🎮 GeyserMC & Floodgate Cross-Play Pipeline (`packages/geyser`)
+* **Goal:** Allow Java Edition players to join Bedrock servers (and Bedrock players to join Java servers) with 1-click proxy provisioning.
+* **Help Needed:** Wiring the automated Geyser config generator and Floodgate keypair synchronizer.
+
+#### 4. 🤖 Discord Bot Command & Alert Dispatcher (`apps/discord`)
+* **Goal:** Manage your Bedrock server directly from your Discord server.
+* **Help Needed:** Building Discord slash commands (`/server status`, `/server restart`, `/player kick`, `/backup create`) and embed webhook alerts for join floods or crashes.
+
+#### 5. 🗺️ 3D Interactive World Map Web Renderer
+* **Goal:** View your Minecraft world directly in the BedrockOps dashboard.
+* **Help Needed:** Integrating a headless Bedrock LevelDB chunk renderer (e.g. PapyrusCS, BlueMap, or Chunky) into a new tab in `apps/web/src/pages/worlds/map.tsx`.
+
+#### 6. 🛡️ Advanced Anti-Cheat & Packet Anomaly Detection
+* **Goal:** Protect public Bedrock servers from malicious join floods, speed hacks, and packet crash exploits.
+* **Help Needed:** Enhancing the log anomaly analyzer to detect rapid connection floods and automate temporary firewall IP drop rules.
+
+---
+
 ## 🛠️ Extending & Contributing
 
 We welcome contributions from Minecraft server operators, addon creators, and open-source developers!
 
-### How to Add a New Package or Plugin
-
-1. **Add a package under `packages/`**:
-   - Create `packages/your-feature/package.json` extending `@mc-admin/config` TSConfig.
-   - Implement clean exports with TypeScript types.
-
-2. **Register in API or Web**:
-   - Export your package functions and wire them into `apps/api/src/routes/` or React components in `apps/web/src/pages/`.
-
-3. **Run Verification Commands**:
-   ```bash
-   pnpm install             # Install dependencies across monorepo
-   pnpm dev                 # Start local API + Web dev environment
-   pnpm test                # Run test suite across all workspace projects (100% passing)
-   pnpm build               # Verify production build compilation
-   ```
+### Quick Contribution Workflow
+1. **Fork the repo** and clone your fork.
+2. **Install dependencies**: `pnpm install`
+3. **Start local dev**: `pnpm dev` (or run `start.bat` on Windows / `start.sh` on Mac/Linux)
+4. **Run test suite**: `pnpm test` (Ensure all 226+ tests pass!)
+5. **Verify typecheck**: `pnpm typecheck`
+6. **Submit a Pull Request** with a description of what you implemented!
 
 ---
 
 ## 📄 License
 
-**Free forever. Open source.** Fork it, host it, improve it, and run your Bedrock servers with complete ownership.
+**Free forever. Open source (MIT).** Fork it, host it, improve it, and run your Bedrock servers with complete ownership.
