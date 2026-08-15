@@ -60,6 +60,74 @@ pnpm dev
 
 ---
 
+## 🎮 Complete Player & Connection Guide (Local & Remote Play)
+
+Here is everything you and your players need to know to connect, fix version mismatches, and play together:
+
+```mermaid
+graph TD
+  A[Minecraft Bedrock Client] -->|Same Machine / LAN| B[Local IP: 127.0.0.1 / 192.168.x.x]
+  A -->|Remote Friends / Internet| C[Zero-Config Tunnel / Public IP]
+  B --> D[BedrockOps Server Engine :19132]
+  C --> D
+```
+
+---
+
+### 1. 🖥️ Connecting from the Same PC (Windows Loopback Exemption)
+By default, Windows blocks Universal Windows Platform (UWP) apps like Minecraft Bedrock from connecting to servers hosted on `127.0.0.1` (localhost).
+* **1-Click Fix in BedrockOps:** Go to **[Diagnostics Center (`/diagnostics`)](http://localhost:3000/diagnostics)** and click **"Grant Loopback Exemption"**.
+* **Or Run in PowerShell:**
+  ```powershell
+  CheckNetIsolation LoopbackExempt -a -n="Microsoft.MinecraftUWP_8wekyb3d8bbwe"
+  ```
+* In Minecraft: Add Server $\rightarrow$ Server Name: `Local Host`, Server Address: `127.0.0.1`, Port: `19132`.
+
+---
+
+### 2. 🔄 Matching Minecraft Versions & Downloading Specific/Older Versions
+Bedrock Dedicated Servers (BDS) reject connections if your game client is on an incompatible version (e.g. running a **Beta / Preview build** like `1.21.120` against a standard release server like `1.21.73`).
+
+#### How to Switch Versions with Bedrock Launcher:
+1. BedrockOps includes a 1-click launcher helper:
+   ```powershell
+   pnpm run bds:launcher
+   ```
+   *(Or download free from [bedrocklauncher.github.io](https://bedrocklauncher.github.io/))*
+2. In Bedrock Launcher:
+   * Go to **Versions** $\rightarrow$ Click **Add Version**.
+   * Choose your desired release (e.g. **Official Release `1.21.73.01`** or any older version).
+   * Launch your chosen version with 1-click!
+3. **Verify in BedrockOps:** Visit **`/diagnostics`** to run the built-in **Client Version Simulator** to ensure your server and client match 100%.
+
+---
+
+### 3. 🌐 Playing with Outside Friends Over the Internet (No Local Wi-Fi Needed)
+
+#### Option A: Zero-Config Remote UDP Tunnel *(Recommended — No Router Setup)*
+1. Run the built-in tunnel manager:
+   ```powershell
+   pnpm run bds:tunnel
+   ```
+2. Click the setup link in your terminal to claim your free tunnel.
+3. Select **Minecraft Bedrock (UDP)** $\rightarrow$ Port **`19132`**.
+4. You will get a permanent public address (e.g. **`myrealm.playit.gg:19132`**).
+5. **How friends join:** Friends on iOS, Android, Xbox, Switch, and PC simply type `myrealm.playit.gg` in their Minecraft Server list!
+
+#### Option B: Direct Router Port Forwarding *(Lowest Ping)*
+1. In your home router settings, forward **UDP Port 19132** to your PC's local IP address (e.g. `192.168.x.x`).
+2. Find your public IP address (via [whatismyip.com](https://www.whatismyip.com)).
+3. Friends type your **Public IP** and Port **`19132`** to join!
+
+---
+
+### 4. 🎮 Console Players (Xbox, PlayStation, Nintendo Switch)
+Consoles do not allow entering custom server IPs directly by default. BedrockOps provides two seamless ways for console players to join:
+* **Phantom LAN Broadcast (`packages/lan-discovery`):** Broadcasts your server as a local LAN game so friends on the same Wi-Fi see it appear directly under the "Friends / LAN Games" tab!
+* **BedrockTogether / MC Server Connector App:** Players on Xbox/PlayStation/Switch can open the free "BedrockTogether" app on their phone (connected to the same Wi-Fi), enter your server address, and the server will appear in their console's Friends tab immediately.
+
+---
+
 ## 💡 Why BedrockOps Exists
 
 While Minecraft Java Edition has enjoyed a decade of robust server management stacks (Pterodactyl, Crafty Controller, Paper, Spigot), **Minecraft Bedrock Edition represents over 80% of active players worldwide**—yet its server hosting, moderation, and developer tools remain fragmented.
