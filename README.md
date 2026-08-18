@@ -144,25 +144,21 @@ Minecraft server owners struggle daily with:
 
 ## 🚀 Key Capabilities
 
-### ⚡ 1. Local Native Server Runner
+### ⚡ 1. Local Native Server Runner & Addon Loader
 * **Direct Process Spawning**: Spawns real `bedrock_server.exe` / `bedrock_server` native binaries directly on your machine.
 * **Automatic Mojang BDS Downloader**: Downloads and extracts official Bedrock Dedicated Server binaries directly from Mojang's CDN.
+* **Auto-Discovery for Mods & Behavior/Resource Packs**: Automatically scans `behavior_packs/` and `resource_packs/` on server boot, parses pack UUIDs, and synthesizes `world_behavior_packs.json` and `world_resource_packs.json` automatically without manual editing.
 * **Disk Workspace Management**: Keeps all server files neatly organized under `data/servers/<server_id>/` with dynamic `server.properties` synthesis.
 
 ### 🖥️ 2. Live Terminal & Interactive RCON Shell
-* **Real-Time Logs**: Live streaming stdout and stderr events over WebSockets.
+* **Real-Time Logs & WebSockets**: Instant log streaming and server metrics broadcast over bidirectional WebSockets.
 * **1-Click Action Chips**: Execute quick commands (`/list`, `/status`, `/help`, `/save-all`, `/stop`, `/kick`, `/broadcast`) with a single click.
-* **Interactive RCON Shell**: Dispatch custom in-game slash commands directly to the running server stdin.
+* **Interactive RCON Shell**: Dispatch custom in-game slash commands directly to the running server with immediate live output streaming.
 
-### 🛒 3. Addon & Plugin Marketplace (`/marketplace`)
-* **1-Click Pack Mounting**: Mount Endstone Python plugins (`.whl`), Script API addons (`.mcpack`), and PocketMine plugins (`.phar`).
-* **Automated Manifest Synthesis**: Generates and updates `world_behavior_packs.json` and `world_resource_packs.json` automatically.
-
-### 👥 4. Player Moderation Ledger & Allowlist Sync
-* **Join Tracking**: Ingest player connections, gamertags, and Xbox XUIDs.
-* **Infraction History**: Issue and persist warn, mute, kick, and ban logs.
-* **Atomic Allowlist Sync**: Atomically writes and reloads `allowlist.json` without file corruption.
-* **GDPR Compliance**: Soft-delete and redact player records on request.
+### 👥 3. Multi-User RBAC & Zero-Config Persistence (`LocalFileStore`)
+* **LocalFileStore Persistence**: Automatically snapshots and restores the entire database state to local files with zero external database dependencies.
+* **Multi-User RBAC**: Manage operator accounts with distinct roles (`OWNER`, `ADMIN`, `MODERATOR`, `VIEWER`) directly in the Web GUI.
+* **Infraction History & Allowlist Sync**: Issue and persist warn, mute, kick, and ban logs; atomically sync `allowlist.json`.
 
 ### 🌉 5. Console & Network Proxying
 * **Phantom LAN Broadcast**: Broadcasts local servers on the local Wi-Fi network so Xbox, PlayStation, and Nintendo Switch players see them in the "LAN Games" tab.
