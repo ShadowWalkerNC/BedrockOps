@@ -101,6 +101,53 @@ export class LocalServerRunner {
         }
       }
     }
+
+    // Ensure server world directory and auto-generate pack manifests if behavior/resource packs exist
+    const worldDir = path.join(serverDir, 'worlds', 'BedrockLevel');
+    if (!fs.existsSync(worldDir)) {
+      fs.mkdirSync(worldDir, { recursive: true });
+    }
+
+    const bpDir = path.join(serverDir, 'behavior_packs');
+    const rpDir = path.join(serverDir, 'resource_packs');
+
+    const scanPacks = (dir: string): Array<{ pack_id: string; version: [number, number, number] }> => {
+      const packs: Array<{ pack_id: string; version: [number, number, number] }> = [];
+      if (!fs.existsSync(dir)) return packs;
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            const manifestPath = path.join(dir, entry.name, 'manifest.json');
+            if (fs.existsSync(manifestPath)) {
+              try {
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                if (manifest?.header?.uuid) {
+                  const version = Array.isArray(manifest.header.version) && manifest.header.version.length === 3
+                    ? (manifest.header.version as [number, number, number])
+                    : ([1, 0, 0] as [number, number, number]);
+                  packs.push({ pack_id: manifest.header.uuid, version });
+                }
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+      return packs;
+    };
+
+    const behaviorPacks = scanPacks(bpDir);
+    const resourcePacks = scanPacks(rpDir);
+
+    const worldBpFile = path.join(worldDir, 'world_behavior_packs.json');
+    const worldRpFile = path.join(worldDir, 'world_resource_packs.json');
+
+    if (!fs.existsSync(worldBpFile) || behaviorPacks.length > 0) {
+      fs.writeFileSync(worldBpFile, JSON.stringify(behaviorPacks, null, 2), 'utf-8');
+    }
+    if (!fs.existsSync(worldRpFile) || resourcePacks.length > 0) {
+      fs.writeFileSync(worldRpFile, JSON.stringify(resourcePacks, null, 2), 'utf-8');
+    }
   }
 
   public async startServer(server: BedrockServer): Promise<boolean> {

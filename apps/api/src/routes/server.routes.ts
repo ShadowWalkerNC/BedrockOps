@@ -201,6 +201,14 @@ serverRouter.post('/:id/power', requireRole(UserRole.MODERATOR), rateLimitDestru
     if (powerOk) server.status = ServerStatus.ONLINE;
   }
   if (powerOk) {
+    try {
+      const { clientStreamHub } = await import('../ws/clientHub');
+      clientStreamHub.broadcast(server.id, 'STATUS', { status: server.status });
+      clientStreamHub.broadcast(server.id, 'LOGS', {
+        line: `[${new Date().toLocaleTimeString()}] [SYSTEM] Server power action ${action} executed successfully (Status: ${server.status})`
+      });
+    } catch (_) {}
+
     void NotificationDispatcher.sendWebhook(
       process.env.DISCORD_WEBHOOK_URL || '',
       NotificationDispatcher.formatServerStatusEmbed(server.name, server.status, server.host, server.port)
@@ -259,6 +267,19 @@ serverRouter.post('/:id/rcon', requireRole(UserRole.ADMIN), async (req: Authenti
 
   const provider = HostProviderFactory.getProvider(server.hostProvider || HostProviderType.DOCKER_AGENT);
   const result = await provider.executeRcon(server, parse.data.command);
+
+  // Broadcast command and response to live connected WebSocket clients
+  try {
+    const { clientStreamHub } = await import('../ws/clientHub');
+    clientStreamHub.broadcast(server.id, 'LOGS', {
+      line: `[${new Date().toLocaleTimeString()}] [RCON] > /${parse.data.command.replace(/^\//, '')}`
+    });
+    if (result) {
+      clientStreamHub.broadcast(server.id, 'LOGS', {
+        line: result
+      });
+    }
+  } catch (_) {}
 
   AuditLogger.record({
     actorId: req.user!.userId,
