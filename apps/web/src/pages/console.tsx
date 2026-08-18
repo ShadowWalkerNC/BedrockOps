@@ -165,6 +165,18 @@ export default function LiveConsolePage() {
     </span>
   );
 
+  const stopAll = useCallback(async () => {
+    appendLog('> system emergency stop-all', 'command');
+    try {
+      const res = await apiFetch<{ success: boolean; message?: string }>('/system/stop-all', {
+        method: 'POST'
+      });
+      appendLog(res.message || 'All servers and processes stopped.', 'warning');
+    } catch (e) {
+      appendLog(`Stop-all failed: ${e instanceof Error ? e.message : 'unknown error'}`, 'warning');
+    }
+  }, [appendLog]);
+
   return (
     <AppShell active="console" topRight={statusPill}>
       {/* Header row */}
@@ -187,6 +199,7 @@ export default function LiveConsolePage() {
           <button onClick={() => power('START')} style={ghostButton(c.primary)}>▶ Start</button>
           <button onClick={() => power('RESTART')} style={ghostButton(c.tertiary)}>⟳ Restart</button>
           <button onClick={() => power('STOP')} style={ghostButton(c.error)}>■ Stop</button>
+          <button onClick={stopAll} style={{ ...ghostButton(c.error), background: '#ef4444', color: '#ffffff', borderColor: '#b91c1c' }}>🛑 Kill All Processes</button>
         </div>
       </div>
 

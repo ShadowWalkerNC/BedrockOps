@@ -1,5 +1,7 @@
 import { Router, Response } from 'express';
-import { getDatabaseAdapterMode } from '@mc-admin/db';
+import { getDatabaseAdapterMode, db, ServerStatus, HostProviderType } from '@mc-admin/db';
+import { HostProviderFactory } from '@mc-admin/bedrock';
+import { AuditLogger } from '@mc-admin/audit';
 import { authenticateJwt, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { config } from '../config';
 import { agentGateway } from '../ws/agentGateway';
@@ -36,4 +38,39 @@ systemRouter.get('/status', (_req: AuthenticatedRequest, res: Response) => {
       xbox: present(process.env.XBOX_API_KEY) || present(process.env.OPENXBL_API_KEY)
     }
   });
+});
+
+/** POST /api/v1/system/stop-all — Emergency stop all running servers and background tunnels. */
+systemRouter.post('/stop-all', async (req: AuthenticatedRequest, res: Response) => {
+  const stopped: string[] = [];
+  for (const srv of db.servers) {
+    if (!srv.deletedAt) {
+      try {
+        const provider = HostProviderFactory.getProvider(srv.hostProvider || HostProviderType.DOCKER_AGENT);
+        await provider.stopServer(srv, true);
+        srv.status = ServerStatus.OFFLINE;
+        stopped.push(srv.id);
+      } catch (_) {}
+    }
+  }
+
+  // Also terminate any native OS BDS processes and playit tunnels on Windows
+  try {
+    if (process.platform === 'win32') {
+      const { execSync } = require('child_process');
+      try { execSync('taskkill /IM bedrock_server.exe /F', { stdio: 'ignore' }); } catch (_) {}
+      try { execSync('taskkill /IM playit.exe /F', { stdio: 'ignore' }); } catch (_) {}
+    }
+  } catch (_) {}
+
+  AuditLogger.record({
+    actorId: req.user!.userId,
+    actorName: req.user!.username,
+    action: 'SYSTEM_EMERGENCY_STOP_ALL',
+    entityType: 'System',
+    entityId: 'all',
+    metadata: { stoppedServers: stopped }
+  });
+
+  return res.json({ success: true, message: 'All servers and background processes stopped successfully.', stopped });
 });

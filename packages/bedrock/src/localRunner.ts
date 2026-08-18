@@ -215,6 +215,14 @@ export class LocalServerRunner {
       state.process = undefined;
     }
 
+    // Terminate any native OS bedrock_server instances for this server
+    try {
+      if (process.platform === 'win32') {
+        const { execSync } = require('child_process');
+        execSync('taskkill /IM bedrock_server.exe /F', { stdio: 'ignore' });
+      }
+    } catch (_) {}
+
     state.status = 'OFFLINE';
     state.startTime = undefined;
     server.status = 'OFFLINE' as any;

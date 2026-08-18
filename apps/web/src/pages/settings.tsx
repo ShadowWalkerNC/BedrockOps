@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [servers, setServers] = useState<DashboardServer[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [busyStopAll, setBusyStopAll] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -163,6 +164,40 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
+          </Section>
+
+          <Section title="Emergency Process & Host Controls">
+            <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
+              Instantly terminate all running Bedrock Dedicated Server instances, child worker processes, and remote tunnels on the host machine.
+            </p>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+              <button
+                type="button"
+                disabled={busyStopAll}
+                onClick={async () => {
+                  if (!confirm('Are you sure you want to stop all running servers and processes?')) return;
+                  setBusyStopAll(true);
+                  try {
+                    const res = await apiFetch<{ success: boolean; message: string }>('/system/stop-all', { method: 'POST' });
+                    setNote(res.message);
+                    await load();
+                  } catch (e) {
+                    setNote(e instanceof Error ? e.message : 'Stop-all failed');
+                  } finally {
+                    setBusyStopAll(false);
+                  }
+                }}
+                style={{
+                  ...btnPrimary,
+                  background: '#ef4444',
+                  borderColor: '#b91c1c',
+                  color: '#ffffff',
+                  opacity: busyStopAll ? 0.7 : 1
+                }}
+              >
+                {busyStopAll ? 'Stopping all processes…' : '🛑 Emergency Stop All Servers & Processes'}
+              </button>
+            </div>
           </Section>
         </div>
       ) : null}
