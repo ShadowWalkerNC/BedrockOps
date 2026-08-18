@@ -5,14 +5,15 @@
 <h1 align="center">⚡ BedrockOps</h1>
 
 <p align="center">
-  <strong>The Ultimate Local-First Developer Studio, Multi-Server Control Plane & Ops Hub for Minecraft Bedrock.</strong><br/>
-  Deploy, manage, customize, run, and monitor real Bedrock servers locally on your machine with 1-click ease.
+  <strong>The Ultimate All-in-One Local-First Developer Studio & Self-Contained Ops Hub for Minecraft Bedrock.</strong><br/>
+  Deploy, manage, customize, run, and monitor real Bedrock Dedicated Servers directly on your machine with 1-click ease, zero external database setup, and built-in persistence.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Minecraft-Bedrock%20Dedicated%20Server-green?style=for-the-badge&logo=minecraft" alt="Minecraft Bedrock" />
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=for-the-badge" alt="Platforms" />
-  <img src="https://img.shields.io/badge/License-Open%20Source-orange?style=for-the-badge" alt="License" />
+  <img src="https://img.shields.io/badge/Architecture-Self--Contained%20Standalone-blueviolet?style=for-the-badge" alt="Architecture" />
+  <img src="https://img.shields.io/badge/Persistence-LocalFileStore%20%2F%20SQLite-blue?style=for-the-badge" alt="Persistence" />
+  <img src="https://img.shields.io/badge/RBAC-Multi--User%20Roles-orange?style=for-the-badge" alt="RBAC" />
   <img src="https://img.shields.io/badge/Tests-100%25%20Passing-success?style=for-the-badge" alt="Tests" />
 </p>
 
@@ -20,17 +21,16 @@
   <a href="#-why-bedrockops-exists">Why BedrockOps</a> ·
   <a href="#-key-capabilities">Key Capabilities</a> ·
   <a href="#-product-tour">Product Tour</a> ·
-  <a href="#-supported-server-engines">Supported Engines</a> ·
-  <a href="#%EF%B8%8F-architecture-blueprint">Architecture</a> ·
+  <a href="#-standalone--self-contained-architecture">Architecture</a> ·
   <a href="#-quick-start--installation">Installation Guide</a> ·
   <a href="#-extending--contributing">Developer Guide</a>
 </p>
 
 ---
 
-## ⚡ 1-Minute Quick Start (Run Locally on Any Machine)
+## ⚡ 1-Minute Quick Start (Self-Contained & Zero Config)
 
-Anyone can clone and run BedrockOps in under 60 seconds with zero database setup required:
+Anyone can clone and run BedrockOps in under 60 seconds with **zero external database or daemon configuration** required:
 
 ### 🪟 Windows (1-Click)
 1. Clone the repository:
@@ -52,7 +52,7 @@ chmod +x start.sh && ./start.sh
 
 ---
 
-### 🐳 Docker Compose (Optional Containerized Mode)
+### 🐳 Docker Compose (Optional Multi-Service Mode)
 ```bash
 docker compose up -d
 pnpm dev
@@ -198,38 +198,40 @@ BedrockOps is a multi-engine hub designed to orchestrate various server types in
 
 ---
 
-## ⚙️ Architecture Blueprint
+## ⚙️ Standalone & Self-Contained Architecture
+
+BedrockOps is designed to run completely self-contained on your local machine with automatic file persistence:
 
 ```text
-┌─────────────────────────┐               REST / WS                ┌─────────────────────────┐
-│   React Web Dashboard   │ ──────────────────────────────────────► │       API Backend       │
-│       (apps/web)        │                                        │       (apps/api)        │
-│  http://localhost:3000  │ ◄───────────────────────────────────── │  http://localhost:4000  │
-└─────────────────────────┘                                        └────────────┬────────────┘
-                                                                                │
-                                           ┌────────────────────────────────────┴────────────────────────────────────┐
-                                           ▼                                                                         ▼
-                             ┌───────────────────────────┐                                             ┌───────────────────────────┐
-                             │    Local BDS Execution    │                                             │   CGNAT Go Agent Tunnel   │
-                             │   (LocalServerRunner)     │                                             │       (apps/agent)        │
-                             │  Standalone Local Process │                                             │   Remote Host Daemon      │
-                             └───────────────────────────┘                                             └───────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 BedrockOps Operations Hub                              │
+│                                                                                        │
+│  ┌─────────────────────────┐               REST / WS                ┌─────────────────────────┐│
+│  │   React Web Dashboard   │ ──────────────────────────────────────► │    Core API Backend     ││
+│  │       (apps/web)        │                                        │       (apps/api)        ││
+│  │  http://localhost:3000  │ ◄───────────────────────────────────── │  http://localhost:4000  ││
+│  └─────────────────────────┘                                        └────────────┬────────────┘│
+│                                                                                  │             │
+│        ┌─────────────────────────────────────────────────────────────────────────┴────┐        │
+│        ▼                                                                              ▼        │
+│  ┌───────────────────────────┐                                          ┌─────────────────────┐│
+│  │  Local BDS Process Runner │                                          │   LocalFileStore    ││
+│  │    (LocalServerRunner)    │                                          │ (Local Persistence) ││
+│  │ Native Server Execution   │                                          │ Zero-Config Storage ││
+│  └───────────────────────────┘                                          └─────────────────────┘│
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Monorepo Workspace Package Map
 
-* `apps/web`: React / Next.js web interface, Marketplace UI, and Guided Setup wizard.
-* `apps/api`: REST & WebSocket backend control plane (Express).
-* `apps/agent`: Go WebSocket agent daemon for outbound CGNAT-safe remote hosting.
+* `apps/web`: React / Next.js web interface, Live Terminal, RBAC management, and Guided Setup wizard.
+* `apps/api`: REST & WebSocket backend control plane (Express), RBAC middleware, and system endpoints.
+* `packages/db`: `LocalFileStore` persistent storage, MemoryDatabase, and Prisma schema adapter.
 * `packages/bedrock`: Native server runner (`LocalServerRunner`), BDS downloader (`BdsDownloader`), RCON client, and Endstone configuration.
-* `packages/templates`: Mode catalog templates and pack manifest synthesizer (`world_behavior_packs.json`).
+* `packages/backups`: Snapshot engine, integrity manifests, and world restore validation.
 * `packages/moderation`: Player identity tracking, persistent infraction ledger, and atomic allowlist writer.
+* `packages/templates`: Mode catalog templates and pack manifest synthesizer (`world_behavior_packs.json`).
 * `packages/notifications`: Discord rich embed payload generator and webhook dispatcher.
-* `packages/geyser`: GeyserMC & Floodgate Java & Bedrock cross-play manager.
-* `packages/lan-discovery`: Phantom LAN Broadcast Controller for console player auto-discovery.
-* `packages/waterdog`: WaterdogPE Proxy Orchestrator for multi-server networks.
-* `packages/nbt`: LevelDB and player inventory NBT reader/editor.
-* `packages/db`: In-memory seeded database and Prisma PostgreSQL schema.
 
 ---
 

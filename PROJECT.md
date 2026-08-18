@@ -34,15 +34,15 @@ BedrockOps V6 is a monorepo control plane for Minecraft Bedrock Dedicated Server
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | R1.1 PostgreSQL Database Schema | Prisma models for User, AgentNode, BedrockServer, ConnectionKey, ServerMember, BackupRecord, ModerationAction, AuditLog, BdsVersion | M1 | survey_1 & survey_2 |
+| 1 | R1.1 Database Persistence Layer | Embedded `LocalFileStore` automatic snapshot engine + Prisma schema for PostgreSQL | M1 | survey_1 & survey_2 |
 | 2 | R1.2 HostProvider Abstraction Layer | TypeScript strategy pattern interface for DOCKER_AGENT, PTERODACTYL, and DIRECT_RCON_SSH | M1 | survey_2 |
-| 3 | R1.3 REST API Backend & JWT Auth | Express/Fastify/HTTP routes in apps/api for authentication, server management, node pairing | M1 | survey_2 |
+| 3 | R1.3 REST API Backend & RBAC Auth | Express API routes in apps/api with multi-user RBAC (Owner, Admin, Moderator, Viewer) | M1 | survey_2 |
 | 4 | R1.4 WebSocket Agent Tunnel & Gateway | WSS server endpoint in apps/api for agent tunnel framing and client console streaming | M1 | survey_2 |
-| 5 | R1.5 Next.js Admin Dashboard UI | Dashboard UI at apps/web with live server list, node monitoring, moderation modals, backup controls | M1 | survey_1 & survey_2 |
+| 5 | R1.5 Next.js Admin Dashboard UI | Dashboard UI at apps/web with live server list, RBAC user management, moderation modals, backup controls | M1 | survey_1 & survey_2 |
 | 6 | R2.1 Outbound WSS Go Daemon Agent | Native Go binary agent in apps/agent with persistent outbound TLS WSS tunnel and CGNAT bypass | M2 | survey_2 |
-| 7 | R2.2 BDS Container & Process Lifecycle | Docker SDK integration and fallback process runner for start, stop, restart, status in Go | M2 | survey_2 |
-| 8 | R2.3 Telemetry Collection Engine | gopsutil metrics scraper for CPU, RAM, disk, and server process uptime metrics | M2 | survey_2 |
-| 9 | R2.4 RCON Client & Log Streamer | Go RCON client and stdout/stderr log parser with real-time WSS frame forwarding | M2 | survey_2 |
+| 7 | R2.2 BDS Container & Process Lifecycle | Native LocalServerRunner process runner with automatic taskkill/cleanup and Docker SDK runner | M2 | survey_2 |
+| 8 | R2.3 Telemetry Collection Engine | gopsutil and Windows PowerShell metrics scraper for CPU, RAM, disk, and uptime metrics | M2 | survey_2 |
+| 9 | R2.4 RCON Client & Log Streamer | Go and TS RCON client and stdout/stderr log parser with real-time WSS frame forwarding | M2 | survey_2 |
 | 10 | R3.1 Save-Hold Live Checkpoint Sequence | Driver for save hold -> save query -> snapshot -> save resume RCON sequence | M3 | survey_2 |
 | 11 | R3.2 Zero-Disk Streaming Compression | Tar/gzip stream compressor piping io.Pipe directly to Cloudflare R2 presigned PUT URLs | M3 | survey_2 |
 | 12 | R3.3 Integrity Manifest Verification | SHA256 hashing engine and manifest.json verification validator for snapshot packages | M3 | survey_2 |
