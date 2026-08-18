@@ -144,6 +144,13 @@ async function start(): Promise<void> {
     `[apps/api] Database ready (mode=${dbInit.mode}${dbInit.seeded ? ', seeded defaults' : ''})`
   );
 
+  // Set up periodic auto-save to LocalFileStore
+  const { LocalFileStore } = await import('@mc-admin/db');
+  LocalFileStore.save(db);
+  setInterval(() => {
+    LocalFileStore.save(db);
+  }, 10000);
+
   const server = http.createServer(app);
   setupWebSocketRouter(server);
 

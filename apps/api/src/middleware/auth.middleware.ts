@@ -23,13 +23,20 @@ export function authenticateJwt(req: AuthenticatedRequest, res: Response, next: 
   }
 }
 
-export function requireRole(requiredRole: UserRole) {
+export function requireRole(requiredRole: UserRole | UserRole[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User context missing' });
     }
-    if (!hasPermission(req.user.role, requiredRole)) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: `Insufficient permissions. Required role: ${requiredRole}` });
+    const allowed = Array.isArray(requiredRole)
+      ? requiredRole.some((r) => hasPermission(req.user!.role, r))
+      : hasPermission(req.user.role, requiredRole);
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: `Insufficient permissions. Required role: ${Array.isArray(requiredRole) ? requiredRole.join(', ') : requiredRole}`
+      });
     }
     next();
   };

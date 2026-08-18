@@ -13,6 +13,7 @@ import { auditRouter } from './routes/audit.routes';
 import { templatesRouter } from './routes/templates.routes';
 import { systemRouter } from './routes/system.routes';
 import { diagnosticsRouter } from './routes/diagnostics.routes';
+import { usersRouter } from './routes/users.routes';
 import { prismaWriteThroughMiddleware } from './middleware/persist.middleware';
 
 export const app: Application = express();
@@ -28,6 +29,7 @@ app.get('/health', (_req, res) => {
 
 // Mount v1 API routers
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/servers', serverRouter);
 app.use('/api/v1/nodes', nodeRouter);
 app.use('/api/v1/backups', backupRouter);

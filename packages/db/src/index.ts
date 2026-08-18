@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { UserRole, ServerStatus } from './schema';
 import { assertDatabaseModeAllowed, isMemoryDatabaseMode } from './adapter';
 import { ensureModeCatalogTemplates } from './modeCatalog';
+import { LocalFileStore } from './jsonStore';
 
 import type {
   User,
@@ -25,6 +26,7 @@ export * from './adapter';
 export * from './persist';
 export * from './paths';
 export * from './modeCatalog';
+export * from './jsonStore';
 
 /** Well-known bcrypt hash of password "admin" (cost 10) for local/test seeding only. */
 export const DEV_ADMIN_PASSWORD_HASH =
@@ -170,8 +172,10 @@ export class MemoryDatabase {
 assertDatabaseModeAllowed();
 export const db = new MemoryDatabase();
 
-// Memory mode seeds at import for unit tests / local dev.
-// Prisma mode hydrates (and seeds if empty) via initializeDatabase() in the API boot path.
+// Memory mode seeds at import for unit tests / local dev or loads from LocalFileStore.
 if (isMemoryDatabaseMode()) {
-  db.seedDefaults();
+  const loaded = LocalFileStore.load(db);
+  if (!loaded) {
+    db.seedDefaults();
+  }
 }

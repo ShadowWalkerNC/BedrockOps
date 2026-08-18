@@ -23,20 +23,29 @@ export default function SettingsPage() {
   const [note, setNote] = useState<string | null>(null);
   const [busyStopAll, setBusyStopAll] = useState(false);
 
+  const [users, setUsers] = useState<{ id: string; username: string; email: string; role: string; createdAt: string }[]>([]);
+  const [newUsername, setNewUsername] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState('OPERATOR');
+  const [addingUser, setAddingUser] = useState(false);
+
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [meRes, statusRes, nodesRes, serversRes] = await Promise.all([
+      const [meRes, statusRes, nodesRes, serversRes, usersRes] = await Promise.all([
         apiFetch<{ user: DashboardSessionUser }>('/auth/me'),
         apiFetch<SystemStatus>('/system/status'),
         apiFetch<{ nodes: DashboardNode[] }>('/nodes'),
-        apiFetch<{ servers: DashboardServer[] }>('/servers')
+        apiFetch<{ servers: DashboardServer[] }>('/servers'),
+        apiFetch<{ users: any[] }>('/users').catch(() => ({ users: [] }))
       ]);
       setMe(meRes.user);
       setStatus(statusRes);
       setNodes(nodesRes.nodes);
       setServers(serversRes.servers);
+      setUsers(usersRes.users || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load settings');
     } finally {
@@ -145,6 +154,125 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             )}
+          </Section>
+
+          <Section title="User Management & RBAC">
+            <p style={{ margin: 0, color: c.onSurfaceVariant, fontSize: 13 }}>
+              Manage dashboard operator accounts and roles (Owner, Admin, Moderator, Viewer).
+            </p>
+            {users.length > 0 && (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={th}>Username</th>
+                    <th style={th}>Email</th>
+                    <th style={th}>Role</th>
+                    <th style={th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr key={u.id}>
+                      <td style={td}>{u.username}</td>
+                      <td style={td}>{u.email}</td>
+                      <td style={{ ...td, color: c.primary, fontWeight: 600 }}>{u.role}</td>
+                      <td style={td}>
+                        {u.id !== me?.userId && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!confirm(`Delete user ${u.username}?`)) return;
+                              try {
+                                await apiFetch(`/users/${u.id}`, { method: 'DELETE' });
+                                setNote(`Deleted user ${u.username}`);
+                                await load();
+                              } catch (err) {
+                                setNote(err instanceof Error ? err.message : 'Delete failed');
+                              }
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: `1px solid ${c.error}`,
+                              color: c.error,
+                              borderRadius: THEME.radius.sm,
+                              padding: '2px 8px',
+                              cursor: 'pointer',
+                              fontSize: 11
+                            }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAddingUser(true);
+                try {
+                  await apiFetch('/users', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      username: newUsername,
+                      email: newEmail,
+                      password: newPassword,
+                      role: newRole
+                    })
+                  });
+                  setNote(`Added user ${newUsername}`);
+                  setNewUsername('');
+                  setNewEmail('');
+                  setNewPassword('');
+                  await load();
+                } catch (err) {
+                  setNote(err instanceof Error ? err.message : 'Failed to add user');
+                } finally {
+                  setAddingUser(false);
+                }
+              }}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr)) 120px',
+                gap: 8,
+                alignItems: 'end',
+                marginTop: 12
+              }}
+            >
+              <Field label="Username" value={newUsername} onChange={setNewUsername} />
+              <Field label="Email" value={newEmail} onChange={setNewEmail} />
+              <Field label="Password" value={newPassword} onChange={setNewPassword} />
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: c.onSurfaceVariant }}>
+                Role
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  style={{
+                    background: c.surfaceContainerLowest,
+                    color: c.onSurface,
+                    border: `1px solid ${c.outline}`,
+                    borderRadius: THEME.radius.md,
+                    padding: '8px 10px',
+                    fontSize: 14
+                  }}
+                >
+                  <option value="ADMIN">ADMIN</option>
+                  <option value="MODERATOR">MODERATOR</option>
+                  <option value="VIEWER">VIEWER</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                disabled={addingUser || !newUsername || !newEmail || !newPassword}
+                style={{ ...btnPrimary, padding: '8px 12px', opacity: addingUser ? 0.7 : 1 }}
+              >
+                {addingUser ? 'Adding…' : '+ Add User'}
+              </button>
+            </form>
           </Section>
 
           <Section title="Realm configuration">
