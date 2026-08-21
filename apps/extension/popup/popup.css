@@ -1,0 +1,369 @@
+:root {
+  --bg-primary: #121824;
+  --bg-surface: #1e293b;
+  --bg-surface-elevated: #334155;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #10b981;
+  --accent-hover: #059669;
+  --error: #ef4444;
+  --error-hover: #dc2626;
+  --warning: #f59e0b;
+  --outline: #475569;
+  --font-mono: 'Consolas', 'Courier New', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 360px;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  padding: 14px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--outline);
+}
+
+.logo-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-icon {
+  font-size: 18px;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-main);
+  letter-spacing: 0.5px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  color: var(--text-main);
+  padding: 4px 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  background: var(--bg-surface);
+}
+
+.banner {
+  background: #451a03;
+  color: #fde68a;
+  border: 1px solid #b45309;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.banner.hidden {
+  display: none;
+}
+
+.banner button {
+  background: #f59e0b;
+  color: #000;
+  border: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.server-selector-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.server-selector-container label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+select {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--outline);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+}
+
+select:focus {
+  border-color: var(--accent);
+}
+
+.server-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.srv-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.status-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.status-pill.online {
+  background: #064e3b;
+  color: #34d399;
+  border: 1px solid #059669;
+}
+
+.status-pill.offline {
+  background: #450a0a;
+  color: #f87171;
+  border: 1px solid #b91c1c;
+}
+
+.status-pill.starting {
+  background: #451a03;
+  color: #fbbf24;
+  border: 1px solid #d97706;
+}
+
+.card-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  background: var(--bg-primary);
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-item .label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.detail-item .value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.power-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  flex: 1;
+  padding: 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.btn-start {
+  background: #064e3b;
+  color: #34d399;
+  border-color: #059669;
+}
+
+.btn-start:hover {
+  background: #059669;
+  color: #ffffff;
+}
+
+.btn-restart {
+  background: #1e3a8a;
+  color: #93c5fd;
+  border-color: #2563eb;
+}
+
+.btn-restart:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-stop {
+  background: #450a0a;
+  color: #f87171;
+  border-color: #b91c1c;
+}
+
+.btn-stop:hover {
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+.rcon-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--outline);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.quick-chips {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.chip {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--outline);
+  color: var(--text-main);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rcon-input-group {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.rcon-input-group input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--outline);
+  color: var(--text-main);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  outline: none;
+}
+
+.rcon-input-group input:focus {
+  border-color: var(--accent);
+}
+
+.btn-send {
+  background: var(--accent);
+  color: #000000;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-send:hover {
+  background: var(--accent-hover);
+}
+
+.rcon-output {
+  background: var(--bg-primary);
+  border: 1px solid var(--outline);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #38bdf8;
+  max-height: 70px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.footer {
+  display: flex;
+  justify-content: center;
+}
+
+.btn-danger {
+  width: 100%;
+  background: #7f1d1d;
+  color: #fca5a5;
+  border: 1px solid #b91c1c;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+  color: #ffffff;
+}

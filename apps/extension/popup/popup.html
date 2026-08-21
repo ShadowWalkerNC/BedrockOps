@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BedrockOps Companion</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="logo-title">
+      <span class="logo-icon">⚡</span>
+      <span class="title">BedrockOps</span>
+    </div>
+    <div class="header-actions">
+      <a href="http://localhost:3000" target="_blank" class="icon-btn" title="Open Web Dashboard">🌐</a>
+      <button id="open-options" class="icon-btn" title="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <div id="auth-banner" class="banner hidden">
+    <span>Token not configured.</span>
+    <button id="auth-btn">Set Token</button>
+  </div>
+
+  <div class="server-selector-container">
+    <label for="server-select">Active Realm:</label>
+    <select id="server-select">
+      <option value="">Loading servers...</option>
+    </select>
+  </div>
+
+  <div id="server-card" class="server-card">
+    <div class="card-header">
+      <span id="srv-name" class="srv-name">No Server Selected</span>
+      <span id="srv-status" class="status-pill offline">OFFLINE</span>
+    </div>
+    
+    <div class="card-details">
+      <div class="detail-item">
+        <span class="label">Host/Port</span>
+        <span id="srv-address" class="value">127.0.0.1:19132</span>
+      </div>
+      <div class="detail-item">
+        <span class="label">Players</span>
+        <span id="srv-players" class="value">0/10</span>
+      </div>
+      <div class="detail-item">
+        <span class="label">Version</span>
+        <span id="srv-version" class="value">v1.21.0</span>
+      </div>
+    </div>
+
+    <div class="power-controls">
+      <button id="btn-start" class="btn btn-start">▶ Start</button>
+      <button id="btn-restart" class="btn btn-restart">⟳ Restart</button>
+      <button id="btn-stop" class="btn btn-stop">■ Stop</button>
+    </div>
+  </div>
+
+  <!-- Quick RCON Console -->
+  <div class="rcon-section">
+    <div class="section-title">⚡ Instant RCON Dispatch</div>
+    <div class="quick-chips">
+      <button class="chip" data-cmd="list">/list</button>
+      <button class="chip" data-cmd="status">/status</button>
+      <button class="chip" data-cmd="save-all">/save-all</button>
+    </div>
+    <div class="rcon-input-group">
+      <input type="text" id="rcon-cmd" placeholder="e.g. say Hello from Chrome" />
+      <button id="btn-send-rcon" class="btn-send">Send</button>
+    </div>
+    <div id="rcon-output" class="rcon-output">Ready. Select a command or type above.</div>
+  </div>
+
+  <div class="footer">
+    <button id="btn-emergency-stop" class="btn-danger">🛑 Emergency Stop All</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
