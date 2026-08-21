@@ -6,6 +6,12 @@ echo               ⚡ BedrockOps 1-Click Local Launcher ⚡
 echo ========================================================================
 echo.
 
+if "%1"=="--docker" (
+    echo [*] Starting BedrockOps stack via Docker Compose...
+    docker compose up --build
+    exit /b 0
+)
+
 :: Check Node.js
 where node >nul 2>nul
 if %errorlevel% neq 0 (

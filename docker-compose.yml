@@ -12,6 +12,11 @@ services:
       POSTGRES_DB: minecraft_admin
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcadmin -d minecraft_admin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   redis:
@@ -21,6 +26,54 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: mc_admin_api
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DB_ADAPTER: prisma
+      DATABASE_URL: postgresql://mcadmin:mcadmin_password@postgres:5432/minecraft_admin?schema=public
+      JWT_SECRET: dev_jwt_secret_change_in_production_32chars_min
+      NODE_PAIRING_SECRET: dev_node_pairing_secret_change_in_production_32chars_min
+      CORS_ORIGIN: http://localhost:3000
+      API_URL: http://localhost:4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: mc_admin_web
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      API_URL: http://api:4000
+      NEXT_PUBLIC_DEV_AUTO_LOGIN: "false"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  agent:
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    container_name: mc_admin_agent
+    environment:
+      BEDROCK_AGENT_TOKEN: dev_agent_token_change_me
+    depends_on:
+      - api
     restart: unless-stopped
 
 volumes:

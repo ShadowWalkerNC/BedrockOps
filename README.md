@@ -52,10 +52,12 @@ chmod +x start.sh && ./start.sh
 
 ---
 
-### 🐳 Docker Compose (Optional Multi-Service Mode)
+### 🐳 Docker Compose (1-Command Full Stack)
+Launch the complete stack (Postgres database, Control Plane API on port 4000, Web Dashboard on port 3000, and Go Agent daemon) in isolated containers with zero host setup:
 ```bash
-docker compose up -d
-pnpm dev
+docker compose up --build
+# or using pnpm:
+pnpm docker:up
 ```
 
 ---

@@ -6,6 +6,12 @@ echo "              ⚡ BedrockOps 1-Click Local Launcher ⚡"
 echo "========================================================================"
 echo ""
 
+if [ "$1" = "--docker" ]; then
+    echo "[*] Starting BedrockOps stack via Docker Compose..."
+    docker compose up --build
+    exit 0
+fi
+
 # Check Node.js
 if ! command -v node &> /dev/null; then
     echo "[ERROR] Node.js is not installed!"
